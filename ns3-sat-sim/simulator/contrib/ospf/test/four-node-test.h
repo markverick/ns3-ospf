@@ -34,51 +34,83 @@ public:
 
     void DoRun () {
 
-        std::string run_dir = "test_data/four-node/run";
+        // Here, we will explicitly create four nodes.  In more sophisticated
+    // topologies, we could configure a node factory.
+    NS_LOG_INFO("Create nodes.");
+    NodeContainer c;
+    c.Create(4);
+    NodeContainer n0n2 = NodeContainer(c.Get(0), c.Get(2));
+    NodeContainer n1n2 = NodeContainer(c.Get(1), c.Get(2));
+    NodeContainer n3n2 = NodeContainer(c.Get(3), c.Get(2));
 
-        // Load basic simulation environment
-        Ptr<BasicSimulation> basicSimulation = CreateObject<BasicSimulation>(run_dir);
+    InternetStackHelper internet;
+    internet.Install(c);
 
-        // Optimize TCP
-        TcpOptimizer::OptimizeBasic(basicSimulation);
+    // We create the channels first without any IP addressing information
+    NS_LOG_INFO("Create channels.");
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
+    p2p.SetChannelAttribute("Delay", StringValue("2ms"));
+    
+    NetDeviceContainer d0d2 = p2p.Install(n0n2);
 
-        // Read topology, and install routing arbiters
-        Ptr<TopologySatelliteNetwork> topology = CreateObject<TopologySatelliteNetwork>(basicSimulation, Ipv4ArbiterRoutingHelper());
-        ArbiterSingleForwardHelper arbiterHelper(basicSimulation, topology->GetNodes());
-        GslIfBandwidthHelper gslIfBandwidthHelper(basicSimulation, topology->GetNodes());
 
-        // Schedule UDP bursts
-        UdpBurstScheduler udpBurstScheduler(basicSimulation, topology); // Requires enable_udp_burst_scheduler=true
+    NetDeviceContainer d1d2 = p2p.Install(n1n2);
 
-        // Run simulation
-        basicSimulation->Run();
+    p2p.SetDeviceAttribute("DataRate", StringValue("1500kbps"));
+    p2p.SetChannelAttribute("Delay", StringValue("10ms"));
+    NetDeviceContainer d3d2 = p2p.Install(n3n2);
 
-        // Write UDP burst results
-        udpBurstScheduler.WriteResults();
+    // Later, we add IP addresses.
 
-        // Collect utilization statistics
-        topology->CollectUtilizationStatistics();
 
-        // Finalize the simulation
-        basicSimulation->Finalize();
+    NS_LOG_INFO("Assign IP Addresses.");
+    Ipv4AddressHelper ipv4("10.1.1.0", "255.255.255.252");
+    ipv4.Assign(d0d2);
+    ipv4.NewNetwork();
+    ipv4.Assign(d1d2);
+    ipv4.NewNetwork();
+    ipv4.Assign(d3d2);
 
-        // TODO: Check all UDP burst packets arrived
-        // TODO: Check some timing one-ways?
-        // TODO: Check some of the ISL utilizations?
+    // Create router nodes, initialize routing database and set up the routing
+    // tables in the nodes.
+    NS_LOG_INFO("Configuring default routes.");
+    Ipv4StaticRoutingHelper ipv4RoutingHelper;
 
-        // Make sure these are removed
-        remove_file_if_exists(run_dir + "/logs_ns3/finished.txt");
-        remove_file_if_exists(run_dir + "/logs_ns3/finished.txt");
-        remove_file_if_exists(run_dir + "/logs_ns3/isl_utilization.csv");
-        remove_file_if_exists(run_dir + "/logs_ns3/timing_results.csv");
-        remove_file_if_exists(run_dir + "/logs_ns3/timing_results.txt");
-        remove_file_if_exists(run_dir + "/logs_ns3/udp_burst_0_outgoing.csv");
-        remove_file_if_exists(run_dir + "/logs_ns3/udp_burst_0_incoming.csv");
-        remove_file_if_exists(run_dir + "/logs_ns3/udp_bursts_outgoing.csv");
-        remove_file_if_exists(run_dir + "/logs_ns3/udp_bursts_incoming.csv");
-        remove_file_if_exists(run_dir + "/logs_ns3/udp_bursts_outgoing.txt");
-        remove_file_if_exists(run_dir + "/logs_ns3/udp_bursts_incoming.txt");
-        remove_dir_if_exists(run_dir + "/logs_ns3");
+
+    OSPFAppHelper ospfAppHelper(9);
+    ospfAppHelper.SetAttribute("HelloInterval", TimeValue(Seconds(10)));
+    ospfAppHelper.SetAttribute("HelloAddress", Ipv4AddressValue(ospfHelloAddress));
+    ospfAppHelper.SetAttribute("NeighborTimeout", TimeValue(Seconds(30)));
+    ospfAppHelper.SetAttribute("LSUInterval", TimeValue(Seconds(30)));
+ 
+    ApplicationContainer ospfApp = ospfAppHelper.Install(c);
+    ospfApp.Start(Seconds(1.0));
+    ospfApp.Stop(Seconds(200.0));
+
+    // User Traffic
+    uint16_t port = 9;  // well-known echo port number
+    UdpEchoServerHelper server (port);
+    ApplicationContainer apps = server.Install (c.Get (3));
+    apps.Start (Seconds (1.0));
+    apps.Stop (Seconds (200.0));
+
+    uint32_t tSize = 1024;
+    uint32_t maxPacketCount = 200;
+    Time interPacketInterval = Seconds (1.);
+    UdpEchoClientHelper client (Ipv4Address("10.1.3.1"), port);
+    client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
+    client.SetAttribute ("Interval", TimeValue (interPacketInterval));
+    client.SetAttribute ("PacketSize", UintegerValue (tSize));
+    apps = client.Install (c.Get (1));
+    apps.Start (Seconds (2.0));
+    apps.Stop (Seconds (200.0));
+
+    // Test Error
+    Simulator::Schedule(Seconds(35), &SetLinkDown, d1d2.Get(0));
+    Simulator::Schedule(Seconds(35), &SetLinkDown, d1d2.Get(1));
+    Simulator::Schedule(Seconds(85), &SetLinkUp, d1d2.Get(0));
+    Simulator::Schedule(Seconds(85), &SetLinkUp, d1d2.Get(1));
 
     }
 
