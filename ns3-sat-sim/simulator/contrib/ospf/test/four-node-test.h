@@ -1,32 +1,60 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 
-#include <map>
-#include <iostream>
-#include <fstream>
-#include <string>
-#include <ctime>
-#include <iostream>
-#include <fstream>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <unistd.h>
-#include <chrono>
-#include <stdexcept>
+#include "ns3/applications-module.h"
+#include "ns3/core-module.h"
+#include "ns3/flow-monitor-helper.h"
+#include "ns3/internet-module.h"
+#include "ns3/ipv4-global-routing-helper.h"
+#include "ns3/network-module.h"
+#include "ns3/point-to-point-module.h"
+#include "ns3/ospf-app-helper.h"
+#include "ns3/ospf-app.h"
 
-#include "ns3/basic-simulation.h"
-#include "ns3/udp-burst-scheduler.h"
-#include "ns3/topology-satellite-network.h"
-#include "ns3/tcp-optimizer.h"
-#include "ns3/arbiter-single-forward-helper.h"
-#include "ns3/ipv4-arbiter-routing-helper.h"
-#include "ns3/gsl-if-bandwidth-helper.h"
+#include <cassert>
+#include <fstream>
+#include <iostream>
+#include <string>
 
 #include "ns3/test.h"
-#include "test-helpers.h"
 
 using namespace ns3;
 
 ////////////////////////////////////////////////////////////////////////////////////////
+Ipv4Address ospfHelloAddress("224.0.0.5");
+
+void AddRouteCustom(Ptr<Ipv4StaticRouting> staticRouting, Ipv4Address dest, Ipv4Address nextHop, uint32_t interface, uint32_t metric=0) {
+    staticRouting->AddHostRouteTo(dest, nextHop, interface, metric);
+}
+
+// Fill static routes with 
+void populateBroadcastPointToPointRoute(NodeContainer c, Ipv4Address helloAddress) {
+    Ipv4StaticRoutingHelper ipv4RoutingHelper;
+    for (uint32_t i = 0; i < c.GetN(); i++) {
+        Ptr<Node> n = c.Get(i);
+        Ptr<Ipv4> ipv4 = n->GetObject<Ipv4> ();
+        Ptr<Ipv4StaticRouting> routing = ipv4RoutingHelper.GetStaticRouting (ipv4);
+        if (n->GetNDevices() == 0) continue;
+        std::vector<uint32_t> outputInterfaces;
+        for (uint32_t j = 1; j < n->GetNDevices(); j++) {
+            outputInterfaces.emplace_back(n->GetDevice(j)->GetIfIndex());
+            // NS_LOG_INFO(n->GetDevice(j)->GetAddress());
+        }
+        NS_LOG_INFO(outputInterfaces.size());
+        routing->AddMulticastRoute(Ipv4Address::GetAny(), helloAddress, n->GetDevice(1)->GetIfIndex(), outputInterfaces);
+    }
+}
+
+void SetLinkDown(Ptr<NetDevice> nd) {
+    Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
+    pem->SetRate(1.0);
+    nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
+}
+
+void SetLinkUp(Ptr<NetDevice> nd) {
+    Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
+    pem->SetRate(0.0);
+    nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
+}
 
 class FourNodeTestCase : public TestCase {
 public:
