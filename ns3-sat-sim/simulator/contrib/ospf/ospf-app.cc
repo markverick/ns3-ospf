@@ -294,7 +294,7 @@ OSPFApp::FloodLSU(Ptr<Packet> lsuPayload, uint32_t inputIfIndex) {
     auto neighbors = m_ospfInterfaces[i + 1]->GetNeighbors();
     // Send to every neighbor (only 1 neighbor for point-to-point)
     for (auto n : neighbors) {
-      NS_LOG_DEBUG("Remote IP: " << n.remoteIpAddress);
+      // NS_LOG_DEBUG("Remote IP: " << n.remoteIpAddress);
       socket->Connect (InetSocketAddress (n.remoteIpAddress));
       socket->Send (p);
     }
@@ -530,21 +530,21 @@ OSPFApp::UpdateRouting() {
 void 
 OSPFApp::HandleRead (Ptr<Socket> socket)
 {
-  NS_LOG_FUNCTION (this << socket);
+  // NS_LOG_FUNCTION (this << socket);
 
   Ptr<Packet> packet;
   Address from;
   Address localAddress;
   packet = socket->RecvFrom (from);
 
-  NS_LOG_INFO ("At time " << Simulator::Now ().As (Time::S) << " server received " << packet->GetSize () << " bytes from " <<
-                       InetSocketAddress::ConvertFrom (from).GetIpv4 ());
+  // NS_LOG_INFO ("At time " << Simulator::Now ().As (Time::S) << " server received " << packet->GetSize () << " bytes from " <<
+  //                      InetSocketAddress::ConvertFrom (from).GetIpv4 ());
   // Update last received hello message
   Ipv4Header ipHeader;
   
   packet->PeekHeader(ipHeader);
   Ipv4Address remoteIp = ipHeader.GetSource();
-  NS_LOG_DEBUG("Packet Size: " << packet->GetSize() << ", Header Size: " << sizeof (ipHeader) << ", Payload Size " << ipHeader.GetPayloadSize());
+  // NS_LOG_DEBUG("Packet Size: " << packet->GetSize() << ", Header Size: " << sizeof (ipHeader) << ", Payload Size " << ipHeader.GetPayloadSize());
   packet->RemoveHeader(ipHeader);
   uint32_t payloadSize = packet->GetSize();
 
