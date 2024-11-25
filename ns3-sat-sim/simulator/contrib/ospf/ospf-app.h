@@ -69,6 +69,10 @@ public:
   // Print LSDB
   void PrintLSDB();
 
+  // Get LSDB hash (Lazy)
+  uint32_t GetLSDBHash();
+  void PrintLSDBHash();
+
   virtual ~OSPFApp ();
 
 protected:

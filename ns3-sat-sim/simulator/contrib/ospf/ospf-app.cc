@@ -141,7 +141,7 @@ OSPFApp::StartApplication (void)
 void 
 OSPFApp::SetBoundNetDevices (NetDeviceContainer devs)
 {
-  NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << devs.GetN());
   m_boundDevices = devs;
   m_lastHelloReceived.resize(devs.GetN());
   m_helloTimeouts.resize(devs.GetN());
@@ -198,11 +198,14 @@ OSPFApp::SendHello (void)
       m_txTraceWithAddresses (p, localAddress, InetSocketAddress (Ipv4Address::ConvertFrom (m_helloAddress)));
     }
     socket->Connect (InetSocketAddress (m_helloAddress));
+    // NS_LOG_DEBUG(socket->GetBoundNetDevice()->GetIfIndex());
+    // InetSocketAddress sourceAddress = InetSocketAddress::ConvertFrom(localAddress);
+    // NS_LOG_DEBUG("Source Address: " << sourceAddress.GetIpv4());
     socket->Send (p);
     if (Ipv4Address::IsMatchingType (m_helloAddress))
     {
       NS_LOG_INFO ("At time " << Simulator::Now ().As (Time::S) << " client sent " << p->GetSize() << " bytes to " <<
-                    m_helloAddress);
+                    m_helloAddress << " via interface " << i + 1 << " : " << m_ospfInterfaces[i+1]->GetAddress());
     }
 
   }
@@ -425,16 +428,38 @@ OSPFApp::HandleLSU (uint32_t ifIndex, Ptr<Packet> lsuPayload)
 void
 OSPFApp::PrintLSDB() {
   for (const auto& pair : m_lsdb) {
-    std::cout << "Key: " << Ipv4Address(pair.first) << std::endl;
-    std::cout << "Values:" << std::endl;
+    std::cout << "Router: " << Ipv4Address(pair.first) << std::endl;
+    std::cout << "  Neighbors:" << std::endl;
 
     for (const auto& tup : pair.second) {
         uint32_t val1, val2, val3;
         std::tie(val1, val2, val3) = tup;
         std::cout << "  (" << Ipv4Address(val1) << ", " << Ipv4Mask(val2) << ", " << Ipv4Address(val3) << ")" << std::endl;
     }
-    std::cout << std::endl;
   }
+  std::cout << std::endl;
+}
+
+uint32_t
+OSPFApp::GetLSDBHash() {
+  std::stringstream ss;
+  for (const auto& pair : m_lsdb) {
+    ss << Ipv4Address(pair.first) << std::endl;
+    ss << std::endl;
+
+    for (const auto& tup : pair.second) {
+        uint32_t val1, val2, val3;
+        std::tie(val1, val2, val3) = tup;
+        ss << Ipv4Address(val1) << "," << Ipv4Mask(val2) << "," << Ipv4Address(val3) << std::endl;
+    }
+  }
+  std::hash<std::string> hasher;
+  return hasher(ss.str());
+}
+
+void
+OSPFApp::PrintLSDBHash() {
+  std::cout << GetLSDBHash() << std::endl;
 }
 
 void
@@ -446,7 +471,7 @@ OSPFApp::UpdateRouting() {
   NS_LOG_FUNCTION(this);
 
   // Remove old route
-  std::cout << "Number of Route: " << m_boundDevices.GetN() << std::endl;
+  // std::cout << "Number of Route: " << m_boundDevices.GetN() << std::endl;
   while (m_routing->GetNRoutes() > m_boundDevices.GetN()) {
     m_routing->RemoveRoute(m_boundDevices.GetN());
   }
@@ -471,13 +496,13 @@ OSPFApp::UpdateRouting() {
       }
     }
   }
-  std::cout << "node: " << GetNode()->GetId() << std::endl; 
+  // std::cout << "node: " << GetNode()->GetId() << std::endl; 
   for (const auto& [remoteRouterId, remoteNeighbors] : m_lsdb) {
-    std::cout << "  destination: " << Ipv4Address(remoteRouterId) << std::endl;
+    // std::cout << "  destination: " << Ipv4Address(remoteRouterId) << std::endl;
 
     // No reachable path
     if (prevHop.find(remoteRouterId) == prevHop.end()) {
-      std::cout << "    no route" << std::endl;
+      // std::cout << "    no route" << std::endl;
       continue;
     }
 
@@ -494,12 +519,12 @@ OSPFApp::UpdateRouting() {
     // Check which neighbors is its best next hop
     for (uint32_t i = 1; i < m_ospfInterfaces.size(); i++) {
         if (m_ospfInterfaces[i]->isNeighbor(Ipv4Address(v))) {
-          std::cout << "    route added: (" << Ipv4Address(remoteRouterId) << ", " << i << ", " << distanceTo[remoteRouterId] << ")" << std::endl;
+          // std::cout << "    route added: (" << Ipv4Address(remoteRouterId) << ", " << i << ", " << distanceTo[remoteRouterId] << ")" << std::endl;
           m_routing->AddHostRouteTo(Ipv4Address(remoteRouterId), i, distanceTo[remoteRouterId]);
         }
     }
   }
-  std::cout << std::endl;
+  // std::cout << std::endl;
 }
 
 void 
