@@ -121,6 +121,9 @@ private:
   NetDeviceContainer m_boundDevices;
   uint32_t m_areaId;
 
+  // Randomization
+  Ptr<UniformRandomVariable> m_randomVariable = CreateObject<UniformRandomVariable>();
+
   // Hello
   Time m_helloInterval; //!< Hello Interval
   Ipv4Address m_helloAddress; //!< Address of hello message

@@ -32,6 +32,8 @@
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
+#include "ns3/random-variable-stream.h"
+#include "ns3/core-module.h"
 
 #include "tuple"
 
@@ -114,6 +116,10 @@ OSPFApp::StartApplication (void)
 {
   NS_LOG_FUNCTION (this);
 
+  // Generate random variables
+  m_randomVariable->SetAttribute("Min", DoubleValue(0.0)); // Minimum value in seconds
+  m_randomVariable->SetAttribute("Max", DoubleValue(0.005)); // Maximum value in seconds (5 ms)
+
   for (uint32_t i = 1; i < m_boundDevices.GetN(); i++)
   {
     // Create sockets
@@ -167,8 +173,8 @@ OSPFApp::SetRouterId (Ipv4Address routerId)
 void 
 OSPFApp::ScheduleTransmitHello (Time dt)
 {
-  NS_LOG_FUNCTION (this << dt);
-  m_sendEvent = Simulator::Schedule (dt, &OSPFApp::SendHello, this);
+  NS_LOG_FUNCTION (this << dt << m_randomVariable->GetValue());
+  m_sendEvent = Simulator::Schedule (dt + Seconds(m_randomVariable->GetValue()), &OSPFApp::SendHello, this);
 }
 
 void 
@@ -266,10 +272,8 @@ OSPFApp::RefreshHelloTimer(uint32_t ifIndex, Ptr<OSPFInterface> ospfInterface, I
 // Refresh the timer
   if (m_helloTimeouts[ifIndex].IsRunning()) {
     m_helloTimeouts[ifIndex].Remove();
-    m_helloTimeouts[ifIndex] = Simulator::Schedule(m_neighborTimeout, &OSPFApp::LinkDown, this, ospfInterface, remoteRouterId, remoteIp);
-  } else {
-    m_helloTimeouts[ifIndex] = Simulator::Schedule(m_neighborTimeout, &OSPFApp::LinkDown, this, ospfInterface, remoteRouterId, remoteIp);
   }
+  m_helloTimeouts[ifIndex] = Simulator::Schedule(m_neighborTimeout + Seconds(m_randomVariable->GetValue()), &OSPFApp::LinkDown, this, ospfInterface, remoteRouterId, remoteIp);
 }
 
 // Only flood all neighbors, neighbors will create another LSU to flood again.
@@ -302,7 +306,7 @@ OSPFApp::FloodLSU(Ptr<Packet> lsuPayload, uint32_t inputIfIndex) {
   if (!m_sockets.empty() && inputIfIndex == 0)
   {
     m_seqNumbers[m_routerId.Get()]++;
-    m_lsuTimeout = Simulator::Schedule(m_lsuInterval, &OSPFApp::FloodLSU, this, CopyAndIncrementSeqNumber(lsuPayload), 0);
+    m_lsuTimeout = Simulator::Schedule(m_lsuInterval + Seconds(m_randomVariable->GetValue()), &OSPFApp::FloodLSU, this, CopyAndIncrementSeqNumber(lsuPayload), 0);
   }
 }
 
@@ -326,8 +330,8 @@ OSPFApp::RefreshLSUTimer() {
   Ptr<Packet> p = ConstructLSUPayload(m_routerId, m_areaId, m_seqNumbers[m_routerId.Get()] + 1, m_ttl, advertisements);
   m_lsdb[m_routerId.Get()] = advertisements;
   UpdateRouting();
-  FloodLSU(p, 0);
-  // m_lsuTimeout = Simulator::Schedule(m_lsuInterval, &OSPFApp::FloodLSU, this, p, 0);
+  // FloodLSU(p, 0);
+  m_lsuTimeout = Simulator::Schedule(m_lsuInterval + Seconds(m_randomVariable->GetValue()), &OSPFApp::FloodLSU, this, p, 0);
 }
 
 // std::vector<Ptr<OSPFInterface> > ospfInterfaces
@@ -428,7 +432,7 @@ OSPFApp::HandleLSU (uint32_t ifIndex, Ptr<Packet> lsuPayload)
 void
 OSPFApp::PrintLSDB() {
   for (const auto& pair : m_lsdb) {
-    std::cout << "Router: " << Ipv4Address(pair.first) << std::endl;
+    std::cout << "At t=" << Simulator::Now().GetSeconds() << " , Router: " << Ipv4Address(pair.first) << std::endl;
     std::cout << "  Neighbors:" << std::endl;
 
     for (const auto& tup : pair.second) {
