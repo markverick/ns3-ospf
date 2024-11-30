@@ -42,8 +42,9 @@ NS_LOG_COMPONENT_DEFINE ("OSPFInterface");
 
 OSPFInterface::OSPFInterface() {
   m_ipAddress = Ipv4Address::GetAny();
-  m_ipMask = Ipv4Mask(0xffffff00);
+  m_ipMask = Ipv4Mask(0xffffff00); // default to /24
   m_helloInterval = 0;
+  m_area = 0;
 }
 
 OSPFInterface::~OSPFInterface() {
@@ -62,6 +63,14 @@ OSPFInterface::OSPFInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t he
   m_ipAddress = ipAddress;
   m_ipMask = ipMask;
   m_helloInterval = helloInterval;
+}
+
+OSPFInterface::OSPFInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t area) {
+  NS_LOG_FUNCTION(this << ipAddress << ipMask << helloInterval);
+  m_ipAddress = ipAddress;
+  m_ipMask = ipMask;
+  m_helloInterval = helloInterval;
+  m_area = area;
 }
 
 // Only one LSA per interface for point-to-point

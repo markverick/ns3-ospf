@@ -55,27 +55,6 @@ public:
   void SetAttribute (std::string name, const AttributeValue &value);
 
   /**
-   * Create a UdpEchoServerApplication on the specified Node.
-   *
-   * \param node The node on which to create the Application.  The node is
-   *             specified by a Ptr<Node>.
-   *
-   * \returns An ApplicationContainer holding the Application created,
-   */
-  ApplicationContainer Install (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs) const;
-
-  /**
-   * Create a UdpEchoServerApplication on specified node
-   *
-   * \param nodeName The node on which to create the application.  The node
-   *                 is specified by a node name previously registered with
-   *                 the Object Name Service.
-   *
-   * \returns An ApplicationContainer holding the Application created.
-   */
-  ApplicationContainer Install (std::string nodeName, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs) const;
-
-  /**
    * \param c The nodes on which to create the Applications.  The nodes
    *          are specified by a NodeContainer.
    *
@@ -86,6 +65,7 @@ public:
    *          NodeContainer.
    */
   ApplicationContainer Install (NodeContainer c) const;
+  ApplicationContainer Install (NodeContainer c, std::vector<uint32_t> areas) const;
 
 private:
   /**
@@ -96,6 +76,8 @@ private:
    * \returns Ptr to the application installed.
    */
   Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs) const;
+
+  Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs, std::vector<uint32_t> areas) const;
 
   ObjectFactory m_factory; //!< Object factory.
 };

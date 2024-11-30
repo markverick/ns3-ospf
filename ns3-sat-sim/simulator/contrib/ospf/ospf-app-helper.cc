@@ -40,19 +40,6 @@ OSPFAppHelper::SetAttribute (
 }
 
 ApplicationContainer
-OSPFAppHelper::Install (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs) const
-{
-  return ApplicationContainer (InstallPriv (node, routing, devs));
-}
-
-ApplicationContainer
-OSPFAppHelper::Install (std::string nodeName, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs) const
-{
-  Ptr<Node> node = Names::Find<Node> (nodeName);
-  return ApplicationContainer (InstallPriv (node, routing, devs));
-}
-
-ApplicationContainer
 OSPFAppHelper::Install (NodeContainer c) const
 {
   ApplicationContainer apps;
@@ -70,6 +57,24 @@ OSPFAppHelper::Install (NodeContainer c) const
   return apps;
 }
 
+ApplicationContainer
+OSPFAppHelper::Install (NodeContainer c, std::vector<uint32_t> areas) const
+{
+  ApplicationContainer apps;
+  Ipv4StaticRoutingHelper ipv4RoutingHelper;
+  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+  {
+    Ptr<Ipv4> ipv4 = (*i)->GetObject<Ipv4> ();
+    Ptr<Ipv4StaticRouting> routing = ipv4RoutingHelper.GetStaticRouting (ipv4);
+    NetDeviceContainer devs;
+    for (uint32_t j = 0; j < (*i)->GetNDevices(); j++) {
+      devs.Add((*i)->GetDevice(j));
+    }
+    apps.Add (InstallPriv (*i, routing, devs, areas));
+  }
+  return apps;
+}
+
 Ptr<Application>
 OSPFAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs) const
 {
@@ -79,6 +84,19 @@ OSPFAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetD
   app->SetRouterId(ipv4->GetAddress(1, 0).GetAddress()); //eth0
   node->AddApplication (app);
   app->SetBoundNetDevices(devs);
+
+  return app;
+}
+
+Ptr<Application>
+OSPFAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs, std::vector<uint32_t> areas) const
+{
+  Ptr<OSPFApp> app = m_factory.Create<OSPFApp> ();
+  app->SetRouting(routing);
+  Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+  app->SetRouterId(ipv4->GetAddress(1, 0).GetAddress()); //eth0
+  node->AddApplication (app);
+  app->SetBoundNetDevices(devs, areas);
 
   return app;
 }

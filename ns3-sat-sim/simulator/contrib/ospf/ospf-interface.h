@@ -73,6 +73,8 @@ public:
 
   OSPFInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval);
 
+  OSPFInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t area);
+
   //  Vector of <subnet, mask, neighbor's router ID>
   std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > GetLSAdvertisement();
 
@@ -119,6 +121,7 @@ public:
     Ipv4Address m_ipAddress;
     Ipv4Mask m_ipMask;
     uint16_t m_helloInterval;
+    uint32_t m_area;
     std::vector<NeighberInterface> m_neighbors;
 };
 }

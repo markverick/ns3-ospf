@@ -62,6 +62,7 @@ public:
 
   // Set net device to be bound for multicast address
   void SetBoundNetDevices (NetDeviceContainer devs);
+  void SetBoundNetDevices (NetDeviceContainer devs, std::vector<uint32_t> areas);
 
   // Set router id
   void SetRouterId (Ipv4Address routerId);

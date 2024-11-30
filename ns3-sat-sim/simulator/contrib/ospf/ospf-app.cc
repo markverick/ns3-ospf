@@ -159,7 +159,27 @@ OSPFApp::SetBoundNetDevices (NetDeviceContainer devs)
   for (uint32_t i = 1; i < m_boundDevices.GetN(); i++) {
     auto sourceIp = ipv4->GetAddress(i, 0).GetAddress();
     auto mask = ipv4->GetAddress(i, 0).GetMask();
-    Ptr<OSPFInterface> ospfInterface= CreateObject<OSPFInterface> (sourceIp, mask, m_helloInterval.GetSeconds());
+    Ptr<OSPFInterface> ospfInterface = CreateObject<OSPFInterface> (sourceIp, mask, m_helloInterval.GetSeconds());
+    m_ospfInterfaces.emplace_back(ospfInterface);
+  }
+}
+
+void 
+OSPFApp::SetBoundNetDevices (NetDeviceContainer devs, std::vector<uint32_t> areas)
+{
+  NS_LOG_FUNCTION (this << devs.GetN());
+  m_boundDevices = devs;
+  m_lastHelloReceived.resize(devs.GetN());
+  m_helloTimeouts.resize(devs.GetN());
+
+  // Create interface database
+  Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4> ();
+  Ptr<OSPFInterface> ospfInterface= CreateObject<OSPFInterface> ();
+  m_ospfInterfaces.emplace_back(ospfInterface);
+  for (uint32_t i = 1; i < m_boundDevices.GetN(); i++) {
+    auto sourceIp = ipv4->GetAddress(i, 0).GetAddress();
+    auto mask = ipv4->GetAddress(i, 0).GetMask();
+    Ptr<OSPFInterface> ospfInterface = CreateObject<OSPFInterface> (sourceIp, mask, m_helloInterval.GetSeconds(), areas[i]);
     m_ospfInterfaces.emplace_back(ospfInterface);
   }
 }
