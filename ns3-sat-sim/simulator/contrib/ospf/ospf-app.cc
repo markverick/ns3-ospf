@@ -283,6 +283,10 @@ OSPFApp::LinkDown (Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId,
 void
 OSPFApp::LinkUp (Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp) {
   NS_LOG_FUNCTION (ospfInterface->GetAddress() << ospfInterface->GetNeighbors().size() << remoteRouterId << remoteIp);
+  if (ospfInterface->IsNeighborIp(remoteIp)) {
+    NS_LOG_INFO("Duplicated neighbor");
+    return;
+  }
   NeighberInterface neighbor(remoteRouterId, remoteIp);
   ospfInterface->AddNeighbor(neighbor);
   RefreshLSUTimer();
@@ -594,7 +598,7 @@ OSPFApp::UpdateRouting() {
     // Iterate over the vector of tuples <subnet, mask, neighbor's router ID>
     // Check which neighbors is its best next hop
     for (uint32_t i = 1; i < m_ospfInterfaces.size(); i++) {
-        if (m_ospfInterfaces[i]->isNeighbor(Ipv4Address(v))) {
+        if (m_ospfInterfaces[i]->IsNeighbor(Ipv4Address(v))) {
           // std::cout << "    route added: (" << Ipv4Address(remoteRouterId) << ", " << i << ", " << distanceTo[remoteRouterId] << ")" << std::endl;
           m_routing->AddHostRouteTo(Ipv4Address(remoteRouterId), i, distanceTo[remoteRouterId]);
           m_nextHopIfsByRouterId[remoteRouterId].emplace_back(i);

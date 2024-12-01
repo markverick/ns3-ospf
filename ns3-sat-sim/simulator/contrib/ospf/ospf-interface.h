@@ -113,9 +113,18 @@ public:
     m_neighbors.erase(std::find(m_neighbors.begin(), m_neighbors.end(), neighbor));
   }
 
-  bool isNeighbor(Ipv4Address routerId) {
+  bool IsNeighbor(Ipv4Address routerId) {
     for (auto n : m_neighbors) {
       if (n.remoteRouterId == routerId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool IsNeighborIp(Ipv4Address remoteIp) {
+    for (auto n : m_neighbors) {
+      if (n.remoteIpAddress == remoteIp) {
         return true;
       }
     }
