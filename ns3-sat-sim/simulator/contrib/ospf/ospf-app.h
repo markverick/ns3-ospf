@@ -133,13 +133,14 @@ private:
 
   // Hello
   Time m_helloInterval; //!< Hello Interval
-  Ipv4Address m_helloAddress; //!< Address of hello message
+  Ipv4Address m_helloAddress; //!< Address of multicast hello message
   std::vector<Time> m_lastHelloReceived;
   std::vector<EventId> m_helloTimeouts;
   Time m_neighborTimeout;
 
   // LSU
   Time m_rxmtInterval;
+  Ipv4Address m_lsaAddress; //!< Address of multicast hello message
   uint16_t m_ttl;
   Ptr<Ipv4StaticRouting> m_routing;
   std::vector<Ptr<OSPFInterface> > m_ospfInterfaces;

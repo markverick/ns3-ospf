@@ -61,9 +61,13 @@ OSPFApp::GetTypeId (void)
                    TimeValue (Seconds(10)),
                    MakeTimeAccessor (&OSPFApp::m_helloInterval),
                    MakeTimeChecker ())
-    .AddAttribute ("HelloAddress", "Broadcast address of Hello",
+    .AddAttribute ("HelloAddress", "Multicast address of Hello",
                    Ipv4AddressValue (Ipv4Address("224.0.0.5")),
                    MakeIpv4AddressAccessor (&OSPFApp::m_helloAddress),
+                   MakeIpv4AddressChecker ())
+    .AddAttribute ("LSAAddress", "Multicast address of LSAs",
+                   Ipv4AddressValue (Ipv4Address("224.0.0.6")),
+                   MakeIpv4AddressAccessor (&OSPFApp::m_lsaAddress),
                    MakeIpv4AddressChecker ())
     .AddAttribute ("NeighborTimeout", "Link is considered down when not receiving Hello until NeighborTimeout",
                    TimeValue (Seconds(30)),
@@ -120,26 +124,60 @@ OSPFApp::StartApplication (void)
   m_randomVariable->SetAttribute("Min", DoubleValue(0.0)); // Minimum value in seconds
   m_randomVariable->SetAttribute("Max", DoubleValue(0.005)); // Maximum value in seconds (5 ms)
 
+  // Add local null sockets
   m_sockets.emplace_back(nullptr);
+  m_helloSockets.emplace_back(nullptr);
+  m_lsaSockets.emplace_back(nullptr);
   for (uint32_t i = 1; i < m_boundDevices.GetN(); i++)
   {
     // Create sockets
     TypeId tid = TypeId::LookupByName ("ns3::Ipv4RawSocketFactory");
     
-    auto socket = Socket::CreateSocket (GetNode (), tid);
     // auto ipv4 = GetNode()->GetObject<Ipv4>();
     // Ipv4Address addr = ipv4->GetAddress(i, 0).GetAddress();
-    InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny());
-    if (socket->Bind (local) == -1)
+
+    // For Hello, both bind and listen to m_helloAddress
+    auto helloSocket = Socket::CreateSocket (GetNode (), tid);
+    InetSocketAddress helloSocketAddress(m_helloAddress);
+    if (helloSocket->Bind (helloSocketAddress) == -1)
     {
       NS_FATAL_ERROR ("Failed to bind socket");
     }
-    socket->Connect (InetSocketAddress (m_helloAddress));
-    socket->SetAllowBroadcast (true);
-    socket->SetAttribute("Protocol", UintegerValue(89));
-    socket->BindToNetDevice(m_boundDevices.Get(i));
-    socket->SetRecvCallback (MakeCallback (&OSPFApp::HandleRead, this));
-    m_sockets.emplace_back(socket);
+    helloSocket->Connect (helloSocketAddress);
+    helloSocket->SetAllowBroadcast (true);
+    helloSocket->SetAttribute("Protocol", UintegerValue(89));
+    helloSocket->BindToNetDevice(m_boundDevices.Get(i));
+    helloSocket->SetRecvCallback (MakeCallback (&OSPFApp::HandleRead, this));
+    m_helloSockets.emplace_back(helloSocket);
+
+    // For LSA, both bind and listen to m_lsaAddress
+    auto lsaSocket = Socket::CreateSocket (GetNode (), tid);
+    InetSocketAddress lsaSocketAddress(m_lsaAddress);
+    if (lsaSocket->Bind (lsaSocketAddress) == -1)
+    {
+      NS_FATAL_ERROR ("Failed to bind socket");
+    }
+    lsaSocket->Connect (lsaSocketAddress);
+    lsaSocket->SetAllowBroadcast (true);
+    lsaSocket->SetAttribute("Protocol", UintegerValue(89));
+    lsaSocket->BindToNetDevice(m_boundDevices.Get(i));
+    lsaSocket->SetRecvCallback (MakeCallback (&OSPFApp::HandleRead, this));
+    m_lsaSockets.emplace_back(lsaSocket);
+
+    // For unicast, such as LSA retransmission, bind to local address
+    auto unicastSocket = Socket::CreateSocket (GetNode (), tid);
+    InetSocketAddress localSocketAddress = InetSocketAddress (Ipv4Address::GetAny());
+    if (unicastSocket->Bind (localSocketAddress) == -1)
+    {
+      NS_FATAL_ERROR ("Failed to bind socket");
+    }
+    unicastSocket->Connect (localSocketAddress);
+    unicastSocket->SetAllowBroadcast (true);
+    unicastSocket->SetAttribute("Protocol", UintegerValue(89));
+    unicastSocket->BindToNetDevice(m_boundDevices.Get(i));
+    unicastSocket->SetRecvCallback (MakeCallback (&OSPFApp::HandleRead, this));
+    m_sockets.emplace_back(unicastSocket);
+        // InetSocketAddress localSocketAddress = InetSocketAddress (Ipv4Address::GetAny());
 
   }
   ScheduleTransmitHello (Seconds (0.));
@@ -201,7 +239,7 @@ OSPFApp::ScheduleTransmitHello (Time dt)
 void 
 OSPFApp::SendHello (void)
 {
-  if (m_sockets.empty()) return;
+  if (m_helloSockets.empty()) return;
 
   NS_LOG_FUNCTION (this);
 
@@ -210,11 +248,11 @@ OSPFApp::SendHello (void)
   NS_LOG_DEBUG("Router ID: " << m_routerId);
 
 
-  Address localAddress;
-  for (uint32_t i = 1; i < m_sockets.size(); i++)
+  Address helloSocketAddress;
+  for (uint32_t i = 1; i < m_helloSockets.size(); i++)
   {
-    auto socket = m_sockets[i];
-    socket->GetSockName (localAddress);
+    auto socket = m_helloSockets[i];
+    socket->GetSockName (helloSocketAddress);
     // call to the trace sinks before the packet is actually sent,
     // so that tags added to the packet can be sent as well
     Ptr<Packet> p = ConstructHelloPayload(Ipv4Address::ConvertFrom (m_routerId), m_areaId,
@@ -222,9 +260,8 @@ OSPFApp::SendHello (void)
     m_txTrace (p);
     if (Ipv4Address::IsMatchingType (m_helloAddress))
     {
-      m_txTraceWithAddresses (p, localAddress, InetSocketAddress (Ipv4Address::ConvertFrom (m_helloAddress)));
+      m_txTraceWithAddresses (p, helloSocketAddress, InetSocketAddress (Ipv4Address::ConvertFrom (m_helloAddress)));
     }
-    socket->Connect (InetSocketAddress (m_helloAddress));
     // NS_LOG_DEBUG(socket->GetBoundNetDevice()->GetIfIndex());
     // InetSocketAddress sourceAddress = InetSocketAddress::ConvertFrom(localAddress);
     // NS_LOG_DEBUG("Source Address: " << sourceAddress.GetIpv4());
@@ -260,10 +297,23 @@ OSPFApp::StopApplication ()
   }
   for (uint32_t i = 1; i < m_sockets.size(); i++)
   {
+    // Hello
+    m_helloSockets[i]->Close ();
+    m_helloSockets[i]->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+    m_helloSockets[i] = 0;
+
+    // LSA
+    m_lsaSockets[i]->Close ();
+    m_lsaSockets[i]->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+    m_lsaSockets[i] = 0;
+
+    // Unicast
     m_sockets[i]->Close ();
     m_sockets[i]->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
     m_sockets[i] = 0;
   }
+  m_helloSockets.clear();
+  m_lsaSockets.clear();
   m_sockets.clear();
 }
 
@@ -310,28 +360,24 @@ OSPFApp::RefreshHelloTimer(uint32_t ifIndex, Ptr<OSPFInterface> ospfInterface, I
 void
 OSPFApp::FloodLSU(Ptr<Packet> lsuPayload, uint32_t inputIfIndex) {
   NS_LOG_FUNCTION (this << lsuPayload->GetSize() << inputIfIndex);
-  for (uint32_t i = 1; i < m_sockets.size(); i++)
+  for (uint32_t i = 1; i < m_lsaSockets.size(); i++)
   {
     // Skip the incoming interface
     if (inputIfIndex == i) continue;
 
     // Copy the LSU to be sent over
     auto p = lsuPayload->Copy();
-    auto socket = m_sockets[i];
-    Address localAddress;
-    socket->GetSockName (localAddress);
+    auto socket = m_lsaSockets[i];
+    Address lsaSocketAddress;
+    socket->GetSockName (lsaSocketAddress);
     // call to the trace sinks before the packet is actually sent,
     // so that tags added to the packet can be sent as well
     m_txTrace (p);
     auto neighbors = m_ospfInterfaces[i]->GetNeighbors();
-    // Send to every neighbor (only 1 neighbor for point-to-point)
-    for (auto n : neighbors) {
-      // NS_LOG_DEBUG("Remote IP: " << n.remoteIpAddress);
-      socket->Connect (InetSocketAddress (n.remoteIpAddress));
-      socket->Send (p);
-    }
+    // Send to neighbors with multicast address (only 1 neighbor for point-to-point)
+    socket->Send (p);
   }
-  if (!m_sockets.empty() && inputIfIndex == 0)
+  if (!m_lsaSockets.empty() && inputIfIndex == 0)
   {
     // m_seqNumbers[m_routerId.Get()]++;
     // Schedule for a retransmission with the same sequence number
@@ -361,7 +407,7 @@ OSPFApp::LSUTimeout() {
         Address localAddress;
         socket->GetSockName (localAddress);
         m_txTrace (p);
-        // Send to every neighbor (only 1 neighbor for point-to-point)
+        // Unicast to missing routers
         socket->Connect (InetSocketAddress (routerId));
         socket->Send (p);
         retries++;
