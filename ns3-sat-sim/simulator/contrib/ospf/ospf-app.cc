@@ -337,16 +337,21 @@ OSPFApp::FloodLSU(Ptr<Packet> lsuPayload, uint32_t inputIfIndex) {
 // Retransmit missing ACKs
 void
 OSPFApp::LSUTimeout() {
-  bool retry = false;
+  NS_LOG_FUNCTION (this);
+  int retries = 0;
 
   // Pending LSUs indexed by interfaces for aggregation
   std::vector<std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > > pendingLSUs(m_ospfInterfaces.size());
   // Look up lsdb for missing ACKs
   for (const auto& [routerId, ads] : m_lsdb) {
+    // Skip acknowledged routers
+    if (m_acknowledges.find(routerId) == m_acknowledges.end()) {
+      continue;
+    }
     // Look up soft-state routes for which interfaces to aggregate
     if (m_nextHopIfsByRouterId.find(routerId) != m_nextHopIfsByRouterId.end()) {
       for (auto interface : m_nextHopIfsByRouterId[routerId]) {
-        Ptr<Packet> p = ConstructLSUPayload(m_routerId, m_areaId, m_seqNumbers[m_routerId.Get()] + 1, m_ttl, ads);
+        Ptr<Packet> p = ConstructLSUPayload(m_routerId, m_areaId, m_seqNumbers[m_routerId.Get()], m_ttl, ads);
         auto socket = m_sockets[interface - 1];
         Address localAddress;
         socket->GetSockName (localAddress);
@@ -354,11 +359,12 @@ OSPFApp::LSUTimeout() {
         // Send to every neighbor (only 1 neighbor for point-to-point)
         socket->Connect (InetSocketAddress (routerId));
         socket->Send (p);
-        retry = true;
+        retries++;
       }
     }
   }
-  if (retry) {
+  if (retries) {
+    NS_LOG_INFO("Retry missing ACKs: " << retries);
     m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OSPFApp::LSUTimeout, this);
   }
 }
@@ -380,7 +386,7 @@ OSPFApp::RefreshLSUTimer() {
   if (m_seqNumbers.find(m_routerId.Get()) == m_seqNumbers.end()) {
     m_seqNumbers[m_routerId.Get()] = 0;
   }
-  Ptr<Packet> p = ConstructLSUPayload(m_routerId, m_areaId, m_seqNumbers[m_routerId.Get()] + 1, m_ttl, advertisements);
+  Ptr<Packet> p = ConstructLSUPayload(m_routerId, m_areaId, ++m_seqNumbers[m_routerId.Get()], m_ttl, advertisements);
   m_lsdb[m_routerId.Get()] = advertisements;
   UpdateRouting();
   // Clear acknowledgements
