@@ -100,6 +100,11 @@ public:
     return m_neighbors;
   }
 
+  uint32_t
+  GetArea() {
+    return m_area;
+  }
+
   void AddNeighbor(NeighberInterface neighbor) {
     m_neighbors.emplace_back(neighbor);
   }

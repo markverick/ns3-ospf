@@ -70,6 +70,9 @@ public:
   // Print LSDB
   void PrintLSDB();
 
+  // Print Interfaces
+  void PrintAreas();
+
   // Get LSDB hash (Lazy)
   uint32_t GetLSDBHash();
   void PrintLSDBHash();

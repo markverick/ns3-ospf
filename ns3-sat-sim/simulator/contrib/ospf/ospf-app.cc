@@ -179,7 +179,7 @@ OSPFApp::SetBoundNetDevices (NetDeviceContainer devs, std::vector<uint32_t> area
   for (uint32_t i = 1; i < m_boundDevices.GetN(); i++) {
     auto sourceIp = ipv4->GetAddress(i, 0).GetAddress();
     auto mask = ipv4->GetAddress(i, 0).GetMask();
-    Ptr<OSPFInterface> ospfInterface = CreateObject<OSPFInterface> (sourceIp, mask, m_helloInterval.GetSeconds(), areas[i]);
+    Ptr<OSPFInterface> ospfInterface = CreateObject<OSPFInterface> (sourceIp, mask, m_helloInterval.GetSeconds(), areas[i - 1]);
     m_ospfInterfaces.emplace_back(ospfInterface);
   }
 }
@@ -460,6 +460,15 @@ OSPFApp::PrintLSDB() {
         std::tie(val1, val2, val3) = tup;
         std::cout << "  (" << Ipv4Address(val1) << ", " << Ipv4Mask(val2) << ", " << Ipv4Address(val3) << ")" << std::endl;
     }
+  }
+  std::cout << std::endl;
+}
+
+void
+OSPFApp::PrintAreas() {
+  std::cout << "Area:";
+  for (uint32_t i = 1; i < m_ospfInterfaces.size(); i++) {
+    std::cout << " " << m_ospfInterfaces[i]->GetArea();
   }
   std::cout << std::endl;
 }
