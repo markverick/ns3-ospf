@@ -116,7 +116,9 @@ private:
   void RefreshLSUTimer();
 
   uint16_t m_port; //!< Port on which we listen for incoming packets.
-  std::vector<Ptr<Socket>> m_sockets; //!< IPv4 Socket
+  std::vector<Ptr<Socket>> m_sockets; //!< Unicast socket
+  std::vector<Ptr<Socket>> m_helloSockets; //!< Hello multicast socket
+  std::vector<Ptr<Socket>> m_lsaSockets; //!< Hello multicast socket
   Address m_local; //!< local multicast address
   EventId m_sendEvent; //!< Event to send the next packet
 

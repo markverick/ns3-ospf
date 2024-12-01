@@ -120,6 +120,7 @@ OSPFApp::StartApplication (void)
   m_randomVariable->SetAttribute("Min", DoubleValue(0.0)); // Minimum value in seconds
   m_randomVariable->SetAttribute("Max", DoubleValue(0.005)); // Maximum value in seconds (5 ms)
 
+  m_sockets.emplace_back(nullptr);
   for (uint32_t i = 1; i < m_boundDevices.GetN(); i++)
   {
     // Create sockets
@@ -179,7 +180,7 @@ OSPFApp::SetBoundNetDevices (NetDeviceContainer devs, std::vector<uint32_t> area
   for (uint32_t i = 1; i < m_boundDevices.GetN(); i++) {
     auto sourceIp = ipv4->GetAddress(i, 0).GetAddress();
     auto mask = ipv4->GetAddress(i, 0).GetMask();
-    Ptr<OSPFInterface> ospfInterface = CreateObject<OSPFInterface> (sourceIp, mask, m_helloInterval.GetSeconds(), areas[i - 1]);
+    Ptr<OSPFInterface> ospfInterface = CreateObject<OSPFInterface> (sourceIp, mask, m_helloInterval.GetSeconds(), areas[i]);
     m_ospfInterfaces.emplace_back(ospfInterface);
   }
 }
@@ -210,14 +211,14 @@ OSPFApp::SendHello (void)
 
 
   Address localAddress;
-  for (uint32_t i = 0; i < m_sockets.size(); i++)
+  for (uint32_t i = 1; i < m_sockets.size(); i++)
   {
     auto socket = m_sockets[i];
     socket->GetSockName (localAddress);
     // call to the trace sinks before the packet is actually sent,
     // so that tags added to the packet can be sent as well
     Ptr<Packet> p = ConstructHelloPayload(Ipv4Address::ConvertFrom (m_routerId), m_areaId,
-                    m_ospfInterfaces[i + 1]->GetMask(), m_helloInterval.GetSeconds(), m_neighborTimeout.GetSeconds());
+                    m_ospfInterfaces[i]->GetMask(), m_helloInterval.GetSeconds(), m_neighborTimeout.GetSeconds());
     m_txTrace (p);
     if (Ipv4Address::IsMatchingType (m_helloAddress))
     {
@@ -231,7 +232,7 @@ OSPFApp::SendHello (void)
     if (Ipv4Address::IsMatchingType (m_helloAddress))
     {
       NS_LOG_INFO ("At time " << Simulator::Now ().As (Time::S) << " client sent " << p->GetSize() << " bytes to " <<
-                    m_helloAddress << " via interface " << i + 1 << " : " << m_ospfInterfaces[i+1]->GetAddress());
+                    m_helloAddress << " via interface " << i << " : " << m_ospfInterfaces[i]->GetAddress());
     }
 
   }
@@ -257,11 +258,11 @@ OSPFApp::StopApplication ()
   for (auto timer : m_helloTimeouts) {
     timer.Remove();
   }
-  for (auto socket : m_sockets)
+  for (uint32_t i = 1; i < m_sockets.size(); i++)
   {
-    socket->Close ();
-    socket->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
-    socket = 0;
+    m_sockets[i]->Close ();
+    m_sockets[i]->SetRecvCallback (MakeNullCallback<void, Ptr<Socket> > ());
+    m_sockets[i] = 0;
   }
   m_sockets.clear();
 }
@@ -309,10 +310,10 @@ OSPFApp::RefreshHelloTimer(uint32_t ifIndex, Ptr<OSPFInterface> ospfInterface, I
 void
 OSPFApp::FloodLSU(Ptr<Packet> lsuPayload, uint32_t inputIfIndex) {
   NS_LOG_FUNCTION (this << lsuPayload->GetSize() << inputIfIndex);
-  for (uint32_t i = 0; i < m_sockets.size(); i++)
+  for (uint32_t i = 1; i < m_sockets.size(); i++)
   {
     // Skip the incoming interface
-    if (inputIfIndex == i + 1) continue;
+    if (inputIfIndex == i) continue;
 
     // Copy the LSU to be sent over
     auto p = lsuPayload->Copy();
@@ -322,7 +323,7 @@ OSPFApp::FloodLSU(Ptr<Packet> lsuPayload, uint32_t inputIfIndex) {
     // call to the trace sinks before the packet is actually sent,
     // so that tags added to the packet can be sent as well
     m_txTrace (p);
-    auto neighbors = m_ospfInterfaces[i + 1]->GetNeighbors();
+    auto neighbors = m_ospfInterfaces[i]->GetNeighbors();
     // Send to every neighbor (only 1 neighbor for point-to-point)
     for (auto n : neighbors) {
       // NS_LOG_DEBUG("Remote IP: " << n.remoteIpAddress);
@@ -356,7 +357,7 @@ OSPFApp::LSUTimeout() {
     if (m_nextHopIfsByRouterId.find(routerId) != m_nextHopIfsByRouterId.end()) {
       for (auto interface : m_nextHopIfsByRouterId[routerId]) {
         Ptr<Packet> p = ConstructLSUPayload(m_routerId, m_areaId, m_seqNumbers[m_routerId.Get()], m_ttl, ads);
-        auto socket = m_sockets[interface - 1];
+        auto socket = m_sockets[interface];
         Address localAddress;
         socket->GetSockName (localAddress);
         m_txTrace (p);
