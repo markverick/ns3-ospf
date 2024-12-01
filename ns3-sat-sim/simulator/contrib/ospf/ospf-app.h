@@ -90,6 +90,7 @@ private:
   virtual void ScheduleTransmitHello (Time dt);
   virtual void SendHello ();
   virtual void FloodLSU (Ptr<Packet> p, uint32_t inputIfIndex);
+  virtual void LSUTimeout();
   virtual void LinkDown (Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
   virtual void LinkUp (Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
@@ -136,13 +137,15 @@ private:
   Time m_neighborTimeout;
 
   // LSU
-  Time m_lsuInterval;
+  Time m_rxmtInterval;
   uint16_t m_ttl;
   Ptr<Ipv4StaticRouting> m_routing;
   std::vector<Ptr<OSPFInterface> > m_ospfInterfaces;
   EventId m_lsuTimeout;
   std::map<uint32_t, uint32_t> m_seqNumbers; 
   std::map<uint32_t, std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > > m_lsdb; // adjacency list of [routerId] -> subnet, mask, remoteRouterId
+  std::unordered_map<uint32_t, bool> m_acknowledges; // acknowledge based on router id
+  std::unordered_map<uint32_t,std::vector<uint32_t> > m_nextHopIfsByRouterId; // optimized not to look up m_routing
 
   // Routing
 

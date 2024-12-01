@@ -69,9 +69,9 @@ OSPFApp::GetTypeId (void)
                    TimeValue (Seconds(30)),
                    MakeTimeAccessor (&OSPFApp::m_neighborTimeout),
                    MakeTimeChecker ())
-    .AddAttribute ("LSUInterval", "LSU Interval",
-                   TimeValue (Seconds(30)),
-                   MakeTimeAccessor (&OSPFApp::m_lsuInterval),
+    .AddAttribute ("LSUInterval", "LSU Retransmission Interval",
+                   TimeValue (Seconds(5)),
+                   MakeTimeAccessor (&OSPFApp::m_rxmtInterval),
                    MakeTimeChecker ())
     .AddAttribute ("TTL", "Time To Live",
                    UintegerValue (64),
@@ -253,7 +253,10 @@ void
 OSPFApp::StopApplication ()
 {
   NS_LOG_FUNCTION (this);
-
+  m_lsuTimeout.Remove();
+  for (auto timer : m_helloTimeouts) {
+    timer.Remove();
+  }
   for (auto socket : m_sockets)
   {
     socket->Close ();
@@ -325,8 +328,38 @@ OSPFApp::FloodLSU(Ptr<Packet> lsuPayload, uint32_t inputIfIndex) {
   }
   if (!m_sockets.empty() && inputIfIndex == 0)
   {
-    m_seqNumbers[m_routerId.Get()]++;
-    m_lsuTimeout = Simulator::Schedule(m_lsuInterval + Seconds(m_randomVariable->GetValue()), &OSPFApp::FloodLSU, this, CopyAndIncrementSeqNumber(lsuPayload), 0);
+    // m_seqNumbers[m_routerId.Get()]++;
+    // Schedule for a retransmission with the same sequence number
+    m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OSPFApp::LSUTimeout, this);
+  }
+}
+
+// Retransmit missing ACKs
+void
+OSPFApp::LSUTimeout() {
+  bool retry = false;
+
+  // Pending LSUs indexed by interfaces for aggregation
+  std::vector<std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > > pendingLSUs(m_ospfInterfaces.size());
+  // Look up lsdb for missing ACKs
+  for (const auto& [routerId, ads] : m_lsdb) {
+    // Look up soft-state routes for which interfaces to aggregate
+    if (m_nextHopIfsByRouterId.find(routerId) != m_nextHopIfsByRouterId.end()) {
+      for (auto interface : m_nextHopIfsByRouterId[routerId]) {
+        Ptr<Packet> p = ConstructLSUPayload(m_routerId, m_areaId, m_seqNumbers[m_routerId.Get()] + 1, m_ttl, ads);
+        auto socket = m_sockets[interface - 1];
+        Address localAddress;
+        socket->GetSockName (localAddress);
+        m_txTrace (p);
+        // Send to every neighbor (only 1 neighbor for point-to-point)
+        socket->Connect (InetSocketAddress (routerId));
+        socket->Send (p);
+        retry = true;
+      }
+    }
+  }
+  if (retry) {
+    m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OSPFApp::LSUTimeout, this);
   }
 }
 
@@ -339,9 +372,9 @@ OSPFApp::RefreshLSUTimer() {
   // Generate shared advertisements data
   std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > advertisements;
   for (auto interface : m_ospfInterfaces) {
-    auto ifAds = interface->GetLSAdvertisement();
-    for (auto a : ifAds) {
-      advertisements.emplace_back(a);
+    auto ads = interface->GetLSAdvertisement();
+    for (auto ad : ads) {
+      advertisements.emplace_back(ad);
     }
   }
   if (m_seqNumbers.find(m_routerId.Get()) == m_seqNumbers.end()) {
@@ -350,8 +383,12 @@ OSPFApp::RefreshLSUTimer() {
   Ptr<Packet> p = ConstructLSUPayload(m_routerId, m_areaId, m_seqNumbers[m_routerId.Get()] + 1, m_ttl, advertisements);
   m_lsdb[m_routerId.Get()] = advertisements;
   UpdateRouting();
-  // FloodLSU(p, 0);
-  m_lsuTimeout = Simulator::Schedule(m_lsuInterval + Seconds(m_randomVariable->GetValue()), &OSPFApp::FloodLSU, this, p, 0);
+  // Clear acknowledgements
+  m_acknowledges.clear();
+  
+  // Flood the network with multicast IP
+  FloodLSU(p, 0);
+  // m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OSPFApp::FloodLSU, this, p, 0);
 }
 
 // std::vector<Ptr<OSPFInterface> > ospfInterfaces
@@ -554,6 +591,7 @@ OSPFApp::UpdateRouting() {
         if (m_ospfInterfaces[i]->isNeighbor(Ipv4Address(v))) {
           // std::cout << "    route added: (" << Ipv4Address(remoteRouterId) << ", " << i << ", " << distanceTo[remoteRouterId] << ")" << std::endl;
           m_routing->AddHostRouteTo(Ipv4Address(remoteRouterId), i, distanceTo[remoteRouterId]);
+          m_nextHopIfsByRouterId[remoteRouterId].emplace_back(i);
         }
     }
   }
