@@ -120,6 +120,53 @@ ConstructHelloPayload(Ipv4Address routerId, uint32_t areaId, Ipv4Mask mask, uint
     return packet;
 }
 
+Ptr<Packet>
+ConstructAckPayload(Ipv4Address routerId, uint32_t areaId, uint32_t seqNum) {
+    // Create a 28-byte payload
+    uint8_t payload[28] = {0};
+
+    // Fill in the fields based on the given format
+
+    // Version # (8 bits) and Type (8 bits)
+    payload[0] = 0x02;
+    payload[1] = 0x05;
+
+    // Packet length (16 bits)
+    payload[2] = 0x00; // Higher 8 bits
+    payload[3] = 32;   // Lower 8 bits (packet length in bytes)
+
+    // Router ID (32 bits)
+    routerId.Serialize(payload + 4);
+
+    // Area ID (32 bits)
+    writeBigEndian(payload, 8, areaId);
+
+    // Checksum (16 bits)
+    payload[12] = 0x00; // Example value
+    payload[13] = 0x00;
+
+    // Autype (16 bits)
+    payload[14] = 0x00;
+    payload[15] = 0x01;
+
+    // Authentication (64 bits)
+    for (int i = 16; i < 24; ++i) {
+        payload[i] = 0x00; // Zero-filled for simplicity
+    }
+
+    // Network Mask (32 bits)
+    writeBigEndian(payload, 24, seqNum);
+
+    // Calculate checksum
+    uint16_t checksum = CalculateChecksum(payload, 28);
+    payload[12] = (checksum >> 8) & 0xFF; // Higher 8 bits
+    payload[13] = checksum & 0xFF;        // Lower 8 bits
+
+    // Create a packet with the payload
+    Ptr<Packet> packet = Create<Packet>(payload, 28);
+    return packet;
+}
+
 // Return null if ttl becomes zero
 Ptr<Packet>
 CopyAndDecrementTtl(Ptr<Packet> lsuPayload) {

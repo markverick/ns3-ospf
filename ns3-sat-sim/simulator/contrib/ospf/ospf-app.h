@@ -89,6 +89,7 @@ private:
 
   virtual void ScheduleTransmitHello (Time dt);
   virtual void SendHello ();
+  virtual void SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId);
   virtual void FloodLSU (Ptr<Packet> p, uint32_t inputIfIndex);
   virtual void LSUTimeout();
   virtual void LinkDown (Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
@@ -109,6 +110,8 @@ private:
 
   void HandleLSU (uint32_t ifIndex, Ptr<Packet> packet);
 
+  void HandleLSAck (uint32_t ifIndex, Ipv4Address remoteRouterId, uint32_t seqNum);
+
   void UpdateRouting ();
 
   void RefreshHelloTimer(uint32_t ifIndex, Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
@@ -120,7 +123,6 @@ private:
   std::vector<Ptr<Socket>> m_helloSockets; //!< Hello multicast socket
   std::vector<Ptr<Socket>> m_lsaSockets; //!< Hello multicast socket
   Address m_local; //!< local multicast address
-  EventId m_sendEvent; //!< Event to send the next packet
 
   // For OSPF
   // Attributes
@@ -137,6 +139,7 @@ private:
   std::vector<Time> m_lastHelloReceived;
   std::vector<EventId> m_helloTimeouts;
   Time m_neighborTimeout;
+  EventId m_helloEvent; //!< Event to send the next hello packet
 
   // LSU
   Time m_rxmtInterval;
@@ -145,6 +148,7 @@ private:
   Ptr<Ipv4StaticRouting> m_routing;
   std::vector<Ptr<OSPFInterface> > m_ospfInterfaces;
   EventId m_lsuTimeout;
+  EventId m_ackEvent;
   std::map<uint32_t, uint32_t> m_seqNumbers; 
   std::map<uint32_t, std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > > m_lsdb; // adjacency list of [routerId] -> subnet, mask, remoteRouterId
   std::unordered_map<uint32_t, bool> m_acknowledges; // acknowledge based on router id
