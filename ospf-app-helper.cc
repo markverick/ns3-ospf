@@ -57,6 +57,28 @@ OSPFAppHelper::Install (NodeContainer c) const
   return apps;
 }
 
+void
+OSPFAppHelper::InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address nextHopIp) const
+{
+  InstallGateway(c, ifIndices, Ipv4Address("0.0.0.0"), Ipv4Mask("0.0.0.0"), nextHopIp);
+  return;
+}
+
+void
+OSPFAppHelper::InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp) const
+{
+  Ipv4StaticRoutingHelper ipv4RoutingHelper;
+  Ptr<OSPFApp> ospfApp;
+  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+  {
+    ospfApp = DynamicCast<OSPFApp>((*i)->GetApplication(0));
+    for (uint32_t j = 0; j < ifIndices.size(); j++) {
+      ospfApp->SetOSPFGateway(ifIndices[j], destIp, mask, nextHopIp);
+    }
+  }
+  return;
+}
+
 ApplicationContainer
 OSPFAppHelper::Install (NodeContainer c, std::vector<uint32_t> areas) const
 {

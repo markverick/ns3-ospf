@@ -64,13 +64,22 @@ public:
   void SetBoundNetDevices (NetDeviceContainer devs);
   void SetBoundNetDevices (NetDeviceContainer devs, std::vector<uint32_t> areas);
 
+  // Add neighbor to an existing interface (for multiaccess networks)
+  void AddInterfaceNeighbor(uint32_t ifIndex, Ipv4Address destIp, Ipv4Address nextHopIp);
+
+  // Add additional advertising route such as 0.0.0.0
+  void SetOSPFGateway(uint32_t ifIndex, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp);
+
   // Set router id
   void SetRouterId (Ipv4Address routerId);
 
   // Print LSDB
   void PrintLSDB();
 
-  // Print Interfaces
+  // Print Routing Table
+  void PrintRouting();
+
+  // Print Interface Areas
   void PrintAreas();
 
   // Get LSDB hash (Lazy)

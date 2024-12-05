@@ -90,6 +90,16 @@ public:
     return m_ipMask;
   }
 
+  void
+  SetAddress(Ipv4Address ipAddress) {
+    m_ipAddress = ipAddress;
+  }
+
+  void
+  SetMask(Ipv4Mask ipMask) {
+    m_ipMask = ipMask;
+  }
+
   uint16_t
   GetHelloInterval() {
     return m_helloInterval;

@@ -201,8 +201,10 @@ Ptr<Packet>
 ConstructLSUPayload(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum, uint16_t ttl,
                     std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > lsAdvertisements) {
     // Create a payload of 32 + 12 x numAds bytes
-    // Can store 8 LSAs (12 bytes each) in total (for now)
-    uint8_t payload[128] = {0};
+    // TODO: Create a proper header for each LSA for identification
+    // Can store 40 LSAs (12 bytes each) in total (for now)
+    NS_ASSERT_MSG(lsAdvertisements.size() < 512, "Currently only support 40 LSU");
+    uint8_t payload[512] = {0};
 
     // Fill in the fields based on the given format
 

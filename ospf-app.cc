@@ -219,6 +219,25 @@ OSPFApp::SetBoundNetDevices (NetDeviceContainer devs, std::vector<uint32_t> area
   }
 }
 
+void
+OSPFApp::AddInterfaceNeighbor(uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address remoteIp) {
+  NS_LOG_FUNCTION (this << ifIndex << remoteRouterId << remoteIp);
+  if (m_ospfInterfaces.empty()) return;
+  NS_ASSERT(m_ospfInterfaces.size () > ifIndex);
+  NeighberInterface neighbor(remoteRouterId, remoteIp);
+  m_ospfInterfaces[ifIndex]->AddNeighbor(neighbor);
+}
+
+void
+OSPFApp::SetOSPFGateway(uint32_t ifIndex, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp) {
+  NS_LOG_FUNCTION (this << ifIndex << destIp << mask << nextHopIp);
+  if (m_ospfInterfaces.empty()) return;
+  NS_ASSERT(m_ospfInterfaces.size () > ifIndex);
+  AddInterfaceNeighbor(ifIndex, destIp, nextHopIp);
+  m_ospfInterfaces[ifIndex]->SetAddress(destIp);
+  m_ospfInterfaces[ifIndex]->SetMask(mask);
+}
+
 void 
 OSPFApp::SetRouterId (Ipv4Address routerId)
 {
@@ -601,6 +620,12 @@ OSPFApp::PrintLSDB() {
 }
 
 void
+OSPFApp::PrintRouting() {
+  Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("results/route.routes", std::ios::out);
+  m_routing->PrintRoutingTable(routingStream);
+}
+
+void
 OSPFApp::PrintAreas() {
   std::cout << "Area:";
   for (uint32_t i = 1; i < m_ospfInterfaces.size(); i++) {
@@ -666,7 +691,9 @@ OSPFApp::UpdateRouting() {
       }
     }
   }
-  // std::cout << "node: " << GetNode()->GetId() << std::endl; 
+  // std::cout << "node: " << GetNode()->GetId() << std::endl;
+  // Shortest path information for each subnet -- <mask, nextHop, interface, metric>
+  std::map<uint32_t, std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> > routingEntries;
   for (const auto& [remoteRouterId, remoteNeighbors] : m_lsdb) {
     // std::cout << "  destination: " << Ipv4Address(remoteRouterId) << std::endl;
 
@@ -685,17 +712,48 @@ OSPFApp::UpdateRouting() {
       v = prevHop[v];
     }
 
-    // Iterate over the vector of tuples <subnet, mask, neighbor's router ID>
-    // Check which neighbors is its best next hop
+    // Find the next hop's IP and interface index
+    uint32_t nextHop, ifIndex = 0;
     for (uint32_t i = 1; i < m_ospfInterfaces.size(); i++) {
-        if (m_ospfInterfaces[i]->IsNeighbor(Ipv4Address(v))) {
-          // std::cout << "    route added: (" << Ipv4Address(remoteRouterId) << ", " << i << ", " << distanceTo[remoteRouterId] << ")" << std::endl;
-          m_routing->AddHostRouteTo(Ipv4Address(remoteRouterId), i, distanceTo[remoteRouterId]);
-          m_nextHopIfsByRouterId[remoteRouterId].emplace_back(i);
+      auto neighbors = m_ospfInterfaces[i]->GetNeighbors();
+      for (auto n : neighbors) {
+        if (n.remoteRouterId.Get() == v) {
+          nextHop = n.remoteIpAddress.Get();
+          ifIndex = i;
+          break;
         }
+      }
+      if (ifIndex) break;
+    }
+    NS_ASSERT(ifIndex > 0);
+    // Get the shortest path for each subnet
+    for (const auto& [subnet, mask, neighborRouterId] : remoteNeighbors) {
+      if (routingEntries.find(subnet) == routingEntries.end()
+      || std::get<3>(routingEntries[subnet]) > distanceTo[remoteRouterId]) {
+        routingEntries[subnet] = std::make_tuple(mask, nextHop, ifIndex, distanceTo[remoteRouterId]);
+      }
     }
   }
-  // std::cout << std::endl;
+  for (const auto& [subnet, routingEntries] : routingEntries) {
+    const auto& [mask, nextHop, ifIndex, metric] = routingEntries;
+    NS_LOG_DEBUG("Add route: " << Ipv4Address(subnet) << ", " << Ipv4Mask(mask) << ", " << ifIndex << ", " << metric);
+    m_routing->AddNetworkRouteTo(Ipv4Address(subnet), Ipv4Mask(mask), Ipv4Address(nextHop), ifIndex, metric);
+  }
+    // for (uint32_t i = 1; i < m_ospfInterfaces.size(); i++) {
+    //   auto neighbors = m_ospfInterfaces[i]->GetNeighbors();
+    //   for (auto n : neighbors) {
+    //     if (n.remoteRouterId.Get() == v) {
+    //       m_routing->AddNetworkRouteTo(Ipv4Address(remoteRouterId), m_lsdb[remoteRouterId]., n.remoteIpAddress, i, distanceTo[remoteRouterId]);
+    //       m_nextHopIfsByRouterId[remoteRouterId].emplace_back(i);
+    //     }
+    //   }
+      // if (m_ospfInterfaces[i]->IsNeighbor(Ipv4Address(v))) {
+      //   std::cout << "    route added: (" << Ipv4Address(remoteRouterId) << ", " << i << ", " << distanceTo[remoteRouterId] << ")" << std::endl;
+      //   m_routing->AddNetworkRouteTo(Ipv4Address(remoteRouterId), m_ospfInterfaces[i]->GetMask(), , i, distanceTo[remoteRouterId]);
+      //   // m_routing->AddHostRouteTo(Ipv4Address(remoteRouterId), i, distanceTo[remoteRouterId]);
+        
+      //   m_nextHopIfsByRouterId[remoteRouterId].emplace_back(i);
+      // }
 }
 
 void 
