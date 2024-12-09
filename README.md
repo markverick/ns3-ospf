@@ -1,7 +1,9 @@
 Simplified OSPF implementation on ns-3, focussing on scalability evaluation
 
 # Instruction
-Put the folder into ns-3's contrib folder. Use it as an Application.
+Put the folder into ns-3's contrib folder as "ospf". Use it as an Application.
+
+Only tested on ns-3.35
 
 Documentation is work-in-progress.
 
