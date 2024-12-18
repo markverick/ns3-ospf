@@ -30,6 +30,7 @@
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
+#include "filesystem"
 
 namespace ns3 {
 
@@ -77,7 +78,7 @@ public:
   void PrintLSDB();
 
   // Print Routing Table
-  void PrintRouting();
+  void PrintRouting(std::filesystem::path dirName);
 
   // Print Interface Areas
   void PrintAreas();

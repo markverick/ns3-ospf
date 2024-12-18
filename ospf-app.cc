@@ -35,6 +35,7 @@
 #include "ns3/random-variable-stream.h"
 #include "ns3/core-module.h"
 
+#include "filesystem"
 #include "tuple"
 
 #include "ospf-app.h"
@@ -620,9 +621,13 @@ OSPFApp::PrintLSDB() {
 }
 
 void
-OSPFApp::PrintRouting() {
-  Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("results/route.routes", std::ios::out);
-  m_routing->PrintRoutingTable(routingStream);
+OSPFApp::PrintRouting(std::filesystem::path dirName) {
+  try {
+    Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> (dirName / "route.routes", std::ios::out);
+    m_routing->PrintRoutingTable(routingStream);
+  } catch (const std::filesystem::filesystem_error& e) {
+    std::cerr << "Error: " << e.what() << std::endl;
+  }
 }
 
 void

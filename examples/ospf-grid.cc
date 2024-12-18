@@ -44,6 +44,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <filesystem>
 
 using namespace ns3;
 
@@ -89,6 +90,16 @@ main(int argc, char* argv[])
     bool enableFlowMonitor = false;
     cmd.AddValue("EnableMonitor", "Enable Flow Monitor", enableFlowMonitor);
     cmd.Parse(argc, argv);
+
+    // Create results folder
+    std::filesystem::path dirName = "results/ospf-grid";
+  
+    try {
+        std::filesystem::create_directories(dirName);
+    } catch (const std::filesystem::filesystem_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
+
 
     // Create nodes
     NS_LOG_INFO("Create nodes.");
@@ -179,7 +190,7 @@ main(int argc, char* argv[])
     }
     app = DynamicCast<OSPFApp>(c.Get(0)->GetApplication(0));
     Simulator::Schedule(Seconds(SIM_SECONDS), &OSPFApp::PrintLSDB, app);
-    Simulator::Schedule(Seconds(100), &OSPFApp::PrintRouting, app);
+    Simulator::Schedule(Seconds(100), &OSPFApp::PrintRouting, app, dirName);
 
     // Print progress
     for (uint32_t i = 0; i < SIM_SECONDS; i+=10) {
@@ -188,8 +199,8 @@ main(int argc, char* argv[])
 
     // Enable Pcap
     AsciiTraceHelper ascii;
-    p2p.EnableAscii (ascii.CreateFileStream ("results/ospf-grid.tr"), 0, 1);
-    p2p.EnablePcap ("results/ospf-grid", 0, 1);
+    p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));
+    p2p.EnablePcapAll (dirName / "pcap");
 
     // Flow Monitor
     FlowMonitorHelper flowmonHelper;
@@ -199,7 +210,7 @@ main(int argc, char* argv[])
     }
     if (enableFlowMonitor)
     {
-      flowmonHelper.SerializeToXmlFile ("ospf-grid.flowmon", false, false);
+      flowmonHelper.SerializeToXmlFile (dirName / "flow.flowmon", false, false);
     }
     
     Simulator::Run();

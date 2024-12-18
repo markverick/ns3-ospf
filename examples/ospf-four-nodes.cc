@@ -44,6 +44,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <filesystem>
 
 using namespace ns3;
 
@@ -102,6 +103,15 @@ main(int argc, char* argv[])
     bool enableFlowMonitor = false;
     cmd.AddValue("EnableMonitor", "Enable Flow Monitor", enableFlowMonitor);
     cmd.Parse(argc, argv);
+
+    // Create results folder
+    std::filesystem::path dirName = "results/ospf-four-nodes";
+  
+    try {
+        std::filesystem::create_directories(dirName);
+    } catch (const std::filesystem::filesystem_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
 
     // Here, we will explicitly create four nodes.  In more sophisticated
     // topologies, we could configure a node factory.
@@ -190,7 +200,7 @@ main(int argc, char* argv[])
     // Print LSDB
     Ptr<OSPFApp> app  = DynamicCast<OSPFApp>(c.Get(0)->GetApplication(0));
     Simulator::Schedule(Seconds(145), &OSPFApp::PrintLSDB, app);
-    Simulator::Schedule(Seconds(145), &OSPFApp::PrintRouting, app);
+    Simulator::Schedule(Seconds(145), &OSPFApp::PrintRouting, app, dirName);
     // app  = DynamicCast<OSPFApp>(c.Get(1)->GetApplication(0));
     // Simulator::Schedule(Seconds(146), &OSPFApp::PrintLSDB, app);
     // app  = DynamicCast<OSPFApp>(c.Get(2)->GetApplication(0));
@@ -202,8 +212,8 @@ main(int argc, char* argv[])
 
     // Enable Pcap
     AsciiTraceHelper ascii;
-    p2p.EnableAsciiAll (ascii.CreateFileStream ("simple-ospf-routing.tr"));
-    p2p.EnablePcapAll ("simple-ospf-routing");
+    p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));
+    p2p.EnablePcapAll (dirName / "pcap");
 
     // Flow Monitor
     FlowMonitorHelper flowmonHelper;
@@ -213,7 +223,7 @@ main(int argc, char* argv[])
     }
     if (enableFlowMonitor)
     {
-      flowmonHelper.SerializeToXmlFile ("simple-ospf-routing.flowmon", false, false);
+      flowmonHelper.SerializeToXmlFile (dirName / "flow.flowmon", false, false);
     }
     
  

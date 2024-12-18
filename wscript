@@ -10,8 +10,11 @@ def build(bld):
 
     module_test = bld.create_ns3_module_test_library('ospf')
     module_test.source = [
-        'test/ospf-test-suite.cc',
         ]
+    # Tests encapsulating example programs should be listed here
+    if (bld.env['ENABLE_EXAMPLES']):
+        module_test.source.extend([
+    ])
 
     headers = bld(features='ns3header')
     headers.module = 'ospf'
@@ -22,5 +25,8 @@ def build(bld):
         'ospf-packet-helper.h'
         ]
 
-    # bld.ns3_python_bindings()
+    if bld.env['ENABLE_EXAMPLES']:
+        bld.recurse('examples')
+
+    bld.ns3_python_bindings()
 
