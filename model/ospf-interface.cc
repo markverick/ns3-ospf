@@ -38,34 +38,34 @@
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("OSPFInterface");
+NS_LOG_COMPONENT_DEFINE ("OspfInterface");
 
-OSPFInterface::OSPFInterface() {
+OspfInterface::OspfInterface() {
   m_ipAddress = Ipv4Address::GetAny();
   m_ipMask = Ipv4Mask(0xffffff00); // default to /24
   m_helloInterval = 0;
   m_area = 0;
 }
 
-OSPFInterface::~OSPFInterface() {
+OspfInterface::~OspfInterface() {
 
 }
 
-OSPFInterface::OSPFInterface(Ipv4Address ipAddress, uint16_t helloInterval) {
+OspfInterface::OspfInterface(Ipv4Address ipAddress, uint16_t helloInterval) {
   NS_LOG_FUNCTION(this << ipAddress << helloInterval);
   m_ipAddress = ipAddress;
   m_ipMask = Ipv4Mask(0xffffff00);
   m_helloInterval = helloInterval;
 }
 
-OSPFInterface::OSPFInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval) {
+OspfInterface::OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval) {
   NS_LOG_FUNCTION(this << ipAddress << ipMask << helloInterval);
   m_ipAddress = ipAddress;
   m_ipMask = ipMask;
   m_helloInterval = helloInterval;
 }
 
-OSPFInterface::OSPFInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t area) {
+OspfInterface::OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t area) {
   NS_LOG_FUNCTION(this << ipAddress << ipMask << helloInterval);
   m_ipAddress = ipAddress;
   m_ipMask = ipMask;
@@ -76,7 +76,7 @@ OSPFInterface::OSPFInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t he
 // Only one LSA per interface for point-to-point
 // Vector of <subnet, mask, neighbor's router ID>
 std::vector<std::tuple<uint32_t, uint32_t, uint32_t> >
-OSPFInterface::GetLSAdvertisement() {
+OspfInterface::GetLSAdvertisement() {
   std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > lsAdvertisements;
   auto neighbors = GetNeighbors();
   for (auto n : neighbors) {

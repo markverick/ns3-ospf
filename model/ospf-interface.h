@@ -64,21 +64,21 @@ public:
   Ipv4Address remoteIpAddress;
 };
 
-class OSPFInterface: public Object
+class OspfInterface: public Object
 {
 public:
-  OSPFInterface();
+  OspfInterface();
 
-  OSPFInterface(Ipv4Address ipAddress, uint16_t helloInterval);
+  OspfInterface(Ipv4Address ipAddress, uint16_t helloInterval);
 
-  OSPFInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval);
+  OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval);
 
-  OSPFInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t area);
+  OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t area);
 
   //  Vector of <subnet, mask, neighbor's router ID>
   std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > GetLSAdvertisement();
 
-  ~OSPFInterface();
+  ~OspfInterface();
 
   Ipv4Address
   GetAddress() {

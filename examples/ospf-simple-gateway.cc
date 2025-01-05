@@ -48,7 +48,7 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("OSPFSimpleGateway");
+NS_LOG_COMPONENT_DEFINE("OspfSimpleGateway");
 
 Ipv4Address ospfHelloAddress("224.0.0.5");
 const uint32_t SIM_SECONDS = 16;
@@ -70,7 +70,7 @@ main(int argc, char* argv[])
 {
     // Users may find it convenient to turn on explicit debugging
     // for selected modules; the below lines suggest how to do this
-    LogComponentEnable ("OSPFSimpleGateway", LOG_LEVEL_INFO);
+    LogComponentEnable ("OspfSimpleGateway", LOG_LEVEL_INFO);
     // Set up some default values for the simulation.  Use the
 
     // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
@@ -143,7 +143,7 @@ main(int argc, char* argv[])
     Ipv4StaticRoutingHelper ipv4RoutingHelper;
 
 
-    OSPFAppHelper ospfAppHelper(9);
+    OspfAppHelper ospfAppHelper(9);
     ospfAppHelper.SetAttribute("HelloInterval", TimeValue(Seconds(10)));
     ospfAppHelper.SetAttribute("HelloAddress", Ipv4AddressValue(ospfHelloAddress));
     ospfAppHelper.SetAttribute("NeighborTimeout", TimeValue(Seconds(30)));
@@ -175,12 +175,12 @@ main(int argc, char* argv[])
     apps.Stop (Seconds (SIM_SECONDS));
 
     // Set c3 as gateway
-    Ptr<OSPFApp> c3App  = DynamicCast<OSPFApp>(c.Get(3)->GetApplication(0));
+    Ptr<OspfApp> c3App  = DynamicCast<OspfApp>(c.Get(3)->GetApplication(0));
     // c3App->AddInterfaceNeighbor(d3d4.Get(0)->GetIfIndex(), Ipv4Address("0.0.0.0"), Ipv4Address("10.1.1.14"));
     // Print LSDB
-    Ptr<OSPFApp> app  = DynamicCast<OSPFApp>(c.Get(1)->GetApplication(0));
-    Simulator::Schedule(Seconds(100), &OSPFApp::PrintLSDB, app);
-    Simulator::Schedule(Seconds(100), &OSPFApp::PrintRouting, app, dirName);
+    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
+    Simulator::Schedule(Seconds(100), &OspfApp::PrintLSDB, app);
+    Simulator::Schedule(Seconds(100), &OspfApp::PrintRouting, app, dirName);
 
     // Enable Pcap
     AsciiTraceHelper ascii;

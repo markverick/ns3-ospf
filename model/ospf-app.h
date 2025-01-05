@@ -27,6 +27,7 @@
 #include "ns3/address.h"
 #include "ns3/traced-callback.h"
 #include "ns3/ipv4-static-routing-helper.h"
+#include "ns3/random-variable-stream.h"
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
@@ -48,7 +49,7 @@ class Packet;
  *
  * Every packet received is sent back.
  */
-class OSPFApp : public Application 
+class OspfApp : public Application 
 {
 public:
   /**
@@ -56,7 +57,7 @@ public:
    * \return the object TypeId
    */
   static TypeId GetTypeId (void);
-  OSPFApp ();
+  OspfApp ();
 
   // Accessor for Static Routing
   void SetRouting(Ptr<Ipv4StaticRouting>);
@@ -87,7 +88,7 @@ public:
   uint32_t GetLSDBHash();
   void PrintLSDBHash();
 
-  virtual ~OSPFApp ();
+  virtual ~OspfApp ();
 
 protected:
   virtual void DoDispose (void);
@@ -102,8 +103,8 @@ private:
   virtual void SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId);
   virtual void FloodLSU (Ptr<Packet> p, uint32_t inputIfIndex);
   virtual void LSUTimeout();
-  virtual void LinkDown (Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
-  virtual void LinkUp (Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  virtual void LinkDown (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  virtual void LinkUp (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   /**
    * \brief Handle a packet reception.
@@ -124,7 +125,7 @@ private:
 
   void UpdateRouting ();
 
-  void RefreshHelloTimer(uint32_t ifIndex, Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  void RefreshHelloTimer(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   void RefreshLSUTimer();
 
@@ -156,7 +157,7 @@ private:
   Ipv4Address m_lsaAddress; //!< Address of multicast hello message
   uint16_t m_ttl;
   Ptr<Ipv4StaticRouting> m_routing;
-  std::vector<Ptr<OSPFInterface> > m_ospfInterfaces;
+  std::vector<Ptr<OspfInterface> > m_ospfInterfaces;
   EventId m_lsuTimeout;
   EventId m_ackEvent;
   std::map<uint32_t, uint32_t> m_seqNumbers; 

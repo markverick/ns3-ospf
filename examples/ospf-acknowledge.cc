@@ -48,7 +48,7 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("OSPFAck");
+NS_LOG_COMPONENT_DEFINE("OspfAck");
 
 Ipv4Address ospfHelloAddress("224.0.0.5");
 const uint32_t SIM_SECONDS = 300;
@@ -76,7 +76,7 @@ main(int argc, char* argv[])
 {
     // Users may find it convenient to turn on explicit debugging
     // for selected modules; the below lines suggest how to do this
-    LogComponentEnable ("OSPFAck", LOG_LEVEL_INFO);
+    LogComponentEnable ("OspfAck", LOG_LEVEL_INFO);
     // Set up some default values for the simulation.  Use the
 
     // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
@@ -138,7 +138,7 @@ main(int argc, char* argv[])
     // staticRouting0->AddHostRouteTo (Ipv4Address ("10.1.3.1"), Ipv4Address ("10.1.1.2"), d0d1.Get(0)->GetIfIndex());
     // staticRouting3->AddHostRouteTo (Ipv4Address ("10.1.1.1"), Ipv4Address ("10.1.3.2"), d3d2.Get(0)->GetIfIndex());
 
-    OSPFAppHelper ospfAppHelper(9);
+    OspfAppHelper ospfAppHelper(9);
     ospfAppHelper.SetAttribute("HelloInterval", TimeValue(Seconds(10)));
     ospfAppHelper.SetAttribute("HelloAddress", Ipv4AddressValue(ospfHelloAddress));
     ospfAppHelper.SetAttribute("NeighborTimeout", TimeValue(Seconds(30)));
@@ -156,14 +156,14 @@ main(int argc, char* argv[])
     // Simulator::Schedule(Seconds(5), &SetLinkError, d1d2.Get(1));
 
     // Print LSDB
-    Ptr<OSPFApp> app  = DynamicCast<OSPFApp>(c.Get(2)->GetApplication(0));
-    Simulator::Schedule(Seconds(SIM_SECONDS), &OSPFApp::PrintLSDB, app);
-    // app  = DynamicCast<OSPFApp>(c.Get(1)->GetApplication(0));
-    // Simulator::Schedule(Seconds(146), &OSPFApp::PrintLSDB, app);
-    // app  = DynamicCast<OSPFApp>(c.Get(2)->GetApplication(0));
-    // Simulator::Schedule(Seconds(147), &OSPFApp::PrintLSDB, app);
-    // app  = DynamicCast<OSPFApp>(c.Get(3)->GetApplication(0));
-    // Simulator::Schedule(Seconds(148), &OSPFApp::PrintLSDB, app);
+    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
+    Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLSDB, app);
+    // app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
+    // Simulator::Schedule(Seconds(146), &OspfApp::PrintLSDB, app);
+    // app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
+    // Simulator::Schedule(Seconds(147), &OspfApp::PrintLSDB, app);
+    // app  = DynamicCast<OspfApp>(c.Get(3)->GetApplication(0));
+    // Simulator::Schedule(Seconds(148), &OspfApp::PrintLSDB, app);
 
 
 

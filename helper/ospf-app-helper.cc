@@ -17,22 +17,22 @@
  *
  * Author: Sirapop Theeranantachai (stheera@g.ucla.edu)
  */
-#include "ospf-app-helper.h"
-#include "ospf-app.h"
 #include "ns3/uinteger.h"
 #include "ns3/names.h"
 #include "ns3/ipv4-static-routing-helper.h"
+#include "ns3/ospf-app.h"
+#include "ospf-app-helper.h"
 
 namespace ns3 {
 
-OSPFAppHelper::OSPFAppHelper (uint16_t port)
+OspfAppHelper::OspfAppHelper (uint16_t port)
 {
-  m_factory.SetTypeId (OSPFApp::GetTypeId ());
+  m_factory.SetTypeId (OspfApp::GetTypeId ());
   SetAttribute ("Port", UintegerValue (port));
 }
 
 void 
-OSPFAppHelper::SetAttribute (
+OspfAppHelper::SetAttribute (
   std::string name, 
   const AttributeValue &value)
 {
@@ -40,7 +40,7 @@ OSPFAppHelper::SetAttribute (
 }
 
 ApplicationContainer
-OSPFAppHelper::Install (NodeContainer c) const
+OspfAppHelper::Install (NodeContainer c) const
 {
   ApplicationContainer apps;
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
@@ -58,20 +58,20 @@ OSPFAppHelper::Install (NodeContainer c) const
 }
 
 void
-OSPFAppHelper::InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address nextHopIp) const
+OspfAppHelper::InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address nextHopIp) const
 {
   InstallGateway(c, ifIndices, Ipv4Address("0.0.0.0"), Ipv4Mask("0.0.0.0"), nextHopIp);
   return;
 }
 
 void
-OSPFAppHelper::InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp) const
+OspfAppHelper::InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp) const
 {
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
-  Ptr<OSPFApp> ospfApp;
+  Ptr<OspfApp> ospfApp;
   for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
   {
-    ospfApp = DynamicCast<OSPFApp>((*i)->GetApplication(0));
+    ospfApp = DynamicCast<OspfApp>((*i)->GetApplication(0));
     for (uint32_t j = 0; j < ifIndices.size(); j++) {
       ospfApp->SetOSPFGateway(ifIndices[j], destIp, mask, nextHopIp);
     }
@@ -80,7 +80,7 @@ OSPFAppHelper::InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices,
 }
 
 ApplicationContainer
-OSPFAppHelper::Install (NodeContainer c, std::vector<uint32_t> areas) const
+OspfAppHelper::Install (NodeContainer c, std::vector<uint32_t> areas) const
 {
   ApplicationContainer apps;
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
@@ -98,9 +98,9 @@ OSPFAppHelper::Install (NodeContainer c, std::vector<uint32_t> areas) const
 }
 
 Ptr<Application>
-OSPFAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs) const
+OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs) const
 {
-  Ptr<OSPFApp> app = m_factory.Create<OSPFApp> ();
+  Ptr<OspfApp> app = m_factory.Create<OspfApp> ();
   app->SetRouting(routing);
   Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
   app->SetRouterId(ipv4->GetAddress(1, 0).GetAddress()); //eth0
@@ -111,9 +111,9 @@ OSPFAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetD
 }
 
 Ptr<Application>
-OSPFAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs, std::vector<uint32_t> areas) const
+OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs, std::vector<uint32_t> areas) const
 {
-  Ptr<OSPFApp> app = m_factory.Create<OSPFApp> ();
+  Ptr<OspfApp> app = m_factory.Create<OspfApp> ();
   app->SetRouting(routing);
   Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
   app->SetRouterId(ipv4->GetAddress(1, 0).GetAddress()); //eth0

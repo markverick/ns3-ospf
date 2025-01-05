@@ -34,90 +34,90 @@
 #include "ns3/header.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/core-module.h"
+#include "ns3/ospf-packet-helper.h"
 
 #include "filesystem"
 #include "tuple"
 
 #include "ospf-app.h"
-#include "ospf-packet-helper.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("OSPFApp");
+NS_LOG_COMPONENT_DEFINE ("OspfApp");
 
-NS_OBJECT_ENSURE_REGISTERED (OSPFApp);
+NS_OBJECT_ENSURE_REGISTERED (OspfApp);
 
 TypeId
-OSPFApp::GetTypeId (void)
+OspfApp::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::OSPFApp")
+  static TypeId tid = TypeId ("ns3::OspfApp")
     .SetParent<Application> ()
     .SetGroupName("Applications")
-    .AddConstructor<OSPFApp> ()
+    .AddConstructor<OspfApp> ()
     .AddAttribute ("Port", "Port on which we listen for incoming packets.",
                    UintegerValue (9),
-                   MakeUintegerAccessor (&OSPFApp::m_port),
+                   MakeUintegerAccessor (&OspfApp::m_port),
                    MakeUintegerChecker<uint16_t> ())
     .AddAttribute ("HelloInterval", "OSPF Hello Interval",
                    TimeValue (Seconds(10)),
-                   MakeTimeAccessor (&OSPFApp::m_helloInterval),
+                   MakeTimeAccessor (&OspfApp::m_helloInterval),
                    MakeTimeChecker ())
     .AddAttribute ("HelloAddress", "Multicast address of Hello",
                    Ipv4AddressValue (Ipv4Address("224.0.0.5")),
-                   MakeIpv4AddressAccessor (&OSPFApp::m_helloAddress),
+                   MakeIpv4AddressAccessor (&OspfApp::m_helloAddress),
                    MakeIpv4AddressChecker ())
     .AddAttribute ("LSAAddress", "Multicast address of LSAs",
                    Ipv4AddressValue (Ipv4Address("224.0.0.6")),
-                   MakeIpv4AddressAccessor (&OSPFApp::m_lsaAddress),
+                   MakeIpv4AddressAccessor (&OspfApp::m_lsaAddress),
                    MakeIpv4AddressChecker ())
     .AddAttribute ("NeighborTimeout", "Link is considered down when not receiving Hello until NeighborTimeout",
                    TimeValue (Seconds(30)),
-                   MakeTimeAccessor (&OSPFApp::m_neighborTimeout),
+                   MakeTimeAccessor (&OspfApp::m_neighborTimeout),
                    MakeTimeChecker ())
     .AddAttribute ("LSUInterval", "LSU Retransmission Interval",
                    TimeValue (Seconds(5)),
-                   MakeTimeAccessor (&OSPFApp::m_rxmtInterval),
+                   MakeTimeAccessor (&OspfApp::m_rxmtInterval),
                    MakeTimeChecker ())
     .AddAttribute ("TTL", "Time To Live",
                    UintegerValue (64),
-                   MakeUintegerAccessor (&OSPFApp::m_ttl),
+                   MakeUintegerAccessor (&OspfApp::m_ttl),
                    MakeUintegerChecker<uint16_t> ())
     .AddTraceSource ("Tx", "A new packet is created and is sent",
-                     MakeTraceSourceAccessor (&OSPFApp::m_txTrace),
+                     MakeTraceSourceAccessor (&OspfApp::m_txTrace),
                      "ns3::Packet::TracedCallback")
     .AddTraceSource ("Rx", "A packet has been received",
-                     MakeTraceSourceAccessor (&OSPFApp::m_rxTrace),
+                     MakeTraceSourceAccessor (&OspfApp::m_rxTrace),
                      "ns3::Packet::TracedCallback")
     .AddTraceSource ("TxWithAddresses", "A new packet is created and is sent",
-                     MakeTraceSourceAccessor (&OSPFApp::m_txTraceWithAddresses),
+                     MakeTraceSourceAccessor (&OspfApp::m_txTraceWithAddresses),
                      "ns3::Packet::TwoAddressTracedCallback")
     .AddTraceSource ("RxWithAddresses", "A packet has been received",
-                     MakeTraceSourceAccessor (&OSPFApp::m_rxTraceWithAddresses),
+                     MakeTraceSourceAccessor (&OspfApp::m_rxTraceWithAddresses),
                      "ns3::Packet::TwoAddressTracedCallback")
   ;
   return tid;
 }
 
-OSPFApp::OSPFApp ()
+OspfApp::OspfApp ()
 {
   NS_LOG_FUNCTION (this);
 }
 
-OSPFApp::~OSPFApp()
+OspfApp::~OspfApp()
 {
   NS_LOG_FUNCTION (this);
   m_sockets.clear();
 }
 
 void
-OSPFApp::DoDispose (void)
+OspfApp::DoDispose (void)
 {
   NS_LOG_FUNCTION (this);
   Application::DoDispose ();
 }
 
 void 
-OSPFApp::StartApplication (void)
+OspfApp::StartApplication (void)
 {
   NS_LOG_FUNCTION (this);
 
@@ -149,7 +149,7 @@ OSPFApp::StartApplication (void)
     helloSocket->SetAllowBroadcast (true);
     helloSocket->SetAttribute("Protocol", UintegerValue(89));
     helloSocket->BindToNetDevice(m_boundDevices.Get(i));
-    helloSocket->SetRecvCallback (MakeCallback (&OSPFApp::HandleRead, this));
+    helloSocket->SetRecvCallback (MakeCallback (&OspfApp::HandleRead, this));
     m_helloSockets.emplace_back(helloSocket);
 
     // For LSA, both bind and listen to m_lsaAddress
@@ -174,14 +174,14 @@ OSPFApp::StartApplication (void)
     unicastSocket->SetAllowBroadcast (true);
     unicastSocket->SetAttribute("Protocol", UintegerValue(89));
     unicastSocket->BindToNetDevice(m_boundDevices.Get(i));
-    unicastSocket->SetRecvCallback (MakeCallback (&OSPFApp::HandleRead, this));
+    unicastSocket->SetRecvCallback (MakeCallback (&OspfApp::HandleRead, this));
     m_sockets.emplace_back(unicastSocket);
   }
   ScheduleTransmitHello (Seconds (0.));
 }
 
 void 
-OSPFApp::SetBoundNetDevices (NetDeviceContainer devs)
+OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
 {
   NS_LOG_FUNCTION (this << devs.GetN());
   m_boundDevices = devs;
@@ -190,18 +190,18 @@ OSPFApp::SetBoundNetDevices (NetDeviceContainer devs)
 
   // Create interface database
   Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4> ();
-  Ptr<OSPFInterface> ospfInterface= CreateObject<OSPFInterface> ();
+  Ptr<OspfInterface> ospfInterface= CreateObject<OspfInterface> ();
   m_ospfInterfaces.emplace_back(ospfInterface);
   for (uint32_t i = 1; i < m_boundDevices.GetN(); i++) {
     auto sourceIp = ipv4->GetAddress(i, 0).GetAddress();
     auto mask = ipv4->GetAddress(i, 0).GetMask();
-    Ptr<OSPFInterface> ospfInterface = CreateObject<OSPFInterface> (sourceIp, mask, m_helloInterval.GetSeconds());
+    Ptr<OspfInterface> ospfInterface = CreateObject<OspfInterface> (sourceIp, mask, m_helloInterval.GetSeconds());
     m_ospfInterfaces.emplace_back(ospfInterface);
   }
 }
 
 void 
-OSPFApp::SetBoundNetDevices (NetDeviceContainer devs, std::vector<uint32_t> areas)
+OspfApp::SetBoundNetDevices (NetDeviceContainer devs, std::vector<uint32_t> areas)
 {
   NS_LOG_FUNCTION (this << devs.GetN());
   m_boundDevices = devs;
@@ -210,18 +210,18 @@ OSPFApp::SetBoundNetDevices (NetDeviceContainer devs, std::vector<uint32_t> area
 
   // Create interface database
   Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4> ();
-  Ptr<OSPFInterface> ospfInterface= CreateObject<OSPFInterface> ();
+  Ptr<OspfInterface> ospfInterface= CreateObject<OspfInterface> ();
   m_ospfInterfaces.emplace_back(ospfInterface);
   for (uint32_t i = 1; i < m_boundDevices.GetN(); i++) {
     auto sourceIp = ipv4->GetAddress(i, 0).GetAddress();
     auto mask = ipv4->GetAddress(i, 0).GetMask();
-    Ptr<OSPFInterface> ospfInterface = CreateObject<OSPFInterface> (sourceIp, mask, m_helloInterval.GetSeconds(), areas[i]);
+    Ptr<OspfInterface> ospfInterface = CreateObject<OspfInterface> (sourceIp, mask, m_helloInterval.GetSeconds(), areas[i]);
     m_ospfInterfaces.emplace_back(ospfInterface);
   }
 }
 
 void
-OSPFApp::AddInterfaceNeighbor(uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address remoteIp) {
+OspfApp::AddInterfaceNeighbor(uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address remoteIp) {
   NS_LOG_FUNCTION (this << ifIndex << remoteRouterId << remoteIp);
   if (m_ospfInterfaces.empty()) return;
   NS_ASSERT(m_ospfInterfaces.size () > ifIndex);
@@ -230,7 +230,7 @@ OSPFApp::AddInterfaceNeighbor(uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4
 }
 
 void
-OSPFApp::SetOSPFGateway(uint32_t ifIndex, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp) {
+OspfApp::SetOSPFGateway(uint32_t ifIndex, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp) {
   NS_LOG_FUNCTION (this << ifIndex << destIp << mask << nextHopIp);
   if (m_ospfInterfaces.empty()) return;
   NS_ASSERT(m_ospfInterfaces.size () > ifIndex);
@@ -240,20 +240,20 @@ OSPFApp::SetOSPFGateway(uint32_t ifIndex, Ipv4Address destIp, Ipv4Mask mask, Ipv
 }
 
 void 
-OSPFApp::SetRouterId (Ipv4Address routerId)
+OspfApp::SetRouterId (Ipv4Address routerId)
 {
   m_routerId = routerId;
 }
 
 void 
-OSPFApp::ScheduleTransmitHello (Time dt)
+OspfApp::ScheduleTransmitHello (Time dt)
 {
   NS_LOG_FUNCTION (this << dt << m_randomVariable->GetValue());
-  m_helloEvent = Simulator::Schedule (dt + Seconds(m_randomVariable->GetValue()), &OSPFApp::SendHello, this);
+  m_helloEvent = Simulator::Schedule (dt + Seconds(m_randomVariable->GetValue()), &OspfApp::SendHello, this);
 }
 
 void 
-OSPFApp::SendHello ()
+OspfApp::SendHello ()
 {
   if (m_helloSockets.empty()) return;
 
@@ -293,7 +293,7 @@ OSPFApp::SendHello ()
 }
 
 void 
-OSPFApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId)
+OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId)
 {
   NS_LOG_FUNCTION (this << ifIndex << originRouterId);
   if (m_sockets.empty()) return;
@@ -322,7 +322,7 @@ OSPFApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRo
 }
 
 bool
-OSPFApp::IsDeviceAlive(uint32_t ifIndex) {
+OspfApp::IsDeviceAlive(uint32_t ifIndex) {
   if (m_lastHelloReceived[ifIndex].IsZero() || Simulator::Now() - m_lastHelloReceived[ifIndex] > m_neighborTimeout) {
     return false;
   }
@@ -330,7 +330,7 @@ OSPFApp::IsDeviceAlive(uint32_t ifIndex) {
 }
 
 void 
-OSPFApp::StopApplication ()
+OspfApp::StopApplication ()
 {
   NS_LOG_FUNCTION (this);
   m_lsuTimeout.Remove();
@@ -360,12 +360,12 @@ OSPFApp::StopApplication ()
 }
 
 void
-OSPFApp::SetRouting (Ptr<Ipv4StaticRouting> routing) {
+OspfApp::SetRouting (Ptr<Ipv4StaticRouting> routing) {
   m_routing = routing;
 } 
 
 void
-OSPFApp::LinkDown (Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp) {
+OspfApp::LinkDown (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp) {
   NS_LOG_FUNCTION (ospfInterface->GetAddress() << ospfInterface->GetNeighbors().size() << remoteRouterId << remoteIp);
   NeighberInterface neighbor(remoteRouterId, remoteIp);
   ospfInterface->RemoveNeighbor(neighbor);
@@ -374,7 +374,7 @@ OSPFApp::LinkDown (Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId,
 }
 
 void
-OSPFApp::LinkUp (Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp) {
+OspfApp::LinkUp (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp) {
   NS_LOG_FUNCTION (ospfInterface->GetAddress() << ospfInterface->GetNeighbors().size() << remoteRouterId << remoteIp);
   if (ospfInterface->IsNeighborIp(remoteIp)) {
     NS_LOG_INFO("Duplicated neighbor");
@@ -387,20 +387,20 @@ OSPFApp::LinkUp (Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, I
 }
 
 void
-OSPFApp::RefreshHelloTimer(uint32_t ifIndex, Ptr<OSPFInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp)
+OspfApp::RefreshHelloTimer(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp)
 {
 // Refresh the timer
   if (m_helloTimeouts[ifIndex].IsRunning()) {
     m_helloTimeouts[ifIndex].Remove();
   }
-  m_helloTimeouts[ifIndex] = Simulator::Schedule(m_neighborTimeout + Seconds(m_randomVariable->GetValue()), &OSPFApp::LinkDown, this, ospfInterface, remoteRouterId, remoteIp);
+  m_helloTimeouts[ifIndex] = Simulator::Schedule(m_neighborTimeout + Seconds(m_randomVariable->GetValue()), &OspfApp::LinkDown, this, ospfInterface, remoteRouterId, remoteIp);
 }
 
 // Only flood all neighbors, neighbors will create another LSU to flood again.
 // This is why TTL is not used from IP header
 // Will repeat if this node is the originator
 void
-OSPFApp::FloodLSU(Ptr<Packet> lsuPayload, uint32_t inputIfIndex) {
+OspfApp::FloodLSU(Ptr<Packet> lsuPayload, uint32_t inputIfIndex) {
   NS_LOG_FUNCTION (this << lsuPayload->GetSize() << inputIfIndex);
   for (uint32_t i = 1; i < m_lsaSockets.size(); i++)
   {
@@ -423,13 +423,13 @@ OSPFApp::FloodLSU(Ptr<Packet> lsuPayload, uint32_t inputIfIndex) {
   {
     // m_seqNumbers[m_routerId.Get()]++;
     // Schedule for a retransmission with the same sequence number
-    m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OSPFApp::LSUTimeout, this);
+    m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OspfApp::LSUTimeout, this);
   }
 }
 
 // Retransmit missing ACKs
 void
-OSPFApp::LSUTimeout() {
+OspfApp::LSUTimeout() {
   NS_LOG_FUNCTION (this);
   int retries = 0;
 
@@ -459,14 +459,14 @@ OSPFApp::LSUTimeout() {
   }
   if (retries) {
     NS_LOG_INFO("Retry missing ACKs: " << retries);
-    m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OSPFApp::LSUTimeout, this);
+    m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OspfApp::LSUTimeout, this);
     return;
   }
   NS_LOG_INFO("Received all ACKs");
 }
 
 void
-OSPFApp::RefreshLSUTimer() {
+OspfApp::RefreshLSUTimer() {
   NS_LOG_FUNCTION (this);
   if (m_lsuTimeout.IsRunning()) {
     m_lsuTimeout.Remove();
@@ -491,18 +491,18 @@ OSPFApp::RefreshLSUTimer() {
   
   // Flood the network with multicast IP
   FloodLSU(p, 0);
-  // m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OSPFApp::FloodLSU, this, p, 0);
+  // m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OspfApp::FloodLSU, this, p, 0);
 }
 
 // std::vector<Ptr<OSPFInterface> > ospfInterfaces
 void 
-OSPFApp::HandleHello (uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address remoteIp)
+OspfApp::HandleHello (uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address remoteIp)
 {
   NS_LOG_FUNCTION (this << ifIndex << remoteRouterId << remoteIp);
 
   // Skip checking for invalid/corrupted packet
   // New Neighbor
-  Ptr<OSPFInterface> ospfInterface = m_ospfInterfaces[ifIndex];
+  Ptr<OspfInterface> ospfInterface = m_ospfInterfaces[ifIndex];
   if (m_lastHelloReceived[ifIndex].IsZero()) {
     NS_LOG_INFO("New neighbor detected from interface " << ifIndex);
     
@@ -522,7 +522,7 @@ OSPFApp::HandleHello (uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address 
 
 
 void 
-OSPFApp::HandleLSAck (uint32_t ifIndex, Ipv4Address remoteRouterId, uint32_t seqNum)
+OspfApp::HandleLSAck (uint32_t ifIndex, Ipv4Address remoteRouterId, uint32_t seqNum)
 {
   NS_LOG_FUNCTION (this << ifIndex << remoteRouterId << seqNum << m_seqNumbers[m_routerId.Get()]);
 
@@ -532,7 +532,7 @@ OSPFApp::HandleLSAck (uint32_t ifIndex, Ipv4Address remoteRouterId, uint32_t seq
 }
 
 void 
-OSPFApp::HandleLSU (uint32_t ifIndex, Ptr<Packet> lsuPayload)
+OspfApp::HandleLSU (uint32_t ifIndex, Ptr<Packet> lsuPayload)
 {
   NS_LOG_FUNCTION(this << ifIndex << lsuPayload->GetSize());
   // Prepare buffer
@@ -606,7 +606,7 @@ OSPFApp::HandleLSU (uint32_t ifIndex, Ptr<Packet> lsuPayload)
 }
 
 void
-OSPFApp::PrintLSDB() {
+OspfApp::PrintLSDB() {
   for (const auto& pair : m_lsdb) {
     std::cout << "At t=" << Simulator::Now().GetSeconds() << " , Router: " << Ipv4Address(pair.first) << std::endl;
     std::cout << "  Neighbors:" << std::endl;
@@ -621,7 +621,7 @@ OSPFApp::PrintLSDB() {
 }
 
 void
-OSPFApp::PrintRouting(std::filesystem::path dirName) {
+OspfApp::PrintRouting(std::filesystem::path dirName) {
   try {
     Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> (dirName / "route.routes", std::ios::out);
     m_routing->PrintRoutingTable(routingStream);
@@ -631,7 +631,7 @@ OSPFApp::PrintRouting(std::filesystem::path dirName) {
 }
 
 void
-OSPFApp::PrintAreas() {
+OspfApp::PrintAreas() {
   std::cout << "Area:";
   for (uint32_t i = 1; i < m_ospfInterfaces.size(); i++) {
     std::cout << " " << m_ospfInterfaces[i]->GetArea();
@@ -640,7 +640,7 @@ OSPFApp::PrintAreas() {
 }
 
 uint32_t
-OSPFApp::GetLSDBHash() {
+OspfApp::GetLSDBHash() {
   std::stringstream ss;
   for (const auto& pair : m_lsdb) {
     ss << Ipv4Address(pair.first) << std::endl;
@@ -657,12 +657,12 @@ OSPFApp::GetLSDBHash() {
 }
 
 void
-OSPFApp::PrintLSDBHash() {
+OspfApp::PrintLSDBHash() {
   std::cout << GetLSDBHash() << std::endl;
 }
 
 void
-OSPFApp::UpdateRouting() {
+OspfApp::UpdateRouting() {
   std::unordered_map<uint32_t, uint32_t> distanceTo;
   std::unordered_map<uint32_t, uint32_t> prevHop;
   // <distance, next hop>
@@ -762,7 +762,7 @@ OSPFApp::UpdateRouting() {
 }
 
 void 
-OSPFApp::HandleRead (Ptr<Socket> socket)
+OspfApp::HandleRead (Ptr<Socket> socket)
 {
   // NS_LOG_FUNCTION (this << socket);
 

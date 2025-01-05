@@ -48,7 +48,7 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("OSPFGrid");
+NS_LOG_COMPONENT_DEFINE("OspfGrid");
 
 Ipv4Address ospfHelloAddress("224.0.0.5");
 const uint32_t GRID_WIDTH = 5;
@@ -79,7 +79,7 @@ main(int argc, char* argv[])
 {
     // Users may find it convenient to turn on explicit debugging
     // for selected modules; the below lines suggest how to do this
-    LogComponentEnable ("OSPFGrid", LOG_LEVEL_INFO);
+    LogComponentEnable ("OspfGrid", LOG_LEVEL_INFO);
     // Set up some default values for the simulation.  Use the
 
     // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
@@ -142,7 +142,7 @@ main(int argc, char* argv[])
     NS_LOG_INFO("Configuring default routes.");
     Ipv4StaticRoutingHelper ipv4RoutingHelper;
 
-    OSPFAppHelper ospfAppHelper(9);
+    OspfAppHelper ospfAppHelper(9);
     ospfAppHelper.SetAttribute("HelloInterval", TimeValue(Seconds(10)));
     ospfAppHelper.SetAttribute("HelloAddress", Ipv4AddressValue(ospfHelloAddress));
     ospfAppHelper.SetAttribute("NeighborTimeout", TimeValue(Seconds(30)));
@@ -180,21 +180,21 @@ main(int argc, char* argv[])
     // Simulator::Schedule(Seconds(85), &SetLinkUp, ndc.Get(1));
 
     // Print LSDB
-    Ptr<OSPFApp> app;
+    Ptr<OspfApp> app;
     for (uint32_t i = 0; i < c.GetN(); i++) {
-        app = DynamicCast<OSPFApp>(c.Get(i)->GetApplication(0));
-        // Simulator::Schedule(Seconds(1.001), &OSPFApp::PrintLSDBHash, app);
-        // Simulator::Schedule(Seconds(30), &OSPFApp::PrintLSDBHash, app);
-        // Simulator::Schedule(Seconds(80), &OSPFApp::PrintLSDBHash, app);
-        // Simulator::Schedule(Seconds(SIM_SECONDS), &OSPFApp::PrintLSDBHash, app);
+        app = DynamicCast<OspfApp>(c.Get(i)->GetApplication(0));
+        // Simulator::Schedule(Seconds(1.001), &OspfApp::PrintLSDBHash, app);
+        // Simulator::Schedule(Seconds(30), &OspfApp::PrintLSDBHash, app);
+        // Simulator::Schedule(Seconds(80), &OspfApp::PrintLSDBHash, app);
+        // Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLSDBHash, app);
     }
-    app = DynamicCast<OSPFApp>(c.Get(0)->GetApplication(0));
-    Simulator::Schedule(Seconds(SIM_SECONDS), &OSPFApp::PrintLSDB, app);
-    Simulator::Schedule(Seconds(100), &OSPFApp::PrintRouting, app, dirName);
+    app = DynamicCast<OspfApp>(c.Get(0)->GetApplication(0));
+    Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLSDB, app);
+    Simulator::Schedule(Seconds(100), &OspfApp::PrintRouting, app, dirName);
 
     // Print progress
     for (uint32_t i = 0; i < SIM_SECONDS; i+=10) {
-        Simulator::Schedule(Seconds(i), &OSPFApp::PrintLSDB, app);
+        Simulator::Schedule(Seconds(i), &OspfApp::PrintLSDB, app);
     }
 
     // Enable Pcap

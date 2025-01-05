@@ -35,16 +35,16 @@ namespace ns3 {
  * \brief Create a server application which waits for input UDP packets
  *        and sends them back to the original sender.
  */
-class OSPFAppHelper
+class OspfAppHelper
 {
 public:
   /**
-   * Create OSPFAppHelper which will make life easier for people trying
+   * Create OspfAppHelper which will make life easier for people trying
    * to set up simulations with echos.
    *
    * \param port The port the server will wait on for incoming packets
    */
-  OSPFAppHelper (uint16_t port);
+  OspfAppHelper (uint16_t port);
 
   /**
    * Record an attribute to be set in each Application after it is is created.

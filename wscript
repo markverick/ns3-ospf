@@ -3,9 +3,10 @@
 def build(bld):
     module = bld.create_ns3_module('ospf', ['core', 'internet', 'applications', 'point-to-point', 'mobility', 'internet-apps'])
     module.source = [
-        'ospf-app-helper.cc',
-        'ospf-app.cc',
-        'ospf-interface.cc'
+        'model/ospf-app.cc',
+        'model/ospf-interface.cc',
+        # 'model/ospf-header.cc',
+        'helper/ospf-app-helper.cc',
         ]
 
     module_test = bld.create_ns3_module_test_library('ospf')
@@ -19,10 +20,11 @@ def build(bld):
     headers = bld(features='ns3header')
     headers.module = 'ospf'
     headers.source = [
-        'ospf-app-helper.h',
-        'ospf-app.h',
-        'ospf-interface.h',
-        'ospf-packet-helper.h'
+        'model/ospf-app.h',
+        'model/ospf-interface.h',
+        # 'model/ospf-header.h',
+        'helper/ospf-app-helper.h',
+        'helper/ospf-packet-helper.h'
         ]
 
     if bld.env['ENABLE_EXAMPLES']:
