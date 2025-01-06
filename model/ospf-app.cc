@@ -35,6 +35,7 @@
 #include "ns3/random-variable-stream.h"
 #include "ns3/core-module.h"
 #include "ns3/ospf-packet-helper.h"
+#include "ns3/ospf-header.h"
 
 #include "filesystem"
 #include "tuple"
@@ -269,7 +270,8 @@ OspfApp::SendHello ()
     // call to the trace sinks before the packet is actually sent,
     // so that tags added to the packet can be sent as well
     Ptr<Packet> p = ConstructHelloPayload(Ipv4Address::ConvertFrom (m_routerId), m_areaId,
-                    m_ospfInterfaces[i]->GetMask(), m_helloInterval.GetSeconds(), m_neighborTimeout.GetSeconds());
+                    m_ospfInterfaces[i]->GetMask(), m_helloInterval.GetSeconds(), m_neighborTimeout.GetSeconds(),
+                    m_ospfInterfaces[i]->GetNeighbors());
     m_txTrace (p);
     if (Ipv4Address::IsMatchingType (m_helloAddress))
     {
@@ -286,7 +288,7 @@ OspfApp::SendHello ()
     }
 
   }
-  if (!m_sockets.empty())
+  if (!m_helloSockets.empty())
   {
     ScheduleTransmitHello (m_helloInterval);
   }
@@ -296,23 +298,23 @@ void
 OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId)
 {
   NS_LOG_FUNCTION (this << ifIndex << originRouterId);
-  if (m_sockets.empty()) return;
+  if (m_lsaSockets.empty()) return;
 
 
   Address ackSocketAddress;
-  for (uint32_t i = 1; i < m_sockets.size(); i++)
+  for (uint32_t i = 1; i < m_lsaSockets.size(); i++)
   {
-    auto socket = m_sockets[i];
+    auto socket = m_lsaSockets[i];
     socket->GetSockName (ackSocketAddress);
     m_txTrace (ackPayload);
-    if (Ipv4Address::IsMatchingType (originRouterId))
+    if (Ipv4Address::IsMatchingType (m_lsaAddress))
     {
-      m_txTraceWithAddresses (ackPayload, ackSocketAddress, InetSocketAddress (Ipv4Address::ConvertFrom (originRouterId)));
+      m_txTraceWithAddresses (ackPayload, ackSocketAddress, InetSocketAddress (Ipv4Address::ConvertFrom (m_lsaAddress)));
     }
     // NS_LOG_DEBUG(socket->GetBoundNetDevice()->GetIfIndex());
     // InetSocketAddress sourceAddress = InetSocketAddress::ConvertFrom(localAddress);
     // NS_LOG_DEBUG("Source Address: " << sourceAddress.GetIpv4());
-    socket->SendTo (ackPayload, 0, InetSocketAddress (originRouterId));
+    socket->SendTo (ackPayload, 0, InetSocketAddress (m_lsaAddress));
     if (Ipv4Address::IsMatchingType (originRouterId))
     {
       NS_LOG_INFO ("At time " << Simulator::Now ().As (Time::S) << " client sent " << ackPayload->GetSize() << " bytes to " <<
@@ -423,43 +425,31 @@ OspfApp::FloodLSU(Ptr<Packet> lsuPayload, uint32_t inputIfIndex) {
   {
     // m_seqNumbers[m_routerId.Get()]++;
     // Schedule for a retransmission with the same sequence number
-    m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OspfApp::LSUTimeout, this);
+    m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OspfApp::LSUTimeout, this, lsuPayload);
   }
 }
 
 // Retransmit missing ACKs
 void
-OspfApp::LSUTimeout() {
+OspfApp::LSUTimeout(Ptr<Packet> p) {
   NS_LOG_FUNCTION (this);
   int retries = 0;
 
-  // Pending LSUs indexed by interfaces for aggregation
-  std::vector<std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > > pendingLSUs(m_ospfInterfaces.size());
-  // Look up lsdb for missing ACKs
-  for (const auto& [routerId, ads] : m_lsdb) {
-    // Skip acknowledged routers
-    if (m_acknowledges.find(routerId) != m_acknowledges.end()) {
-      continue;
-    }
-    // Look up soft-state routes for which interfaces to aggregate
-    if (m_nextHopIfsByRouterId.find(routerId) != m_nextHopIfsByRouterId.end()) {
-      for (auto interface : m_nextHopIfsByRouterId[routerId]) {
-        Ptr<Packet> p = ConstructLSUPayload(m_routerId, m_areaId, m_seqNumbers[m_routerId.Get()], m_ttl, ads);
-        auto socket = m_sockets[interface];
-        Address localAddress;
-        socket->GetSockName (localAddress);
-        m_txTrace (p);
-        // Unicast to missing routers
-        NS_LOG_INFO("Sending to " << Ipv4Address(routerId) << " via " << interface);
-        socket->Connect(Ipv4Address(routerId));
-        socket->SendTo (p, 0, InetSocketAddress (InetSocketAddress (Ipv4Address(routerId))));
-        retries++;
-      }
+  for (uint32_t i = 1; i < m_ospfInterfaces.size(); i++) {
+    if (m_acknowledges.find(i) == m_acknowledges.end()) {
+      auto socket = m_lsaSockets[i];
+      Address localAddress;
+      socket->GetSockName (localAddress);
+      m_txTrace (p);
+      // Broadcast to missing interfaces
+      NS_LOG_INFO("Retransmitting via interface " << i);
+      socket->SendTo (p, 0, InetSocketAddress (InetSocketAddress (Ipv4Address(m_lsaAddress))));
+      retries++;
     }
   }
   if (retries) {
     NS_LOG_INFO("Retry missing ACKs: " << retries);
-    m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OspfApp::LSUTimeout, this);
+    m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OspfApp::LSUTimeout, this, p);
     return;
   }
   NS_LOG_INFO("Received all ACKs");
@@ -522,17 +512,17 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address 
 
 
 void 
-OspfApp::HandleLSAck (uint32_t ifIndex, Ipv4Address remoteRouterId, uint32_t seqNum)
+OspfApp::HandleLSAck (uint32_t ifIndex, Ipv4Address remoteRouterId, uint16_t seqNum)
 {
   NS_LOG_FUNCTION (this << ifIndex << remoteRouterId << seqNum << m_seqNumbers[m_routerId.Get()]);
 
   if (seqNum == m_seqNumbers[m_routerId.Get()]) {
-    m_acknowledges[remoteRouterId.Get()] = true;
+    m_acknowledges[ifIndex] = true;
   }
 }
 
 void 
-OspfApp::HandleLSU (uint32_t ifIndex, Ptr<Packet> lsuPayload)
+OspfApp::HandleLSU (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<Packet> lsuPayload)
 {
   NS_LOG_FUNCTION(this << ifIndex << lsuPayload->GetSize());
   // Prepare buffer
@@ -541,68 +531,68 @@ OspfApp::HandleLSU (uint32_t ifIndex, Ptr<Packet> lsuPayload)
   lsuPayload->CopyData(buffer, payloadSize);
 
   // If the LSU was originally generated by the receiving router, the packet is dropped.
-  Ipv4Address originRouterId = Ipv4Address::Deserialize(buffer + 4);
-  uint32_t originRouterId_ = originRouterId.Get();
-  if (originRouterId == m_routerId) {
+  uint32_t originRouterId = ospfHeader.GetRouterId();
+  if (originRouterId == m_routerId.Get()) {
     NS_LOG_INFO("LSU is dropped, received LSU has originated here");
     return;
   }
-  uint16_t seqNum = static_cast<int>(buffer[24] << 8) + static_cast<int>(buffer[25]);
+  uint16_t seqNum = static_cast<int>(buffer[0] << 8) + static_cast<int>(buffer[1]);
 
   // If the sequence number equals or less than that of the last packet received from the
   // originating router, the packet is dropped.
-  if (m_seqNumbers.find(originRouterId_) == m_seqNumbers.end()) {
-    m_seqNumbers[originRouterId_] = 0;
+  if (m_seqNumbers.find(originRouterId) == m_seqNumbers.end()) {
+    m_seqNumbers[originRouterId] = 0;
   }
-  if (seqNum <= m_seqNumbers[originRouterId_]) {
+  if (seqNum <= m_seqNumbers[originRouterId]) {
     NS_LOG_INFO("LSU is dropped, received sequence number <= stored sequence number");
     // Send direct ACK once receiving duplicated sequence number
-    auto ackPayload = ConstructAckPayload(m_routerId, m_areaId, m_seqNumbers[originRouterId_]);
-    SendAck(ifIndex, ackPayload, originRouterId);
+    auto ackPayload = ConstructAckPayload(m_routerId, m_areaId, m_seqNumbers[originRouterId]);
+    SendAck(ifIndex, ackPayload, Ipv4Address(originRouterId));
     return;
   }
 
   // Filling in lsdb
   std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > lsAdvertisements;
   // std::cout << "Read advertisements: " << std::endl;
-  for (uint32_t i = 32; i < payloadSize; i+=12) {
+  for (uint32_t i = 8; i < payloadSize; i+=12) {
     const auto& [subnet, mask, remoteRouterId] = GetAdvertisement(buffer + i);
     // std::cout << "  [" << (i) << "](" << subnet << ", " << mask << ", " << remoteRouterId << ")" << std::endl;
     lsAdvertisements.emplace_back(std::make_tuple(subnet.Get(), mask.Get(), remoteRouterId.Get()));
   }
-  if (m_lsdb.find(originRouterId_) != m_lsdb.end() && m_lsdb[originRouterId_] == lsAdvertisements) {
+  if (m_lsdb.find(originRouterId) != m_lsdb.end() && m_lsdb[originRouterId] == lsAdvertisements) {
     // If the packet contents are equivalent
     // to the contents of the packet last received from the originating router, the
     // database entry is updated with the new sequence number.
     NS_LOG_INFO("Receive the same lsdb entry, sequence number updated");
-    m_seqNumbers[originRouterId_] = seqNum;
+    m_seqNumbers[originRouterId] = seqNum;
   }
-  else if (m_lsdb.find(originRouterId_) == m_lsdb.end()) {
+  else if (m_lsdb.find(originRouterId) == m_lsdb.end()) {
 
     // If the LSU is from a router
     // not currently in the database, the packets contents are used to update the database
     // and recompute the forwarding table.
     NS_LOG_INFO("Receive a new lsdb entry");
-    m_lsdb[originRouterId_] = lsAdvertisements;
-    m_seqNumbers[originRouterId_] = seqNum;
+    m_lsdb[originRouterId] = lsAdvertisements;
+    m_seqNumbers[originRouterId] = seqNum;
     UpdateRouting();
   }
-  else if (m_lsdb.find(originRouterId_) != m_lsdb.end()) {
+  else if (m_lsdb.find(originRouterId) != m_lsdb.end()) {
     // Finally, if the LSU data is for a router
     // currently in the database but the information has changed, the LSU is used to update
     // the database, and forwarding table is recomputed.
     NS_LOG_INFO("Update the lsdb entry");
-    m_lsdb[originRouterId_] = lsAdvertisements;
-    m_seqNumbers[originRouterId_] = seqNum;
+    m_lsdb[originRouterId] = lsAdvertisements;
+    m_seqNumbers[originRouterId] = seqNum;
     UpdateRouting();
   }
   auto p = CopyAndDecrementTtl(lsuPayload);
   if (p) {
+    p->AddHeader(ospfHeader);
     FloodLSU(p, ifIndex);
   }
-  auto ackPayload = ConstructAckPayload(m_routerId, m_areaId, m_seqNumbers[originRouterId_]);
+  auto ackPayload = ConstructAckPayload(m_routerId, m_areaId, m_seqNumbers[originRouterId]);
   NS_LOG_DEBUG("Sending ACK from " << m_routerId << " to " << originRouterId);
-  SendAck(ifIndex, ackPayload, originRouterId);
+  SendAck(ifIndex, ackPayload, Ipv4Address(originRouterId));
 }
 
 void
@@ -775,26 +765,28 @@ OspfApp::HandleRead (Ptr<Socket> socket)
   //                      InetSocketAddress::ConvertFrom (from).GetIpv4 ());
   // Update last received hello message
   Ipv4Header ipHeader;
+  OspfHeader ospfHeader;
   
   packet->PeekHeader(ipHeader);
   Ipv4Address remoteIp = ipHeader.GetSource();
   // NS_LOG_DEBUG("Packet Size: " << packet->GetSize() << ", Header Size: " << sizeof (ipHeader) << ", Payload Size " << ipHeader.GetPayloadSize());
   packet->RemoveHeader(ipHeader);
-  uint32_t payloadSize = packet->GetSize();
 
+  packet->RemoveHeader(ospfHeader);
+
+  uint32_t payloadSize = packet->GetSize();
   uint8_t *buffer = new uint8_t[payloadSize];
   packet->CopyData(buffer, payloadSize);
-  int type = static_cast<int>(buffer[1]);
+
   Ipv4Address remoteRouterId;
-  if (type == 0x01) {
-    remoteRouterId = Ipv4Address::Deserialize(buffer + 4);
-    HandleHello(socket->GetBoundNetDevice()->GetIfIndex(), remoteRouterId, remoteIp);
-  } else if (type == 0x04) {
-    HandleLSU(socket->GetBoundNetDevice()->GetIfIndex(), packet);
-  } else if (type == 0x05) {
-    uint32_t seqNum = readBigEndian(buffer, 24);
-    remoteRouterId = Ipv4Address::Deserialize(buffer + 4);
-    HandleLSAck(socket->GetBoundNetDevice()->GetIfIndex(), remoteRouterId, seqNum);
+  // NS_LOG_INFO("Packet Type: " << ospfHeader.OspfTypeToString(ospfHeader.GetType()));
+  if (ospfHeader.GetType() == OspfHeader::OspfType::OspfHello) {
+    HandleHello(socket->GetBoundNetDevice()->GetIfIndex(), Ipv4Address(ospfHeader.GetRouterId()), Ipv4Address(remoteIp.Get()));
+  } else if (ospfHeader.GetType() == OspfHeader::OspfType::OspfLSUpdate) {
+    HandleLSU(socket->GetBoundNetDevice()->GetIfIndex(), ospfHeader, packet);
+  } else if (ospfHeader.GetType() == OspfHeader::OspfType::OspfLSAck) {
+    uint16_t seqNum = static_cast<int>(buffer[0] << 8) + static_cast<int>(buffer[1]);
+    HandleLSAck(socket->GetBoundNetDevice()->GetIfIndex(), Ipv4Address(ospfHeader.GetRouterId()), seqNum);
   } else {
     NS_LOG_ERROR("Unknown packet type");
   }

@@ -5,7 +5,7 @@ def build(bld):
     module.source = [
         'model/ospf-app.cc',
         'model/ospf-interface.cc',
-        # 'model/ospf-header.cc',
+        'model/ospf-header.cc',
         'helper/ospf-app-helper.cc',
         ]
 
@@ -22,7 +22,7 @@ def build(bld):
     headers.source = [
         'model/ospf-app.h',
         'model/ospf-interface.h',
-        # 'model/ospf-header.h',
+        'model/ospf-header.h',
         'helper/ospf-app-helper.h',
         'helper/ospf-packet-helper.h'
         ]

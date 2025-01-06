@@ -28,6 +28,7 @@
 #include "ns3/traced-callback.h"
 #include "ns3/ipv4-static-routing-helper.h"
 #include "ns3/random-variable-stream.h"
+#include "ospf-header.h"
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
@@ -102,7 +103,7 @@ private:
   virtual void SendHello ();
   virtual void SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId);
   virtual void FloodLSU (Ptr<Packet> p, uint32_t inputIfIndex);
-  virtual void LSUTimeout();
+  virtual void LSUTimeout(Ptr<Packet> p);
   virtual void LinkDown (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
   virtual void LinkUp (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
@@ -119,9 +120,9 @@ private:
 
   void HandleHello (uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
-  void HandleLSU (uint32_t ifIndex, Ptr<Packet> packet);
+  void HandleLSU (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<Packet> packet);
 
-  void HandleLSAck (uint32_t ifIndex, Ipv4Address remoteRouterId, uint32_t seqNum);
+  void HandleLSAck (uint32_t ifIndex, Ipv4Address remoteRouterId, uint16_t seqNum);
 
   void UpdateRouting ();
 
@@ -160,9 +161,9 @@ private:
   std::vector<Ptr<OspfInterface> > m_ospfInterfaces;
   EventId m_lsuTimeout;
   EventId m_ackEvent;
-  std::map<uint32_t, uint32_t> m_seqNumbers; 
+  std::map<uint32_t, uint16_t> m_seqNumbers; 
   std::map<uint32_t, std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > > m_lsdb; // adjacency list of [routerId] -> subnet, mask, remoteRouterId
-  std::unordered_map<uint32_t, bool> m_acknowledges; // acknowledge based on router id
+  std::unordered_map<uint32_t, bool> m_acknowledges; // acknowledge based on interface index
   std::unordered_map<uint32_t,std::vector<uint32_t> > m_nextHopIfsByRouterId; // optimized not to look up m_routing
 
   // Routing

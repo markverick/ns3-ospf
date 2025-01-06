@@ -35,12 +35,14 @@
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
+#include "ns3/ospf-header.h"
+#include "ns3/ospf-interface.h"
 
 namespace ns3
 {
 
 
-Ptr<Packet> ConstructHelloPayload(Ipv4Address routerId, uint32_t areaId, Ipv4Mask mask, uint16_t m_helloInterval, uint32_t neighborTimeout);
+Ptr<Packet> ConstructHelloPayload(Ipv4Address routerId, uint32_t areaId, Ipv4Mask mask, uint16_t m_helloInterval, uint32_t neighborTimeout, std::vector<NeighberInterface> neighbors);
 uint16_t CalculateChecksum(const uint8_t* data, uint32_t length);
 
 void writeBigEndian(uint8_t* payload, uint32_t offset, uint32_t value) {
@@ -58,112 +60,60 @@ uint32_t readBigEndian(const uint8_t* payload, uint32_t offset) {
 }
 
 Ptr<Packet>
-ConstructHelloPayload(Ipv4Address routerId, uint32_t areaId, Ipv4Mask mask, uint16_t helloInterval, uint32_t neighborTimeout) {
-    // Create a 40-byte payload
-    // Actual OSPF will contain neighbors, so the size will be variable
-    uint8_t payload[40] = {0};
+ConstructHelloPayload(Ipv4Address routerId, uint32_t areaId, Ipv4Mask mask, uint16_t helloInterval, uint32_t neighborTimeout, std::vector<NeighberInterface> neighbors) {
+    // Create a hello payload
+    uint32_t payloadSize = 20 + neighbors.size() * 4;
+    Buffer payload;
+    payload.AddAtStart(payloadSize);
+    Buffer::Iterator i = payload.Begin();
 
-    // Fill in the fields based on the given format
+    i.WriteHtonU32 (mask.Get());
+    i.WriteHtonU16 (helloInterval);
+    i.WriteU8 (0); // Options
+    i.WriteU8 (0); // Router Priority (Rtr Pri)
+    i.WriteHtonU32 (neighborTimeout);
+    i.WriteHtonU32 (0);
+    i.WriteHtonU32 (0);
 
-    // Version # (8 bits) and Type (8 bits)
-    payload[0] = 0x02;
-    payload[1] = 0x01;
-
-    // Packet length (16 bits)
-    payload[2] = 0x00; // Higher 8 bits
-    payload[3] = 32;   // Lower 8 bits (packet length in bytes)
-
-    // Router ID (32 bits)
-    routerId.Serialize(payload + 4);
-
-    // Area ID (32 bits)
-    writeBigEndian(payload, 8, areaId);
-
-    // Checksum (16 bits)
-    payload[12] = 0x00; // Example value
-    payload[13] = 0x00;
-
-    // Autype (16 bits)
-    payload[14] = 0x00;
-    payload[15] = 0x01;
-
-    // Authentication (64 bits)
-    for (int i = 16; i < 24; ++i) {
-        payload[i] = 0x00; // Zero-filled for simplicity
+    for (NeighberInterface neighbor : neighbors) {
+        i.WriteHtonU32(neighbor.remoteRouterId.Get());
     }
 
-    // Network Mask (32 bits)
-    writeBigEndian(payload, 24, mask.Get());
-
-    // HelloInt (16 bits) and padding (16 bits)
-    payload[28] = (helloInterval >> 8) & 0xFF ;
-    payload[29] = helloInterval & 0xFF;
-    for (int i = 30; i < 32; ++i) {
-        payload[i] = 0x00; // Padding with zeros
-    }
-
-    // Router Dead Interval (32 bits)
-    writeBigEndian(payload, 32, neighborTimeout);
-
-    // Padding for future DR and BDR
-    for (int i = 32; i < 40; ++i) {
-        payload[i] = 0x00; // Padding with zeros
-    }
-
-    // Calculate checksum
-    uint16_t checksum = CalculateChecksum(payload, 40);
-    payload[12] = (checksum >> 8) & 0xFF; // Higher 8 bits
-    payload[13] = checksum & 0xFF;        // Lower 8 bits
-
-    // Create a packet with the payload
-    Ptr<Packet> packet = Create<Packet>(payload, 40);
+    // Create a packet with the payload and the OSPF header
+    
+    // uint8_t *buffer = new uint8_t[payloadSize];
+    // std::cout << "payloadSize: " << payloadSize << std::endl;
+    // payload.Deserialize(buffer, payloadSize * 4);
+    Ptr<Packet> packet = Create<Packet>(payload.PeekData(), payloadSize);
+    OspfHeader header;
+    header.SetType(OspfHeader::OspfType::OspfHello);
+    header.SetPayloadSize(payloadSize);
+    header.SetRouterId(routerId.Get());
+    header.SetAreaId(areaId);
+    packet->AddHeader(header);
     return packet;
 }
 
 Ptr<Packet>
-ConstructAckPayload(Ipv4Address routerId, uint32_t areaId, uint32_t seqNum) {
-    // Create a 28-byte payload
-    uint8_t payload[28] = {0};
+ConstructAckPayload(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum) {
+    uint32_t payloadSize = 4;
 
-    // Fill in the fields based on the given format
+    // Create an ack payload
+    Buffer payload;
+    payload.AddAtStart(payloadSize);
+    Buffer::Iterator i = payload.Begin();
 
-    // Version # (8 bits) and Type (8 bits)
-    payload[0] = 0x02;
-    payload[1] = 0x05;
+    i.WriteHtonU16 (seqNum);
+    i.WriteHtonU16 (0); // padding
 
-    // Packet length (16 bits)
-    payload[2] = 0x00; // Higher 8 bits
-    payload[3] = 32;   // Lower 8 bits (packet length in bytes)
-
-    // Router ID (32 bits)
-    routerId.Serialize(payload + 4);
-
-    // Area ID (32 bits)
-    writeBigEndian(payload, 8, areaId);
-
-    // Checksum (16 bits)
-    payload[12] = 0x00; // Example value
-    payload[13] = 0x00;
-
-    // Autype (16 bits)
-    payload[14] = 0x00;
-    payload[15] = 0x01;
-
-    // Authentication (64 bits)
-    for (int i = 16; i < 24; ++i) {
-        payload[i] = 0x00; // Zero-filled for simplicity
-    }
-
-    // Network Mask (32 bits)
-    writeBigEndian(payload, 24, seqNum);
-
-    // Calculate checksum
-    uint16_t checksum = CalculateChecksum(payload, 28);
-    payload[12] = (checksum >> 8) & 0xFF; // Higher 8 bits
-    payload[13] = checksum & 0xFF;        // Lower 8 bits
-
-    // Create a packet with the payload
-    Ptr<Packet> packet = Create<Packet>(payload, 28);
+    // Create a packet with the payload and the OSPF header
+    Ptr<Packet> packet = Create<Packet>(payload.PeekData(), payloadSize);
+    OspfHeader header;
+    header.SetType(OspfHeader::OspfType::OspfLSAck);
+    header.SetPayloadSize(payloadSize);
+    header.SetRouterId(routerId.Get());
+    header.SetAreaId(areaId);
+    packet->AddHeader(header);
     return packet;
 }
 
@@ -174,11 +124,11 @@ CopyAndDecrementTtl(Ptr<Packet> lsuPayload) {
 
     uint8_t *buffer = new uint8_t[payloadSize];
     lsuPayload->CopyData(buffer, payloadSize);
-    uint16_t ttl = static_cast<int>(buffer[26] << 8) + static_cast<int>(buffer[27]) - 1;
+    uint16_t ttl = static_cast<int>(buffer[2] << 8) + static_cast<int>(buffer[3]) - 1;
     // std::cout << "    Decrement TTL to " << ttl << std::endl;
     if (ttl <= 0) return nullptr;
-    buffer[26] = (ttl >> 8 ) & 0xFF;
-    buffer[27] = ttl & 0xFF;
+    buffer[2] = (ttl >> 8 ) & 0xFF;
+    buffer[3] = ttl & 0xFF;
     return Create<Packet>(buffer, payloadSize);
 }
 
@@ -189,76 +139,48 @@ CopyAndIncrementSeqNumber(Ptr<Packet> lsuPayload) {
 
     uint8_t *buffer = new uint8_t[payloadSize];
     lsuPayload->CopyData(buffer, payloadSize);
-    uint16_t seqNum = static_cast<int>(buffer[24] << 8) + static_cast<int>(buffer[25]) + 1;
+    uint16_t seqNum = static_cast<int>(buffer[0] << 8) + static_cast<int>(buffer[1]) + 1;
     // std::cout << "    Increment seqNum to " << seqNum << std::endl;
     if (seqNum <= 0) return nullptr;
-    buffer[24] = (seqNum >> 8 ) & 0xFF;
-    buffer[25] = seqNum & 0xFF;
+    buffer[0] = (seqNum >> 8 ) & 0xFF;
+    buffer[1] = seqNum & 0xFF;
     return Create<Packet>(buffer, payloadSize);
 }
 
 Ptr<Packet>
 ConstructLSUPayload(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum, uint16_t ttl,
                     std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > lsAdvertisements) {
-    // Create a payload of 32 + 12 x numAds bytes
-    // TODO: Create a proper header for each LSA for identification
-    // Can store 40 LSAs (12 bytes each) in total (for now)
-    NS_ASSERT_MSG(lsAdvertisements.size() < 512, "Currently only support 40 LSU");
-    uint8_t payload[512] = {0};
 
-    // Fill in the fields based on the given format
-
-    // Version # (8 bits) and Type (8 bits)
-    payload[0] = 0x02;
-    payload[1] = 0x04;
-
-    // Packet length (16 bits)
-    payload[2] = 0x00; // Higher 8 bits
-    payload[3] = 32;   // Lower 8 bits (packet length in bytes)
-
-    // Router ID (32 bits)
-    routerId.Serialize(payload + 4);
-
-    // Area ID (32 bits)
-    writeBigEndian(payload, 8, areaId);
-
-    // Checksum (16 bits)
-    payload[12] = 0x00; // Example value
-    payload[13] = 0x00;
-
-    // Autype (16 bits)
-    payload[14] = 0x00;
-    payload[15] = 0x01;
-
-    // Authentication (64 bits)
-    for (int i = 16; i < 24; ++i) {
-        payload[i] = 0x00; // Zero-filled for simplicity
-    }
-
-    // Sequence Number (16 bits)
-    payload[24] = (seqNum >> 8 ) & 0xFF;
-    payload[25] = seqNum & 0xFF;
-
-    // TTL (16 bits)
-    payload[26] = (ttl >> 8 ) & 0xFF;
-    payload[27] = ttl & 0xFF;
-
-    // Number of Advertisement (32 bits)
     uint32_t numAds = lsAdvertisements.size();
-    writeBigEndian(payload, 28, numAds);
+    uint32_t payloadSize = 8 + 12 * numAds;
 
-    // Link State Advertisement (32 * numAds bits)
-    // std::cout << "Write advertisements: " << std::endl;
-    for (uint32_t i = 0; i < numAds; i++) {
-        const auto& [subnet, mask, remoteRouterId] = lsAdvertisements[i];
+    // Create a hello payload
+    Buffer payload;
+    payload.AddAtStart(payloadSize);
+    Buffer::Iterator i = payload.Begin();
+
+    i.WriteHtonU16 (seqNum);
+    i.WriteHtonU16 (ttl);
+
+    i.WriteHtonU32 (numAds);
+
+
+    for (uint32_t j = 0; j < numAds; j++) {
+        const auto& [subnet, mask, remoteRouterId] = lsAdvertisements[j];
         // std::cout << "  [" << (i) << "](" << subnet << ", " << mask << ", " << remoteRouterId << ")" << std::endl;
-        writeBigEndian(payload, 32 + 12 * i, subnet);
-        writeBigEndian(payload, 36 + 12 * i, mask);
-        writeBigEndian(payload, 40 + 12 * i, remoteRouterId);
+        i.WriteHtonU32 (subnet);
+        i.WriteHtonU32 (mask);
+        i.WriteHtonU32 (remoteRouterId);
     }
 
-    // Create a packet with the payload
-    Ptr<Packet> packet = Create<Packet>(payload, 32 + 12 * numAds);
+    // Create a packet with the payload and the OSPF header
+    Ptr<Packet> packet = Create<Packet>(payload.PeekData(), payloadSize);
+    OspfHeader header;
+    header.SetType(OspfHeader::OspfType::OspfLSUpdate);
+    header.SetPayloadSize(payloadSize);
+    header.SetRouterId(routerId.Get());
+    header.SetAreaId(areaId);
+    packet->AddHeader(header);
     return packet;
 }
 
