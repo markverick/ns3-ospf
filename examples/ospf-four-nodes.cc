@@ -53,7 +53,7 @@ NS_LOG_COMPONENT_DEFINE("OspfFourNode");
 Ipv4Address ospfHelloAddress("224.0.0.5");
 // Link Down at t=35
 // Link Up at t=85
-const uint32_t SIM_SECONDS = 80;
+const uint32_t SIM_SECONDS = 105;
 
 void AddRouteCustom(Ptr<Ipv4StaticRouting> staticRouting, Ipv4Address dest, Ipv4Address nextHop, uint32_t interface, uint32_t metric=0) {
     staticRouting->AddHostRouteTo(dest, nextHop, interface, metric);
@@ -185,7 +185,7 @@ main(int argc, char* argv[])
     uint32_t tSize = 1024;
     uint32_t maxPacketCount = 200;
     Time interPacketInterval = Seconds (1.);
-    UdpEchoClientHelper client (Ipv4Address("10.1.1.10"), port);
+    UdpEchoClientHelper client (Ipv4Address("10.1.1.9"), port);
     client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
     client.SetAttribute ("Interval", TimeValue (interPacketInterval));
     client.SetAttribute ("PacketSize", UintegerValue (tSize));
@@ -200,7 +200,7 @@ main(int argc, char* argv[])
     Simulator::Schedule(Seconds(85), &SetLinkUp, d1d2.Get(1));
 
     // Print LSDB
-    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(0)->GetApplication(0));
+    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
     // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
     Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
     for (int i = 0; i < 4; i++) {

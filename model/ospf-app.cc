@@ -639,7 +639,7 @@ OspfApp::UpdateRouting() {
     m_routing->RemoveRoute(m_boundDevices.GetN());
   }
 
-  // Disjkstra
+  // Dijkstra
   while (!pq.empty()) {
     pq.pop();
   }
