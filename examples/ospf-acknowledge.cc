@@ -150,20 +150,20 @@ main(int argc, char* argv[])
 
 
     // Test Error
-    // Simulator::Schedule(Seconds(5), &SetLinkError, d0d1.Get(0));
+    Simulator::Schedule(Seconds(5), &SetLinkError, d0d1.Get(0));
     // Simulator::Schedule(Seconds(5), &SetLinkError, d0d1.Get(1));
     // Simulator::Schedule(Seconds(5), &SetLinkError, d1d2.Get(0));
     // Simulator::Schedule(Seconds(5), &SetLinkError, d1d2.Get(1));
 
     // Print LSDB
     Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
-    Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLSDB, app);
+    Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLsdb, app);
     // app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
-    // Simulator::Schedule(Seconds(146), &OspfApp::PrintLSDB, app);
+    // Simulator::Schedule(Seconds(146), &OspfApp::PrintLsdb, app);
     // app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
-    // Simulator::Schedule(Seconds(147), &OspfApp::PrintLSDB, app);
+    // Simulator::Schedule(Seconds(147), &OspfApp::PrintLsdb, app);
     // app  = DynamicCast<OspfApp>(c.Get(3)->GetApplication(0));
-    // Simulator::Schedule(Seconds(148), &OspfApp::PrintLSDB, app);
+    // Simulator::Schedule(Seconds(148), &OspfApp::PrintLsdb, app);
 
 
 

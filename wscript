@@ -6,6 +6,8 @@ def build(bld):
         'model/ospf-app.cc',
         'model/ospf-interface.cc',
         'model/ospf-header.cc',
+        'model/lsa-header.cc',
+        'model/router-lsa.cc',
         'helper/ospf-app-helper.cc',
         ]
 
@@ -23,6 +25,8 @@ def build(bld):
         'model/ospf-app.h',
         'model/ospf-interface.h',
         'model/ospf-header.h',
+        'model/lsa-header.h',
+        'model/router-lsa.h',
         'helper/ospf-app-helper.h',
         'helper/ospf-packet-helper.h'
         ]

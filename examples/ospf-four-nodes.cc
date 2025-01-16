@@ -51,7 +51,9 @@ using namespace ns3;
 NS_LOG_COMPONENT_DEFINE("OspfFourNode");
 
 Ipv4Address ospfHelloAddress("224.0.0.5");
-const uint32_t SIM_SECONDS = 120;
+// Link Down at t=35
+// Link Up at t=85
+const uint32_t SIM_SECONDS = 80;
 
 void AddRouteCustom(Ptr<Ipv4StaticRouting> staticRouting, Ipv4Address dest, Ipv4Address nextHop, uint32_t interface, uint32_t metric=0) {
     staticRouting->AddHostRouteTo(dest, nextHop, interface, metric);
@@ -199,8 +201,12 @@ main(int argc, char* argv[])
 
     // Print LSDB
     Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(0)->GetApplication(0));
-    Simulator::Schedule(Seconds(145), &OspfApp::PrintLSDB, app);
-    Simulator::Schedule(Seconds(145), &OspfApp::PrintRouting, app, dirName);
+    // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+    Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
+    for (int i = 0; i < 4; i++) {
+        Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(i)->GetApplication(0));
+        Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+    }
     // app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
     // Simulator::Schedule(Seconds(146), &OspfApp::PrintLSDB, app);
     // app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));

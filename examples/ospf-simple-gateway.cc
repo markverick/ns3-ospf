@@ -179,7 +179,7 @@ main(int argc, char* argv[])
     // c3App->AddInterfaceNeighbor(d3d4.Get(0)->GetIfIndex(), Ipv4Address("0.0.0.0"), Ipv4Address("10.1.1.14"));
     // Print LSDB
     Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
-    Simulator::Schedule(Seconds(100), &OspfApp::PrintLSDB, app);
+    Simulator::Schedule(Seconds(100), &OspfApp::PrintLsdb, app);
     Simulator::Schedule(Seconds(100), &OspfApp::PrintRouting, app, dirName);
 
     // Enable Pcap

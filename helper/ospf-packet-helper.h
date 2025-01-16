@@ -35,8 +35,10 @@
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
+#include "ns3/lsa-header.h"
 #include "ns3/ospf-header.h"
 #include "ns3/ospf-interface.h"
+#include "ns3/router-lsa.h"
 
 namespace ns3
 {
@@ -147,40 +149,82 @@ CopyAndIncrementSeqNumber(Ptr<Packet> lsuPayload) {
     return Create<Packet>(buffer, payloadSize);
 }
 
+Ptr<RouterLsa>
+ConstructRouterLsa(std::vector<std::pair<uint32_t, uint32_t> > neighborLinks) {
+    // Create a Router-LSA
+    Ptr<RouterLsa> routerLsa = Create<RouterLsa>(0, 0, 0);
+    for (uint32_t j = 0; j < neighborLinks.size(); j++) {
+        auto link = neighborLinks[j];
+        routerLsa->AddLink(RouterLink(link.first, link.second, 1, 1));
+    }
+    return routerLsa;
+}
+
 Ptr<Packet>
-ConstructLSUPayload(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum, uint16_t ttl,
-                    std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > lsAdvertisements) {
+ConstructLSUPacket(OspfHeader ospfHeader, LsaHeader lsaHeader,
+                    Ptr<RouterLsa> routerLsa) {
+    // Read router LSAs and put it in a buffer
+    // Create a packet with the payload and the OSPF header
+    Ptr<Packet> packet = routerLsa->ConstructPacket();
+    packet->AddHeader(lsaHeader);
+    packet->AddHeader(ospfHeader);
+    return packet;
+}
 
-    uint32_t numAds = lsAdvertisements.size();
-    uint32_t payloadSize = 8 + 12 * numAds;
+Ptr<Packet>
+ConstructLSUPacket(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum,
+                    Ptr<RouterLsa> routerLsa) {
+    // Read router LSAs and put it in a buffer
+    // Create an LSA payload
+    Ptr<Packet> packet = routerLsa->ConstructPacket();
 
-    // Create a hello payload
-    Buffer payload;
-    payload.AddAtStart(payloadSize);
-    Buffer::Iterator i = payload.Begin();
+    // Add LSA header
+    LsaHeader lsaHeader;
+    lsaHeader.SetType(LsaHeader::LsType::RouterLSAs);
+    lsaHeader.SetLength(1);
+    lsaHeader.SetSeqNum(seqNum);
+    packet->AddHeader(lsaHeader);
 
-    i.WriteHtonU16 (seqNum);
-    i.WriteHtonU16 (ttl);
+    // Add OSPF header
+    OspfHeader ospfHeader;
+    ospfHeader.SetType(OspfHeader::OspfType::OspfLSUpdate);
+    ospfHeader.SetPayloadSize(packet->GetSize() + lsaHeader.GetSerializedSize());
+    ospfHeader.SetRouterId(routerId.Get());
+    ospfHeader.SetAreaId(areaId);
+    packet->AddHeader(ospfHeader);
 
-    i.WriteHtonU32 (numAds);
+    return packet;
+}
 
-
-    for (uint32_t j = 0; j < numAds; j++) {
-        const auto& [subnet, mask, remoteRouterId] = lsAdvertisements[j];
-        // std::cout << "  [" << (i) << "](" << subnet << ", " << mask << ", " << remoteRouterId << ")" << std::endl;
-        i.WriteHtonU32 (subnet);
-        i.WriteHtonU32 (mask);
-        i.WriteHtonU32 (remoteRouterId);
+Ptr<Packet>
+ConstructLSUPacket(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum, uint16_t ttl,
+                    std::vector<Ptr<RouterLsa> > routerLsas) {
+    // Read router LSAs and put it in a buffer
+    Buffer buffer;
+    uint32_t payloadSize = 12 * routerLsas.size();
+    buffer.AddAtStart(payloadSize);
+    auto i = buffer.Begin();
+    for (Ptr<RouterLsa> routerLsa : routerLsas) {
+        i.Next(routerLsa->Serialize(i));
     }
 
-    // Create a packet with the payload and the OSPF header
-    Ptr<Packet> packet = Create<Packet>(payload.PeekData(), payloadSize);
-    OspfHeader header;
-    header.SetType(OspfHeader::OspfType::OspfLSUpdate);
-    header.SetPayloadSize(payloadSize);
-    header.SetRouterId(routerId.Get());
-    header.SetAreaId(areaId);
-    packet->AddHeader(header);
+    // Create LSAs payload
+    Ptr<Packet> packet = Create<Packet>(buffer.PeekData(), payloadSize);
+
+    // Add LSA header
+    LsaHeader lsaHeader;
+    lsaHeader.SetType(LsaHeader::LsType::RouterLSAs);
+    lsaHeader.SetLength(routerLsas.size());
+    packet->AddHeader(lsaHeader);
+
+    // Add OSPF header
+    OspfHeader ospfHeader;
+    ospfHeader.SetType(OspfHeader::OspfType::OspfLSUpdate);
+    ospfHeader.SetPayloadSize(payloadSize + lsaHeader.GetSerializedSize());
+    ospfHeader.SetRouterId(routerId.Get());
+    ospfHeader.SetAreaId(areaId);
+    packet->AddHeader(ospfHeader);
+
     return packet;
 }
 

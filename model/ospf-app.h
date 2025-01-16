@@ -29,6 +29,8 @@
 #include "ns3/ipv4-static-routing-helper.h"
 #include "ns3/random-variable-stream.h"
 #include "ospf-header.h"
+#include "lsa-header.h"
+#include "router-lsa.h"
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
@@ -77,7 +79,7 @@ public:
   void SetRouterId (Ipv4Address routerId);
 
   // Print LSDB
-  void PrintLSDB();
+  void PrintLsdb();
 
   // Print Routing Table
   void PrintRouting(std::filesystem::path dirName);
@@ -86,8 +88,8 @@ public:
   void PrintAreas();
 
   // Get LSDB hash (Lazy)
-  uint32_t GetLSDBHash();
-  void PrintLSDBHash();
+  uint32_t GetLsdbHash();
+  void PrintLsdbHash();
 
   virtual ~OspfApp ();
 
@@ -120,7 +122,7 @@ private:
 
   void HandleHello (uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
-  void HandleLSU (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<Packet> packet);
+  void HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
 
   void HandleLSAck (uint32_t ifIndex, Ipv4Address remoteRouterId, uint16_t seqNum);
 
@@ -128,7 +130,9 @@ private:
 
   void RefreshHelloTimer(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
-  void RefreshLSUTimer();
+  void RefreshLsuTimer();
+
+  Ptr<RouterLsa> GetRouterLsa();
 
   uint16_t m_port; //!< Port on which we listen for incoming packets.
   std::vector<Ptr<Socket>> m_sockets; //!< Unicast socket
@@ -162,9 +166,8 @@ private:
   EventId m_lsuTimeout;
   EventId m_ackEvent;
   std::map<uint32_t, uint16_t> m_seqNumbers; 
-  std::map<uint32_t, std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > > m_lsdb; // adjacency list of [routerId] -> subnet, mask, remoteRouterId
+  std::map<uint32_t, Ptr<RouterLsa> > m_routerLsdb; // adjacency list of [routerId] -> remoteRouterId
   std::unordered_map<uint32_t, bool> m_acknowledges; // acknowledge based on interface index
-  std::unordered_map<uint32_t,std::vector<uint32_t> > m_nextHopIfsByRouterId; // optimized not to look up m_routing
 
   // Routing
 

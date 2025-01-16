@@ -183,7 +183,7 @@ OspfHeader::Serialize (Buffer::Iterator start) const
       NS_LOG_LOGIC ("checksum=" <<checksum);
       i = start;
       i.Next (12);
-      i.WriteU16 (checksum);
+      i.WriteHtonU16 (checksum);
     }
   i.WriteU16 (0);
   i.WriteU64 (0);
@@ -207,7 +207,7 @@ OspfHeader::Deserialize (Buffer::Iterator start)
   m_payloadSize = size - m_headerSize;
   m_routerId = i.ReadNtohU32 ();
   m_areaId = i.ReadNtohU32 ();
-  m_checksum = i.ReadU16 ();
+  m_checksum = i.ReadNtohU16 ();
 
   if (m_calcChecksum) 
     {

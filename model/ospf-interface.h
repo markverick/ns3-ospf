@@ -75,9 +75,6 @@ public:
 
   OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t area);
 
-  //  Vector of <subnet, mask, neighbor's router ID>
-  std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > GetLSAdvertisement();
-
   ~OspfInterface();
 
   Ipv4Address
@@ -140,6 +137,10 @@ public:
     }
     return false;
   }
+
+  //  Vector of <neighbor's routerIds, its own interface ipAddress>
+  std::vector<std::pair<uint32_t, uint32_t> > GetNeighborLinks();
+
 
   private:
     Ipv4Address m_ipAddress;

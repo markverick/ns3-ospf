@@ -32,8 +32,9 @@ NS_OBJECT_ENSURE_REGISTERED (LsaHeader);
 
 LsaHeader::LsaHeader ()
   : m_calcChecksum (false),
-    m_type(0),
+    m_lsAge(0),
     m_options(0),
+    m_type(0),
     m_length (0),
     m_lsId (0),
     m_advertisingRouter (0),
@@ -76,6 +77,19 @@ LsaHeader::GetLength (void) const
 {
   NS_LOG_FUNCTION (this);
   return m_length;
+}
+
+void
+LsaHeader::SetSeqNum (uint32_t seqNum)
+{
+  NS_LOG_FUNCTION (this << seqNum);
+  m_seqNum = seqNum;
+}
+uint32_t
+LsaHeader::GetSeqNum (void) const
+{
+  NS_LOG_FUNCTION (this);
+  return m_seqNum;
 }
 
 void
@@ -196,8 +210,8 @@ LsaHeader::Deserialize (Buffer::Iterator start)
   m_lsId = i.ReadNtohU32 ();
   m_advertisingRouter = i.ReadNtohU32 ();
   m_seqNum = i.ReadNtohU32 ();
-  m_checksum = i.ReadU16 (); // checksum is disabled for now
-  m_length = i.ReadU16 ();
+  m_checksum = i.ReadNtohU16 (); // checksum is disabled for now
+  m_length = i.ReadNtohU16 ();
   
   return GetSerializedSize ();
 }

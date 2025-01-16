@@ -183,18 +183,18 @@ main(int argc, char* argv[])
     Ptr<OspfApp> app;
     for (uint32_t i = 0; i < c.GetN(); i++) {
         app = DynamicCast<OspfApp>(c.Get(i)->GetApplication(0));
-        // Simulator::Schedule(Seconds(1.001), &OspfApp::PrintLSDBHash, app);
-        // Simulator::Schedule(Seconds(30), &OspfApp::PrintLSDBHash, app);
-        // Simulator::Schedule(Seconds(80), &OspfApp::PrintLSDBHash, app);
-        // Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLSDBHash, app);
+        // Simulator::Schedule(Seconds(1.001), &OspfApp::PrintLsdbHash, app);
+        // Simulator::Schedule(Seconds(30), &OspfApp::PrintLsdbHash, app);
+        // Simulator::Schedule(Seconds(80), &OspfApp::PrintLsdbHash, app);
+        // Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLsdbHash, app);
     }
     app = DynamicCast<OspfApp>(c.Get(0)->GetApplication(0));
-    Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLSDB, app);
+    Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLsdb, app);
     Simulator::Schedule(Seconds(100), &OspfApp::PrintRouting, app, dirName);
 
     // Print progress
     for (uint32_t i = 0; i < SIM_SECONDS; i+=10) {
-        Simulator::Schedule(Seconds(i), &OspfApp::PrintLSDB, app);
+        Simulator::Schedule(Seconds(i), &OspfApp::PrintLsdb, app);
     }
 
     // Enable Pcap

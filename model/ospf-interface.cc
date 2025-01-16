@@ -73,16 +73,15 @@ OspfInterface::OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t he
   m_area = area;
 }
 
-// Only one LSA per interface for point-to-point
-// Vector of <subnet, mask, neighbor's router ID>
-std::vector<std::tuple<uint32_t, uint32_t, uint32_t> >
-OspfInterface::GetLSAdvertisement() {
-  std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > lsAdvertisements;
+// Get a list of <neighbor's router ID, router's IP address> as a vector
+std::vector<std::pair<uint32_t, uint32_t> >
+OspfInterface::GetNeighborLinks() {
+  std::vector<std::pair<uint32_t, uint32_t> > links;
   auto neighbors = GetNeighbors();
   for (auto n : neighbors) {
-    lsAdvertisements.emplace_back(m_ipAddress.CombineMask(m_ipMask).Get(), m_ipMask.Get(), n.remoteRouterId.Get());
+    links.emplace_back(n.remoteRouterId.Get(), m_ipAddress.Get());
   }
-  return lsAdvertisements;
+  return links;
 }
 
 }
