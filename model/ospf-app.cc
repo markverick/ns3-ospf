@@ -655,10 +655,11 @@ OspfApp::UpdateRouting() {
 
     for (uint32_t i = 0; i < m_routerLsdb[u]->GetNLink(); i++) {
       v = m_routerLsdb[u]->GetLink(i).m_linkId;
-      if (distanceTo.find(v) == distanceTo.end() || w + 1 < distanceTo[v]) {
-        distanceTo[v] = w + 1;
+      auto metric = m_routerLsdb[u]->GetLink(i).m_metric;
+      if (distanceTo.find(v) == distanceTo.end() || w + metric < distanceTo[v]) {
+        distanceTo[v] = w + metric;
         prevHop[v] = u;
-        pq.emplace(w + 1, v);
+        pq.emplace(w + metric, v);
       }
     }
   }
