@@ -22,7 +22,7 @@
 // Network topology
 //
 //            n1
-//       5  /    \  1
+//       6  /    \  1
 //         /      \          10
 //       n0        n3-------------------------n4
 //         \      /
@@ -93,8 +93,8 @@ main(int argc, char* argv[])
     NodeContainer n3n4 = NodeContainer(c.Get(3), c.Get(4));
 
     // Prepare interface metrices
-    std::vector<uint32_t> m0 = {0, 5, 1};
-    std::vector<uint32_t> m1 = {0, 5, 1};
+    std::vector<uint32_t> m0 = {0, 6, 1};
+    std::vector<uint32_t> m1 = {0, 6, 1};
     std::vector<uint32_t> m2 = {0, 1, 3};
     std::vector<uint32_t> m3 = {0, 1, 3, 10};
     std::vector<uint32_t> m4 = {0, 10};
@@ -183,7 +183,7 @@ main(int argc, char* argv[])
 
 
     // Print LSDB
-    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(0)->GetApplication(0));
+    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
     // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
     Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
     for (int i = 0; i < 5; i++) {
