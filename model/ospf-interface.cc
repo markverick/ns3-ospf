@@ -57,6 +57,7 @@ OspfInterface::OspfInterface(Ipv4Address ipAddress, uint16_t helloInterval) {
   m_ipAddress = ipAddress;
   m_ipMask = Ipv4Mask(0xffffff00);
   m_helloInterval = helloInterval;
+  m_metric = 1;
 }
 
 OspfInterface::OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval) {
@@ -64,6 +65,7 @@ OspfInterface::OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t he
   m_ipAddress = ipAddress;
   m_ipMask = ipMask;
   m_helloInterval = helloInterval;
+  m_metric = 1;
 }
 
 OspfInterface::OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t area) {
@@ -72,6 +74,7 @@ OspfInterface::OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t he
   m_ipMask = ipMask;
   m_helloInterval = helloInterval;
   m_area = area;
+  m_metric = 1;
 }
 
 // Get a list of <neighbor's router ID, router's IP address> as a vector
@@ -81,6 +84,19 @@ OspfInterface::GetNeighborLinks() {
   auto neighbors = GetNeighbors();
   for (auto n : neighbors) {
     links.emplace_back(n.remoteRouterId.Get(), m_ipAddress.Get());
+  }
+  return links;
+}
+
+// Get a list of <neighbor's router ID, router's IP address> that matches parameter's area
+std::vector<std::pair<uint32_t, uint32_t> >
+OspfInterface::GetNeighborLinks(uint32_t areaId) {
+  std::vector<std::pair<uint32_t, uint32_t> > links;
+  auto neighbors = GetNeighbors();
+  for (auto n : neighbors) {
+    if (n.remoteAreaId == areaId) {
+      links.emplace_back(n.remoteRouterId.Get(), m_ipAddress.Get());
+    }
   }
   return links;
 }

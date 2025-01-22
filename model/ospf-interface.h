@@ -46,6 +46,12 @@ public:
   NeighberInterface (Ipv4Address remoteRouterId_, Ipv4Address remoteIpAddress_)
     : remoteRouterId(remoteRouterId_), remoteIpAddress(remoteIpAddress_)
   {
+    remoteAreaId = 0;
+  }
+  // Nodes in the same subnet may have different area ID in this area proxy modification
+  NeighberInterface (Ipv4Address remoteRouterId_, Ipv4Address remoteIpAddress_, uint32_t remoteAreaId_)
+    : remoteRouterId(remoteRouterId_), remoteIpAddress(remoteIpAddress_), remoteAreaId(remoteAreaId_)
+  {
   }
   // Comparator
   bool operator== (const NeighberInterface &other) const
@@ -62,6 +68,7 @@ public:
 
   Ipv4Address remoteRouterId;
   Ipv4Address remoteIpAddress;
+  uint32_t remoteAreaId;
 };
 
 class OspfInterface: public Object
@@ -155,6 +162,7 @@ public:
 
   //  Vector of <neighbor's routerIds, its own interface ipAddress>
   std::vector<std::pair<uint32_t, uint32_t> > GetNeighborLinks();
+  std::vector<std::pair<uint32_t, uint32_t> > GetNeighborLinks(uint32_t areaId);
 
 
   private:

@@ -111,8 +111,8 @@ private:
   virtual void SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId);
   virtual void FloodLSU (Ptr<Packet> p, uint32_t inputIfIndex);
   virtual void LSUTimeout(Ptr<Packet> p);
-  virtual void LinkDown (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
-  virtual void LinkUp (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  virtual void LinkDown (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId);
+  virtual void LinkUp (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId);
 
   /**
    * \brief Handle a packet reception.
@@ -125,7 +125,7 @@ private:
 
   bool IsDeviceAlive(uint32_t ifIndex);
 
-  void HandleHello (uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  void HandleHello (uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t areaId);
 
   void HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
 
@@ -133,7 +133,7 @@ private:
 
   void UpdateRouting ();
 
-  void RefreshHelloTimer(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  void RefreshHelloTimer(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t);
 
   void RefreshLsuTimer();
 
@@ -149,7 +149,7 @@ private:
   // Attributes
   Ipv4Address m_routerId; // eth0
   NetDeviceContainer m_boundDevices;
-  uint32_t m_areaId;
+  uint32_t m_areaId; // Only used for alt area
 
   // Randomization
   Ptr<UniformRandomVariable> m_randomVariable = CreateObject<UniformRandomVariable>();
