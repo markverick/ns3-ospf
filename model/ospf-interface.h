@@ -43,6 +43,23 @@ namespace ns3 {
 class NeighberInterface
 {
 public:
+  /**
+   * \enum neighborState
+   * \brief Neighbor state machine
+   *
+   * The values correspond to the OSPF neighbor state machine in \RFC{2328}.
+   */
+  enum neighborState
+  {
+    Down = 0x1,
+    Attempt = 0x2, // for multi-access
+    Init = 0x3, // received hello, one-way
+    TwoWay = 0x4, // received two-way for multi-access
+    ExStart = 0x5,  // after received two-way for point-to-point or designated/backup routers are agreed for multi-access
+    Exchange = 0x6, // after agreed on slave/master relation and starting seqNum
+    Loading = 0x7, // unused. loading is instantaneus in the simulation
+    Full = 0x8, // exchange is done
+  };
   NeighberInterface (Ipv4Address remoteRouterId_, Ipv4Address remoteIpAddress_)
     : remoteRouterId(remoteRouterId_), remoteIpAddress(remoteIpAddress_)
   {
