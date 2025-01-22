@@ -82,19 +82,39 @@ public:
     return m_ipAddress;
   }
 
+  void
+  SetAddress(Ipv4Address ipAddress) {
+    m_ipAddress = ipAddress;
+  }
+
   Ipv4Mask
   GetMask() {
     return m_ipMask;
   }
 
   void
-  SetAddress(Ipv4Address ipAddress) {
-    m_ipAddress = ipAddress;
+  SetMask(Ipv4Mask ipMask) {
+    m_ipMask = ipMask;
+  }
+
+  uint32_t
+  GetMetric() {
+    return m_metric;
   }
 
   void
-  SetMask(Ipv4Mask ipMask) {
-    m_ipMask = ipMask;
+  SetMetric(uint32_t metric) {
+    m_metric = metric;
+  }
+
+  uint32_t
+  GetArea() {
+    return m_area;
+  }
+
+  void
+  SetArea(uint32_t area) {
+    m_area = area;
   }
 
   uint16_t
@@ -105,11 +125,6 @@ public:
   std::vector<NeighberInterface>
   GetNeighbors() {
     return m_neighbors;
-  }
-
-  uint32_t
-  GetArea() {
-    return m_area;
   }
 
   void AddNeighbor(NeighberInterface neighbor) {
@@ -147,6 +162,7 @@ public:
     Ipv4Mask m_ipMask;
     uint16_t m_helloInterval;
     uint32_t m_area;
+    uint32_t m_metric;
     std::vector<NeighberInterface> m_neighbors;
 };
 }

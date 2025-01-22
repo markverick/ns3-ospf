@@ -21,13 +21,13 @@
 //
 // Network topology
 //
-//  n0
-//     \ 5 Mb/s, 2ms
-//      \          1.5Mb/s, 10ms
-//       n2 -------------------------n3
-//      /
-//     / 5 Mb/s, 2ms
-//   n1
+//            n1
+//       5  /    \  1
+//         /      \          10
+//       n0        n3-------------------------n4
+//         \      /
+//       1  \    /  3
+//            n2
 //
 
 #include "ns3/applications-module.h"
@@ -48,31 +48,19 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("OspfFourNode");
+NS_LOG_COMPONENT_DEFINE("OspfMetric");
 
 Ipv4Address ospfHelloAddress("224.0.0.5");
 // Link Down at t=35
 // Link Up at t=85
 const uint32_t SIM_SECONDS = 105;
 
-void SetLinkDown(Ptr<NetDevice> nd) {
-    Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-    pem->SetRate(1.0);
-    nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
-
-void SetLinkUp(Ptr<NetDevice> nd) {
-    Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-    pem->SetRate(0.0);
-    nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
-
 int
 main(int argc, char* argv[])
 {
     // Users may find it convenient to turn on explicit debugging
     // for selected modules; the below lines suggest how to do this
-    LogComponentEnable ("OspfFourNode", LOG_LEVEL_INFO);
+    LogComponentEnable ("OspfMetric", LOG_LEVEL_INFO);
     // Set up some default values for the simulation.  Use the
 
     // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
@@ -85,7 +73,7 @@ main(int argc, char* argv[])
     cmd.Parse(argc, argv);
 
     // Create results folder
-    std::filesystem::path dirName = "results/ospf-four-nodes";
+    std::filesystem::path dirName = "results/ospf-metric";
   
     try {
         std::filesystem::create_directories(dirName);
@@ -97,10 +85,19 @@ main(int argc, char* argv[])
     // topologies, we could configure a node factory.
     NS_LOG_INFO("Create nodes.");
     NodeContainer c;
-    c.Create(4);
+    c.Create(5);
+    NodeContainer n0n1 = NodeContainer(c.Get(0), c.Get(1));
     NodeContainer n0n2 = NodeContainer(c.Get(0), c.Get(2));
-    NodeContainer n1n2 = NodeContainer(c.Get(1), c.Get(2));
-    NodeContainer n3n2 = NodeContainer(c.Get(3), c.Get(2));
+    NodeContainer n1n3 = NodeContainer(c.Get(1), c.Get(3));
+    NodeContainer n2n3 = NodeContainer(c.Get(2), c.Get(3));
+    NodeContainer n3n4 = NodeContainer(c.Get(3), c.Get(4));
+
+    // Prepare interface metrices
+    std::vector<uint32_t> m0 = {0, 5, 1};
+    std::vector<uint32_t> m1 = {0, 5, 1};
+    std::vector<uint32_t> m2 = {0, 1, 3};
+    std::vector<uint32_t> m3 = {0, 1, 3, 10};
+    std::vector<uint32_t> m4 = {0, 10};
 
     InternetStackHelper internet;
     internet.Install(c);
@@ -111,25 +108,29 @@ main(int argc, char* argv[])
     p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
     p2p.SetChannelAttribute("Delay", StringValue("2ms"));
     
+    NetDeviceContainer d0d1 = p2p.Install(n0n1);
     NetDeviceContainer d0d2 = p2p.Install(n0n2);
-
-
-    NetDeviceContainer d1d2 = p2p.Install(n1n2);
+    NetDeviceContainer d1d3 = p2p.Install(n1n3);
+    NetDeviceContainer d2d3 = p2p.Install(n2n3);
 
     p2p.SetDeviceAttribute("DataRate", StringValue("1500kbps"));
     p2p.SetChannelAttribute("Delay", StringValue("10ms"));
-    NetDeviceContainer d3d2 = p2p.Install(n3n2);
+    NetDeviceContainer d3d4 = p2p.Install(n3n4);
 
     // Later, we add IP addresses.
 
 
     NS_LOG_INFO("Assign IP Addresses.");
     Ipv4AddressHelper ipv4("10.1.1.0", "255.255.255.252");
+    ipv4.Assign(d0d1);
+    ipv4.NewNetwork();
     ipv4.Assign(d0d2);
     ipv4.NewNetwork();
-    ipv4.Assign(d1d2);
+    ipv4.Assign(d1d3);
     ipv4.NewNetwork();
-    ipv4.Assign(d3d2);
+    ipv4.Assign(d2d3);
+    ipv4.NewNetwork();
+    ipv4.Assign(d3d4);
 
     // Create router nodes, initialize routing database and set up the routing
     // tables in the nodes.
@@ -149,50 +150,46 @@ main(int argc, char* argv[])
     ospfAppHelper.SetAttribute("NeighborTimeout", TimeValue(Seconds(30)));
     ospfAppHelper.SetAttribute("LSUInterval", TimeValue(Seconds(5)));
  
-    ApplicationContainer ospfApp = ospfAppHelper.Install(c);
+    // Install OSPF app with metrices
+    std::vector<uint32_t> emptyVec;
+    ApplicationContainer ospfApp;
+    ospfApp.Add(ospfAppHelper.Install(c.Get(0), emptyVec, m0));
+    ospfApp.Add(ospfAppHelper.Install(c.Get(1), emptyVec, m1));
+    ospfApp.Add(ospfAppHelper.Install(c.Get(2), emptyVec, m2));
+    ospfApp.Add(ospfAppHelper.Install(c.Get(3), emptyVec, m3));
+    ospfApp.Add(ospfAppHelper.Install(c.Get(4), emptyVec, m4));
+
+
     ospfApp.Start(Seconds(1.0));
     ospfApp.Stop(Seconds(SIM_SECONDS));
 
-    // User Traffic
-    uint16_t port = 9;  // well-known echo port number
-    UdpEchoServerHelper server (port);
-    ApplicationContainer apps = server.Install (c.Get (3));
-    apps.Start (Seconds (1.0));
-    apps.Stop (Seconds (SIM_SECONDS));
+    // // User Traffic
+    // uint16_t port = 9;  // well-known echo port number
+    // UdpEchoServerHelper server (port);
+    // ApplicationContainer apps = server.Install (c.Get (4));
+    // apps.Start (Seconds (1.0));
+    // apps.Stop (Seconds (SIM_SECONDS));
 
-    uint32_t tSize = 1024;
-    uint32_t maxPacketCount = 200;
-    Time interPacketInterval = Seconds (1.);
-    UdpEchoClientHelper client (Ipv4Address("10.1.1.9"), port);
-    client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
-    client.SetAttribute ("Interval", TimeValue (interPacketInterval));
-    client.SetAttribute ("PacketSize", UintegerValue (tSize));
-    apps = client.Install (c.Get (1));
-    apps.Start (Seconds (2.0));
-    apps.Stop (Seconds (SIM_SECONDS));
+    // uint32_t tSize = 1024;
+    // uint32_t maxPacketCount = 200;
+    // Time interPacketInterval = Seconds (1.);
+    // UdpEchoClientHelper client (Ipv4Address("10.1.1.9"), port);
+    // client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
+    // client.SetAttribute ("Interval", TimeValue (interPacketInterval));
+    // client.SetAttribute ("PacketSize", UintegerValue (tSize));
+    // apps = client.Install (c.Get (0));
+    // apps.Start (Seconds (2.0));
+    // apps.Stop (Seconds (SIM_SECONDS));
 
-    // Test Error
-    Simulator::Schedule(Seconds(35), &SetLinkDown, d1d2.Get(0));
-    Simulator::Schedule(Seconds(35), &SetLinkDown, d1d2.Get(1));
-    Simulator::Schedule(Seconds(85), &SetLinkUp, d1d2.Get(0));
-    Simulator::Schedule(Seconds(85), &SetLinkUp, d1d2.Get(1));
 
     // Print LSDB
-    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
+    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(0)->GetApplication(0));
     // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
     Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 5; i++) {
         Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(i)->GetApplication(0));
         Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
     }
-    // app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
-    // Simulator::Schedule(Seconds(146), &OspfApp::PrintLSDB, app);
-    // app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
-    // Simulator::Schedule(Seconds(147), &OspfApp::PrintLSDB, app);
-    // app  = DynamicCast<OspfApp>(c.Get(3)->GetApplication(0));
-    // Simulator::Schedule(Seconds(148), &OspfApp::PrintLSDB, app);
-
-
 
     // Enable Pcap
     AsciiTraceHelper ascii;

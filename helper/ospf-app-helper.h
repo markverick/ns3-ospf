@@ -64,10 +64,14 @@ public:
    * \returns The applications created, one Application per Node in the 
    *          NodeContainer.
    */
+  ApplicationContainer Install (Ptr<Node> n) const;
+  ApplicationContainer Install (Ptr<Node> n, std::vector<uint32_t> areas) const;
+  ApplicationContainer Install (Ptr<Node> n, std::vector<uint32_t> areas, std::vector<uint32_t> metrices) const;
   ApplicationContainer Install (NodeContainer c) const;
+  ApplicationContainer Install (NodeContainer c, std::vector<uint32_t> areas) const;
+  ApplicationContainer Install (NodeContainer c, std::vector<uint32_t> areas, std::vector<uint32_t> metrices) const;
   void InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address nextHopIp) const;
   void InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp) const;
-  ApplicationContainer Install (NodeContainer c, std::vector<uint32_t> areas) const;
   void InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp, std::vector<uint32_t> areas) const;
 
 private:
@@ -81,6 +85,8 @@ private:
   Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs) const;
 
   Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs, std::vector<uint32_t> areas) const;
+
+  Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs, std::vector<uint32_t> areas, std::vector<uint32_t> metrices) const;
 
   ObjectFactory m_factory; //!< Object factory.
 };

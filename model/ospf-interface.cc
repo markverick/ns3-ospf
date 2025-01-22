@@ -45,6 +45,7 @@ OspfInterface::OspfInterface() {
   m_ipMask = Ipv4Mask(0xffffff00); // default to /24
   m_helloInterval = 0;
   m_area = 0;
+  m_metric = 1;
 }
 
 OspfInterface::~OspfInterface() {

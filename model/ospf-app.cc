@@ -206,25 +206,24 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
   }
 }
 
-void 
-OspfApp::SetBoundNetDevices (NetDeviceContainer devs, std::vector<uint32_t> areas)
-{
-  NS_LOG_FUNCTION (this << devs.GetN());
-  m_boundDevices = devs;
-  m_lastHelloReceived.resize(devs.GetN());
-  m_helloTimeouts.resize(devs.GetN());
-
-  // Create interface database
-  Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4> ();
-  Ptr<OspfInterface> ospfInterface= CreateObject<OspfInterface> ();
-  m_ospfInterfaces.emplace_back(ospfInterface);
-  for (uint32_t i = 1; i < m_boundDevices.GetN(); i++) {
-    auto sourceIp = ipv4->GetAddress(i, 0).GetAddress();
-    auto mask = ipv4->GetAddress(i, 0).GetMask();
-    Ptr<OspfInterface> ospfInterface = CreateObject<OspfInterface> (sourceIp, mask, m_helloInterval.GetSeconds(), areas[i]);
-    m_ospfInterfaces.emplace_back(ospfInterface);
+void
+OspfApp::SetMetrices (std::vector<uint32_t> metrices) {
+  NS_ASSERT_MSG(metrices.size() == m_ospfInterfaces.size(),
+              "The length of metrices must match the number of interfaces");
+  for (uint32_t i = 0; i < m_ospfInterfaces.size(); i++) {
+    m_ospfInterfaces[i]->SetMetric(metrices[i]);
   }
 }
+
+void
+OspfApp::SetAreas (std::vector<uint32_t> areas) {
+  NS_ASSERT_MSG(areas.size() == m_ospfInterfaces.size(),
+              "The length of areas must match the number of interfaces");
+  for (uint32_t i = 0; i < m_ospfInterfaces.size(); i++) {
+    m_ospfInterfaces[i]->SetArea(areas[i]);
+  }
+}
+
 
 void
 OspfApp::AddInterfaceNeighbor(uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address remoteIp) {
@@ -462,11 +461,12 @@ OspfApp::LSUTimeout(Ptr<Packet> p) {
 // Generate the local router LSA
 Ptr<RouterLsa>
 OspfApp::GetRouterLsa() {
-  std::vector<std::pair<uint32_t, uint32_t> > allLinks;
+  // <neighbor's router ID, router's IP address, interface metric>
+  std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > allLinks;
   for (auto interface : m_ospfInterfaces) {
     auto links = interface->GetNeighborLinks();
     for (auto l : links) {
-      allLinks.emplace_back(l);
+      allLinks.emplace_back(l.first, l.second, interface->GetMetric());
     }
   }
   return ConstructRouterLsa(allLinks);
@@ -698,8 +698,8 @@ OspfApp::UpdateRouting() {
     }
     NS_ASSERT(ifIndex > 0);
     for(uint32_t i = 0; i < routerLsa->GetNLink(); i++) {
-      NS_LOG_DEBUG("Add route: " << Ipv4Address(routerLsa->GetLink(i).m_linkData) << ", " << ifIndex << ", " << routerLsa->GetLink(i).m_metric);
-      m_routing->AddHostRouteTo(Ipv4Address(routerLsa->GetLink(i).m_linkData), ifIndex, routerLsa->GetLink(i).m_metric);
+      NS_LOG_DEBUG("Add route: " << Ipv4Address(routerLsa->GetLink(i).m_linkData) << ", " << ifIndex << ", " << distanceTo[remoteRouterId]);
+      m_routing->AddHostRouteTo(Ipv4Address(routerLsa->GetLink(i).m_linkData), ifIndex, distanceTo[remoteRouterId]);
     }
     
   }

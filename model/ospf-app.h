@@ -67,7 +67,12 @@ public:
 
   // Set net device to be bound for multicast address
   void SetBoundNetDevices (NetDeviceContainer devs);
-  void SetBoundNetDevices (NetDeviceContainer devs, std::vector<uint32_t> areas);
+
+  // Set interface area
+  void SetAreas (std::vector<uint32_t> areas);
+
+  // Set interface metrices
+  void SetMetrices (std::vector<uint32_t> metrices);
 
   // Add neighbor to an existing interface (for multiaccess networks)
   void AddInterfaceNeighbor(uint32_t ifIndex, Ipv4Address destIp, Ipv4Address nextHopIp);

@@ -150,12 +150,12 @@ CopyAndIncrementSeqNumber(Ptr<Packet> lsuPayload) {
 }
 
 Ptr<RouterLsa>
-ConstructRouterLsa(std::vector<std::pair<uint32_t, uint32_t> > neighborLinks) {
+ConstructRouterLsa(std::vector<std::tuple<uint32_t, uint32_t, uint32_t> > neighborLinks) {
     // Create a Router-LSA
     Ptr<RouterLsa> routerLsa = Create<RouterLsa>(0, 0, 0);
     for (uint32_t j = 0; j < neighborLinks.size(); j++) {
         auto link = neighborLinks[j];
-        routerLsa->AddLink(RouterLink(link.first, link.second, 1, 1));
+        routerLsa->AddLink(RouterLink(std::get<0>(link), std::get<1>(link), 1, std::get<2>(link)));
     }
     return routerLsa;
 }
