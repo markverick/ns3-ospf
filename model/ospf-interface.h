@@ -44,12 +44,12 @@ class NeighberInterface
 {
 public:
   /**
-   * \enum neighborState
+   * \enum NeighborState
    * \brief Neighbor state machine
    *
    * The values correspond to the OSPF neighbor state machine in \RFC{2328}.
    */
-  enum neighborState
+  enum NeighborState
   {
     Down = 0x1,
     Attempt = 0x2, // for multi-access
@@ -64,11 +64,13 @@ public:
     : remoteRouterId(remoteRouterId_), remoteIpAddress(remoteIpAddress_)
   {
     remoteAreaId = 0;
+    state = NeighborState::Down;
   }
   // Nodes in the same subnet may have different area ID in this area proxy modification
   NeighberInterface (Ipv4Address remoteRouterId_, Ipv4Address remoteIpAddress_, uint32_t remoteAreaId_)
     : remoteRouterId(remoteRouterId_), remoteIpAddress(remoteIpAddress_), remoteAreaId(remoteAreaId_)
   {
+    state = NeighborState::Down;
   }
   // Comparator
   bool operator== (const NeighberInterface &other) const
@@ -86,6 +88,7 @@ public:
   Ipv4Address remoteRouterId;
   Ipv4Address remoteIpAddress;
   uint32_t remoteAreaId;
+  NeighborState state;
 };
 
 class OspfInterface: public Object
