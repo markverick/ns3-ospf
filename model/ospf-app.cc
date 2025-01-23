@@ -295,25 +295,18 @@ OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRo
 
 
   Address ackSocketAddress;
-  for (uint32_t i = 1; i < m_lsaSockets.size(); i++)
+  auto socket = m_lsaSockets[ifIndex];
+  socket->GetSockName (ackSocketAddress);
+  m_txTrace (ackPayload);
+  if (Ipv4Address::IsMatchingType (m_lsaAddress))
   {
-    auto socket = m_lsaSockets[i];
-    socket->GetSockName (ackSocketAddress);
-    m_txTrace (ackPayload);
-    if (Ipv4Address::IsMatchingType (m_lsaAddress))
-    {
-      m_txTraceWithAddresses (ackPayload, ackSocketAddress, InetSocketAddress (Ipv4Address::ConvertFrom (m_lsaAddress)));
-    }
-    // NS_LOG_DEBUG(socket->GetBoundNetDevice()->GetIfIndex());
-    // InetSocketAddress sourceAddress = InetSocketAddress::ConvertFrom(localAddress);
-    // NS_LOG_DEBUG("Source Address: " << sourceAddress.GetIpv4());
-    socket->SendTo (ackPayload, 0, InetSocketAddress (m_lsaAddress));
-    if (Ipv4Address::IsMatchingType (originRouterId))
-    {
-      NS_LOG_INFO ("At time " << Simulator::Now ().As (Time::S) << " client sent " << ackPayload->GetSize() << " bytes to " <<
-                    originRouterId << " via interface " << i << " : " << m_ospfInterfaces[i]->GetAddress());
-    }
+    m_txTraceWithAddresses (ackPayload, ackSocketAddress, InetSocketAddress (Ipv4Address::ConvertFrom (m_lsaAddress)));
   }
+  // NS_LOG_DEBUG(socket->GetBoundNetDevice()->GetIfIndex());
+  // InetSocketAddress sourceAddress = InetSocketAddress::ConvertFrom(localAddress);
+  // NS_LOG_DEBUG("Source Address: " << sourceAddress.GetIpv4());
+  socket->SendTo (ackPayload, 0, InetSocketAddress (m_lsaAddress));
+  NS_LOG_INFO ("ack sent to " << originRouterId << " via interface " << ifIndex << " : " << m_ospfInterfaces[ifIndex]->GetAddress());
 }
 
 void 
@@ -573,7 +566,7 @@ OspfApp::HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsa
   Ptr<Packet> p = ConstructLSUPacket(ospfHeader, lsaHeader, routerLsa);
   FloodLSU(p, ifIndex);
   auto ackPayload = ConstructAckPayload(m_routerId, m_areaId, m_seqNumbers[originRouterId]);
-  NS_LOG_DEBUG("Sending ACK from " << m_routerId << " to " << originRouterId);
+  NS_LOG_DEBUG("Sending ACK from " << m_routerId << " to " << Ipv4Address(originRouterId));
   SendAck(ifIndex, ackPayload, Ipv4Address(originRouterId));
 }
 
