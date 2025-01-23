@@ -31,6 +31,7 @@
 #include "ospf-header.h"
 #include "lsa-header.h"
 #include "router-lsa.h"
+#include "ospf-hello.h"
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
@@ -77,9 +78,6 @@ public:
   // Add neighbor to an existing interface (for multiaccess networks)
   void AddInterfaceNeighbor(uint32_t ifIndex, Ipv4Address destIp, Ipv4Address nextHopIp);
 
-  // Add additional advertising route such as 0.0.0.0
-  void SetOSPFGateway(uint32_t ifIndex, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp);
-
   // Set router id
   void SetRouterId (Ipv4Address routerId);
 
@@ -87,7 +85,7 @@ public:
   void PrintLsdb();
 
   // Print Routing Table
-  void PrintRouting(std::filesystem::path dirName);
+  void PrintRouting(std::filesystem::path dirName, std::string filename);
 
   // Print Interface Areas
   void PrintAreas();
@@ -111,8 +109,7 @@ private:
   virtual void SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId);
   virtual void FloodLSU (Ptr<Packet> p, uint32_t inputIfIndex);
   virtual void LSUTimeout(Ptr<Packet> p);
-  virtual void LinkDown (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId);
-  virtual void LinkUp (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId);
+  virtual void HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   /**
    * \brief Handle a packet reception.
@@ -125,7 +122,7 @@ private:
 
   bool IsDeviceAlive(uint32_t ifIndex);
 
-  void HandleHello (uint32_t ifIndex, Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t areaId);
+  void HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<OspfHello> hello);
 
   void HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
 
@@ -133,11 +130,12 @@ private:
 
   void UpdateRouting ();
 
-  void RefreshHelloTimer(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t);
+  void RefreshHelloTimeout(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   void RefreshLsuTimer();
 
-  Ptr<RouterLsa> GetRouterLsa();
+  Ptr<RouterLsa> GetRouterLsa(uint32_t areaId);
+  std::vector<uint32_t> GetAllNeighborRouterIds();
 
   uint16_t m_port; //!< Port on which we listen for incoming packets.
   std::vector<Ptr<Socket>> m_sockets; //!< Unicast socket
@@ -149,7 +147,7 @@ private:
   // Attributes
   Ipv4Address m_routerId; // eth0
   NetDeviceContainer m_boundDevices;
-  uint32_t m_areaId; // Only used for alt area
+  uint32_t m_areaId; // Only used for default value and for alt area and 
 
   // Randomization
   Ptr<UniformRandomVariable> m_randomVariable = CreateObject<UniformRandomVariable>();
@@ -159,7 +157,7 @@ private:
   Ipv4Address m_helloAddress; //!< Address of multicast hello message
   std::vector<Time> m_lastHelloReceived;
   std::vector<EventId> m_helloTimeouts;
-  Time m_neighborTimeout;
+  Time m_routerDeadInterval;
   EventId m_helloEvent; //!< Event to send the next hello packet
 
   // LSU

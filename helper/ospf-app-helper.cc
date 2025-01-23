@@ -90,29 +90,6 @@ OspfAppHelper::Install (Ptr<Node> n, std::vector<uint32_t> areas, std::vector<ui
   return InstallPriv (n, routing, devs, areas, metrices);
 }
 
-// TODO: Stub networks are not implemented yet
-void
-OspfAppHelper::InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address nextHopIp) const
-{
-  InstallGateway(c, ifIndices, Ipv4Address("0.0.0.0"), Ipv4Mask("0.0.0.0"), nextHopIp);
-  return;
-}
-
-void
-OspfAppHelper::InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp) const
-{
-  Ipv4StaticRoutingHelper ipv4RoutingHelper;
-  Ptr<OspfApp> ospfApp;
-  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
-  {
-    ospfApp = DynamicCast<OspfApp>((*i)->GetApplication(0));
-    for (uint32_t j = 0; j < ifIndices.size(); j++) {
-      ospfApp->SetOSPFGateway(ifIndices[j], destIp, mask, nextHopIp);
-    }
-  }
-  return;
-}
-
 // Set all nodes' metrices and areas (only useful in something uniform like a grid topology)
 ApplicationContainer
 OspfAppHelper::Install (NodeContainer c, std::vector<uint32_t> areas) const

@@ -48,30 +48,18 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("OspfFourNode");
+NS_LOG_COMPONENT_DEFINE("OspfTwoNode");
 
 Ipv4Address ospfHelloAddress("224.0.0.5");
 
 const uint32_t SIM_SECONDS = 20;
-
-void SetLinkDown(Ptr<NetDevice> nd) {
-    Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-    pem->SetRate(1.0);
-    nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
-
-void SetLinkUp(Ptr<NetDevice> nd) {
-    Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-    pem->SetRate(0.0);
-    nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
 
 int
 main(int argc, char* argv[])
 {
     // Users may find it convenient to turn on explicit debugging
     // for selected modules; the below lines suggest how to do this
-    LogComponentEnable ("OspfFourNode", LOG_LEVEL_INFO);
+    LogComponentEnable ("OspfTwoNode", LOG_LEVEL_INFO);
     // Set up some default values for the simulation.  Use the
 
     // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
@@ -84,7 +72,7 @@ main(int argc, char* argv[])
     cmd.Parse(argc, argv);
 
     // Create results folder
-    std::filesystem::path dirName = "results/ospf-four-nodes";
+    std::filesystem::path dirName = "results/ospf-two-nodes";
   
     try {
         std::filesystem::create_directories(dirName);
@@ -96,10 +84,8 @@ main(int argc, char* argv[])
     // topologies, we could configure a node factory.
     NS_LOG_INFO("Create nodes.");
     NodeContainer c;
-    c.Create(4);
-    NodeContainer n0n2 = NodeContainer(c.Get(0), c.Get(2));
-    NodeContainer n1n2 = NodeContainer(c.Get(1), c.Get(2));
-    NodeContainer n3n2 = NodeContainer(c.Get(3), c.Get(2));
+    c.Create(2);
+    NodeContainer n0n1 = NodeContainer(c.Get(0), c.Get(1));
 
     InternetStackHelper internet;
     internet.Install(c);
@@ -110,25 +96,14 @@ main(int argc, char* argv[])
     p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
     p2p.SetChannelAttribute("Delay", StringValue("2ms"));
     
-    NetDeviceContainer d0d2 = p2p.Install(n0n2);
-
-
-    NetDeviceContainer d1d2 = p2p.Install(n1n2);
-
-    p2p.SetDeviceAttribute("DataRate", StringValue("1500kbps"));
-    p2p.SetChannelAttribute("Delay", StringValue("10ms"));
-    NetDeviceContainer d3d2 = p2p.Install(n3n2);
+    NetDeviceContainer d0d1 = p2p.Install(n0n1);
 
     // Later, we add IP addresses.
 
 
     NS_LOG_INFO("Assign IP Addresses.");
     Ipv4AddressHelper ipv4("10.1.1.0", "255.255.255.252");
-    ipv4.Assign(d0d2);
-    ipv4.NewNetwork();
-    ipv4.Assign(d1d2);
-    ipv4.NewNetwork();
-    ipv4.Assign(d3d2);
+    ipv4.Assign(d0d1);
 
     // Create router nodes, initialize routing database and set up the routing
     // tables in the nodes.
@@ -155,7 +130,7 @@ main(int argc, char* argv[])
     // User Traffic
     uint16_t port = 9;  // well-known echo port number
     UdpEchoServerHelper server (port);
-    ApplicationContainer apps = server.Install (c.Get (3));
+    ApplicationContainer apps = server.Install (c.Get (1));
     apps.Start (Seconds (1.0));
     apps.Stop (Seconds (SIM_SECONDS));
 
@@ -166,17 +141,16 @@ main(int argc, char* argv[])
     client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
     client.SetAttribute ("Interval", TimeValue (interPacketInterval));
     client.SetAttribute ("PacketSize", UintegerValue (tSize));
-    apps = client.Install (c.Get (1));
+    apps = client.Install (c.Get (0));
     apps.Start (Seconds (2.0));
     apps.Stop (Seconds (SIM_SECONDS));
 
     // Print LSDB
-    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
     // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
-    Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName, "route.routes");
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 2; i++) {
         Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(i)->GetApplication(0));
         Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+        Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName, "n" + std::to_string(i) + ".routes");
     }
     // app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
     // Simulator::Schedule(Seconds(146), &OspfApp::PrintLSDB, app);

@@ -95,4 +95,4 @@ private:
 } // namespace ns3
 
 
-#endif /* OSPF_HEADER_H */
+#endif /* ROUTER_LSA_H */

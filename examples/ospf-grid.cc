@@ -145,7 +145,7 @@ main(int argc, char* argv[])
     OspfAppHelper ospfAppHelper(9);
     ospfAppHelper.SetAttribute("HelloInterval", TimeValue(Seconds(10)));
     ospfAppHelper.SetAttribute("HelloAddress", Ipv4AddressValue(ospfHelloAddress));
-    ospfAppHelper.SetAttribute("NeighborTimeout", TimeValue(Seconds(30)));
+    ospfAppHelper.SetAttribute("RouterDeadInterval", TimeValue(Seconds(30)));
     ospfAppHelper.SetAttribute("LSUInterval", TimeValue(Seconds(5)));
  
     ApplicationContainer ospfApp = ospfAppHelper.Install(c);
@@ -190,7 +190,7 @@ main(int argc, char* argv[])
     }
     app = DynamicCast<OspfApp>(c.Get(0)->GetApplication(0));
     Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLsdb, app);
-    Simulator::Schedule(Seconds(100), &OspfApp::PrintRouting, app, dirName);
+    Simulator::Schedule(Seconds(100), &OspfApp::PrintRouting, app, dirName, "route.routes");
 
     // Print progress
     for (uint32_t i = 0; i < SIM_SECONDS; i+=10) {

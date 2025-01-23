@@ -35,7 +35,7 @@ OspfHeader::OspfHeader ()
     m_type(0),
     m_payloadSize (0),
     m_routerId (0),
-    m_areaId (0),
+    m_area (0),
     m_checksum (0),
     m_goodChecksum (true),
     m_headerSize(24)
@@ -90,16 +90,16 @@ OspfHeader::GetRouterId (void) const
 }
 
 void
-OspfHeader::SetAreaId (uint32_t areaId)
+OspfHeader::SetArea (uint32_t area)
 {
-  NS_LOG_FUNCTION (this << areaId);
-  m_areaId = areaId;
+  NS_LOG_FUNCTION (this << area);
+  m_area = area;
 }
 uint32_t
-OspfHeader::GetAreaId (void) const
+OspfHeader::GetArea (void) const
 {
   NS_LOG_FUNCTION (this);
-  return m_areaId;
+  return m_area;
 }
 
 bool
@@ -154,7 +154,7 @@ OspfHeader::Print (std::ostream &os) const
      << "type " << OspfTypeToString(OspfType(m_type)) << " "
      << "length: " << m_payloadSize + m_headerSize << " "
      << "router id: " << m_routerId << " "
-     << "area id: " << m_areaId << " "
+     << "area id: " << m_area << " "
   ;
 }
 uint32_t 
@@ -174,7 +174,7 @@ OspfHeader::Serialize (Buffer::Iterator start) const
   i.WriteU8 (m_type);
   i.WriteHtonU16 (m_payloadSize + m_headerSize);
   i.WriteHtonU32 (m_routerId);
-  i.WriteHtonU32 (m_areaId);
+  i.WriteHtonU32 (m_area);
 
   if (m_calcChecksum) 
     {
@@ -206,7 +206,7 @@ OspfHeader::Deserialize (Buffer::Iterator start)
   uint16_t size = i.ReadNtohU16 ();
   m_payloadSize = size - m_headerSize;
   m_routerId = i.ReadNtohU32 ();
-  m_areaId = i.ReadNtohU32 ();
+  m_area = i.ReadNtohU32 ();
   m_checksum = i.ReadNtohU16 ();
 
   if (m_calcChecksum) 

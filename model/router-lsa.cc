@@ -110,7 +110,6 @@ RouterLsa::Print (std::ostream &os) const
 uint32_t 
 RouterLsa::GetSerializedSize (void) const
 {
-  NS_LOG_FUNCTION (this);
 	return 4 + m_links.size() * 12; // Assumed no TOS
 }
 

@@ -38,13 +38,16 @@
 #include "ns3/lsa-header.h"
 #include "ns3/ospf-header.h"
 #include "ns3/ospf-interface.h"
+#include "ns3/ospf-neighbor.h"
 #include "ns3/router-lsa.h"
+#include "ns3/ospf-hello.h"
 
 namespace ns3
 {
 
 
-Ptr<Packet> ConstructHelloPayload(Ipv4Address routerId, uint32_t areaId, Ipv4Mask mask, uint16_t m_helloInterval, uint32_t neighborTimeout, std::vector<NeighberInterface> neighbors);
+Ptr<Packet> ConstructHelloPacket(Ipv4Address routerId, uint32_t areaId, Ipv4Mask mask, uint16_t m_helloInterval,
+                                uint32_t routerDeadInterval, std::vector<Ptr<OspfNeighbor> > neighbors);
 uint16_t CalculateChecksum(const uint8_t* data, uint32_t length);
 
 void writeBigEndian(uint8_t* payload, uint32_t offset, uint32_t value) {
@@ -62,36 +65,23 @@ uint32_t readBigEndian(const uint8_t* payload, uint32_t offset) {
 }
 
 Ptr<Packet>
-ConstructHelloPayload(Ipv4Address routerId, uint32_t areaId, Ipv4Mask mask, uint16_t helloInterval, uint32_t neighborTimeout, std::vector<NeighberInterface> neighbors) {
+ConstructHelloPacket(Ipv4Address routerId, uint32_t areaId, Ipv4Mask mask, uint16_t helloInterval,
+                    uint32_t routerDeadInterval, std::vector<Ptr<OspfNeighbor> > neighbors) {
     // Create a hello payload
-    uint32_t payloadSize = 20 + neighbors.size() * 4;
-    Buffer payload;
-    payload.AddAtStart(payloadSize);
-    Buffer::Iterator i = payload.Begin();
-
-    i.WriteHtonU32 (mask.Get());
-    i.WriteHtonU16 (helloInterval);
-    i.WriteU8 (0); // Options
-    i.WriteU8 (0); // Router Priority (Rtr Pri)
-    i.WriteHtonU32 (neighborTimeout);
-    i.WriteHtonU32 (0);
-    i.WriteHtonU32 (0);
-
-    for (NeighberInterface neighbor : neighbors) {
-        i.WriteHtonU32(neighbor.remoteRouterId.Get());
+    Ptr<OspfHello> helloPayload = Create<OspfHello>(mask.Get(), helloInterval, routerDeadInterval);
+    for (auto neighbor : neighbors) {
+        helloPayload->AddNeighbor(neighbor->GetRouterId().Get());
     }
 
-    // Create a packet with the payload and the OSPF header
-    
-    // uint8_t *buffer = new uint8_t[payloadSize];
-    // std::cout << "payloadSize: " << payloadSize << std::endl;
-    // payload.Deserialize(buffer, payloadSize * 4);
-    Ptr<Packet> packet = Create<Packet>(payload.PeekData(), payloadSize);
+    // Create the OSPF header
     OspfHeader header;
     header.SetType(OspfHeader::OspfType::OspfHello);
-    header.SetPayloadSize(payloadSize);
+    header.SetPayloadSize(helloPayload->GetSerializedSize());
     header.SetRouterId(routerId.Get());
-    header.SetAreaId(areaId);
+    header.SetArea(areaId);
+
+    // Add header to payload
+    Ptr<Packet> packet = helloPayload->ConstructPacket();
     packet->AddHeader(header);
     return packet;
 }
@@ -114,7 +104,7 @@ ConstructAckPayload(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum) {
     header.SetType(OspfHeader::OspfType::OspfLSAck);
     header.SetPayloadSize(payloadSize);
     header.SetRouterId(routerId.Get());
-    header.SetAreaId(areaId);
+    header.SetArea(areaId);
     packet->AddHeader(header);
     return packet;
 }
@@ -190,7 +180,7 @@ ConstructLSUPacket(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum,
     ospfHeader.SetType(OspfHeader::OspfType::OspfLSUpdate);
     ospfHeader.SetPayloadSize(packet->GetSize() + lsaHeader.GetSerializedSize());
     ospfHeader.SetRouterId(routerId.Get());
-    ospfHeader.SetAreaId(areaId);
+    ospfHeader.SetArea(areaId);
     packet->AddHeader(ospfHeader);
 
     return packet;
@@ -222,7 +212,7 @@ ConstructLSUPacket(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum, uint1
     ospfHeader.SetType(OspfHeader::OspfType::OspfLSUpdate);
     ospfHeader.SetPayloadSize(payloadSize + lsaHeader.GetSerializedSize());
     ospfHeader.SetRouterId(routerId.Get());
-    ospfHeader.SetAreaId(areaId);
+    ospfHeader.SetArea(areaId);
     packet->AddHeader(ospfHeader);
 
     return packet;

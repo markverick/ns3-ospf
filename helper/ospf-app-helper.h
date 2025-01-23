@@ -70,9 +70,6 @@ public:
   ApplicationContainer Install (NodeContainer c) const;
   ApplicationContainer Install (NodeContainer c, std::vector<uint32_t> areas) const;
   ApplicationContainer Install (NodeContainer c, std::vector<uint32_t> areas, std::vector<uint32_t> metrices) const;
-  void InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address nextHopIp) const;
-  void InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp) const;
-  void InstallGateway (NodeContainer c, std::vector<uint32_t> ifIndices, Ipv4Address destIp, Ipv4Mask mask, Ipv4Address nextHopIp, std::vector<uint32_t> areas) const;
 
 private:
   /**

@@ -85,13 +85,13 @@ public:
   uint32_t GetRouterId(void) const;
 
   /**
-   * \param areaId the area ID
+   * \param area the area ID
    */
-  void SetAreaId (uint32_t areaId);
+  void SetArea (uint32_t area);
   /**
    * \returns the area ID
    */
-  uint32_t GetAreaId(void) const;
+  uint32_t GetArea(void) const;
 
   /**
    * \returns true if the ipv4 checksum is correct, false otherwise.
@@ -121,7 +121,7 @@ private:
   uint8_t m_type; //!< OSPF packet type
   uint16_t m_payloadSize; //!< payload size in bytes, excluding the OSPF header
   uint32_t m_routerId; //!< router ID of the packet's source
-  uint32_t m_areaId; //!< area ID
+  uint32_t m_area; //!< area ID
   uint16_t m_checksum; //!< checksum
   bool m_goodChecksum; //!< true if checksum is correct
   uint16_t m_autype; //!< authentication type

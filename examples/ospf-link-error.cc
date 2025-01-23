@@ -48,11 +48,12 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("OspfFourNode");
+NS_LOG_COMPONENT_DEFINE("OspfLinkError");
 
 Ipv4Address ospfHelloAddress("224.0.0.5");
-
-const uint32_t SIM_SECONDS = 20;
+// Link Down at t=35
+// Link Up at t=85
+const uint32_t SIM_SECONDS = 105;
 
 void SetLinkDown(Ptr<NetDevice> nd) {
     Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
@@ -71,7 +72,7 @@ main(int argc, char* argv[])
 {
     // Users may find it convenient to turn on explicit debugging
     // for selected modules; the below lines suggest how to do this
-    LogComponentEnable ("OspfFourNode", LOG_LEVEL_INFO);
+    LogComponentEnable ("OspfLinkError", LOG_LEVEL_INFO);
     // Set up some default values for the simulation.  Use the
 
     // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
@@ -84,7 +85,7 @@ main(int argc, char* argv[])
     cmd.Parse(argc, argv);
 
     // Create results folder
-    std::filesystem::path dirName = "results/ospf-four-nodes";
+    std::filesystem::path dirName = "results/ospf-link-error";
   
     try {
         std::filesystem::create_directories(dirName);
@@ -170,10 +171,19 @@ main(int argc, char* argv[])
     apps.Start (Seconds (2.0));
     apps.Stop (Seconds (SIM_SECONDS));
 
+    // Test Error
+    Simulator::Schedule(Seconds(35), &SetLinkDown, d1d2.Get(0));
+    Simulator::Schedule(Seconds(35), &SetLinkDown, d1d2.Get(1));
+    Simulator::Schedule(Seconds(85), &SetLinkUp, d1d2.Get(0));
+    Simulator::Schedule(Seconds(85), &SetLinkUp, d1d2.Get(1));
+
     // Print LSDB
-    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
+    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
     // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
-    Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName, "route.routes");
+    Simulator::Schedule(Seconds(30), &OspfApp::PrintRouting, app, dirName, "t030.routes");
+    Simulator::Schedule(Seconds(40), &OspfApp::PrintRouting, app, dirName, "t040.routes");
+    Simulator::Schedule(Seconds(80), &OspfApp::PrintRouting, app, dirName, "t080.routes");
+    Simulator::Schedule(Seconds(100), &OspfApp::PrintRouting, app, dirName, "t100.routes");
     for (int i = 0; i < 4; i++) {
         Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(i)->GetApplication(0));
         Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);

@@ -7,6 +7,9 @@ def build(bld):
     obj = bld.create_ns3_program('ospf-acknowledge', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     obj.source = 'ospf-acknowledge.cc'
     
+    obj = bld.create_ns3_program('ospf-two-nodes', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
+    obj.source = 'ospf-two-nodes.cc'
+
     obj = bld.create_ns3_program('ospf-four-nodes', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     obj.source = 'ospf-four-nodes.cc'
     
@@ -18,3 +21,6 @@ def build(bld):
     
     obj = bld.create_ns3_program('ospf-alt-area', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     obj.source = 'ospf-alt-area.cc'
+    
+    obj = bld.create_ns3_program('ospf-link-error', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
+    obj.source = 'ospf-link-error.cc'

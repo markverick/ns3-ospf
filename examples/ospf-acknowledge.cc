@@ -141,7 +141,7 @@ main(int argc, char* argv[])
     OspfAppHelper ospfAppHelper(9);
     ospfAppHelper.SetAttribute("HelloInterval", TimeValue(Seconds(10)));
     ospfAppHelper.SetAttribute("HelloAddress", Ipv4AddressValue(ospfHelloAddress));
-    ospfAppHelper.SetAttribute("NeighborTimeout", TimeValue(Seconds(30)));
+    ospfAppHelper.SetAttribute("RouterDeadInterval", TimeValue(Seconds(30)));
     ospfAppHelper.SetAttribute("LSUInterval", TimeValue(Seconds(5)));
  
     ApplicationContainer ospfApp = ospfAppHelper.Install(c);

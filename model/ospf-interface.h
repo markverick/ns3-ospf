@@ -37,161 +37,63 @@
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
 #include "algorithm"
+#include "ospf-neighbor.h"
 
 namespace ns3 {
-
-class NeighberInterface
-{
-public:
-  /**
-   * \enum NeighborState
-   * \brief Neighbor state machine
-   *
-   * The values correspond to the OSPF neighbor state machine in \RFC{2328}.
-   */
-  enum NeighborState
-  {
-    Down = 0x1,
-    Attempt = 0x2, // for multi-access
-    Init = 0x3, // received hello, one-way
-    TwoWay = 0x4, // received two-way for multi-access
-    ExStart = 0x5,  // after received two-way for point-to-point or designated/backup routers are agreed for multi-access
-    Exchange = 0x6, // after agreed on slave/master relation and starting seqNum
-    Loading = 0x7, // unused. loading is instantaneus in the simulation
-    Full = 0x8, // exchange is done
-  };
-  NeighberInterface (Ipv4Address remoteRouterId_, Ipv4Address remoteIpAddress_)
-    : remoteRouterId(remoteRouterId_), remoteIpAddress(remoteIpAddress_)
-  {
-    remoteAreaId = 0;
-    state = NeighborState::Down;
-  }
-  // Nodes in the same subnet may have different area ID in this area proxy modification
-  NeighberInterface (Ipv4Address remoteRouterId_, Ipv4Address remoteIpAddress_, uint32_t remoteAreaId_)
-    : remoteRouterId(remoteRouterId_), remoteIpAddress(remoteIpAddress_), remoteAreaId(remoteAreaId_)
-  {
-    state = NeighborState::Down;
-  }
-  // Comparator
-  bool operator== (const NeighberInterface &other) const
-  {
-    return (remoteRouterId == other.remoteRouterId) && (remoteIpAddress == other.remoteIpAddress);
-  }
-  bool operator< (const NeighberInterface &other) const
-  {
-    if (remoteRouterId == other.remoteRouterId) {
-      return remoteIpAddress < other.remoteIpAddress;
-    }
-    return remoteRouterId < other.remoteRouterId;
-  }
-
-  Ipv4Address remoteRouterId;
-  Ipv4Address remoteIpAddress;
-  uint32_t remoteAreaId;
-  NeighborState state;
-};
 
 class OspfInterface: public Object
 {
 public:
   OspfInterface();
-
-  OspfInterface(Ipv4Address ipAddress, uint16_t helloInterval);
-
-  OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval);
-
-  OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t area);
+  OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t routerDeadInterval, uint32_t area, uint32_t metric);
 
   ~OspfInterface();
 
-  Ipv4Address
-  GetAddress() {
-    return m_ipAddress;
-  }
+  Ipv4Address GetAddress();
+  void SetAddress(Ipv4Address ipAddress);
 
-  void
-  SetAddress(Ipv4Address ipAddress) {
-    m_ipAddress = ipAddress;
-  }
+  Ipv4Mask GetMask();
+  void SetMask(Ipv4Mask ipMask);
 
-  Ipv4Mask
-  GetMask() {
-    return m_ipMask;
-  }
+  uint32_t GetMetric();
+  void SetMetric(uint32_t metric);
 
-  void
-  SetMask(Ipv4Mask ipMask) {
-    m_ipMask = ipMask;
-  }
+  uint32_t GetArea();
+  void SetArea(uint32_t area);
 
-  uint32_t
-  GetMetric() {
-    return m_metric;
-  }
+  uint16_t GetHelloInterval();
+  void SetHelloInterval(uint16_t helloInterval);
 
-  void
-  SetMetric(uint32_t metric) {
-    m_metric = metric;
-  }
+  uint32_t GetRouterDeadInterval();
+  void SetRouterDeadInterval(uint32_t routerDeadInterval);
 
-  uint32_t
-  GetArea() {
-    return m_area;
-  }
+  Ptr<OspfNeighbor> GetNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
-  void
-  SetArea(uint32_t area) {
-    m_area = area;
-  }
+  std::vector<Ptr<OspfNeighbor> > GetNeighbors();
 
-  uint16_t
-  GetHelloInterval() {
-    return m_helloInterval;
-  }
+  Ptr<OspfNeighbor> AddNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
-  std::vector<NeighberInterface>
-  GetNeighbors() {
-    return m_neighbors;
-  }
+  Ptr<OspfNeighbor> AddNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId, OspfNeighbor::NeighborState state);
+  
 
-  void AddNeighbor(NeighberInterface neighbor) {
-    m_neighbors.emplace_back(neighbor);
-  }
+  bool RemoveNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
-  void RemoveNeighbor(NeighberInterface neighbor) {
-    m_neighbors.erase(std::find(m_neighbors.begin(), m_neighbors.end(), neighbor));
-  }
-
-  bool IsNeighbor(Ipv4Address routerId) {
-    for (auto n : m_neighbors) {
-      if (n.remoteRouterId == routerId) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  bool IsNeighborIp(Ipv4Address remoteIp) {
-    for (auto n : m_neighbors) {
-      if (n.remoteIpAddress == remoteIp) {
-        return true;
-      }
-    }
-    return false;
-  }
+  bool IsNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   //  Vector of <neighbor's routerIds, its own interface ipAddress>
   std::vector<std::pair<uint32_t, uint32_t> > GetNeighborLinks();
   std::vector<std::pair<uint32_t, uint32_t> > GetNeighborLinks(uint32_t areaId);
+  std::vector<std::pair<uint32_t, uint32_t> > GetActiveNeighborLinks(uint32_t areaId);
 
 
   private:
     Ipv4Address m_ipAddress;
     Ipv4Mask m_ipMask;
     uint16_t m_helloInterval;
+    uint32_t m_routerDeadInterval;
     uint32_t m_area;
     uint32_t m_metric;
-    std::vector<NeighberInterface> m_neighbors;
+    std::vector<Ptr<OspfNeighbor> > m_neighbors;
 };
 }
 

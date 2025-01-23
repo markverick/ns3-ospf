@@ -148,7 +148,7 @@ main(int argc, char* argv[])
     OspfAppHelper ospfAppHelper(9);
     ospfAppHelper.SetAttribute("HelloInterval", TimeValue(Seconds(10)));
     ospfAppHelper.SetAttribute("HelloAddress", Ipv4AddressValue(ospfHelloAddress));
-    ospfAppHelper.SetAttribute("NeighborTimeout", TimeValue(Seconds(30)));
+    ospfAppHelper.SetAttribute("RouterDeadInterval", TimeValue(Seconds(30)));
     ospfAppHelper.SetAttribute("LSUInterval", TimeValue(Seconds(5)));
  
     // Install OSPF app with metrices
@@ -184,7 +184,7 @@ main(int argc, char* argv[])
     // Print LSDB
     // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
     Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(7)->GetApplication(0));
-    Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
+    Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName, "route.routes");
     for (int i = 0; i < 6; i++) {
         Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(i)->GetApplication(0));
         Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
