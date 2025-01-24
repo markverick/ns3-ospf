@@ -107,9 +107,11 @@ private:
   virtual void ScheduleTransmitHello (Time dt);
   virtual void SendHello ();
   virtual void SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId);
-  virtual void FloodLSU (Ptr<Packet> lsuPacket, uint32_t inputIfIndex);
-  virtual void SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags, Ipv4Address routerId, Ipv4Address toAddress);
-  virtual void LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags, Ipv4Address routerId, Ipv4Address toAddress);
+  virtual void FloodLSU (uint32_t inputIfIndex, Ptr<Packet> lsuPacket, std::tuple<uint8_t, uint32_t, uint32_t> lsaKey);
+  virtual void SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
+                      std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress);
+  virtual void LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
+                      std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress);
   virtual void HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   /**
@@ -169,12 +171,11 @@ private:
   uint16_t m_ttl;
   Ptr<Ipv4StaticRouting> m_routing;
   std::vector<Ptr<OspfInterface> > m_ospfInterfaces;
-  // a map <neighbor's routerId, EventId> for each interface
-  std::vector<std::unordered_map<uint32_t, EventId> > m_lsuTimeouts; 
+  // a map <lsaKey, EventId> for each interface
+  std::map<std::tuple<uint8_t, uint32_t, uint32_t>, EventId> m_lsuTimeouts; 
   EventId m_ackEvent;
-  std::map<uint32_t, uint16_t> m_seqNumbers; 
+  std::map<std::tuple<uint8_t, uint32_t, uint32_t>, uint16_t> m_seqNumbers; 
   std::map<uint32_t, Ptr<RouterLsa> > m_routerLsdb; // adjacency list of [routerId] -> remoteRouterId
-  std::unordered_map<uint32_t, bool> m_acknowledges; // acknowledge based on interface index
 
   // Routing
 

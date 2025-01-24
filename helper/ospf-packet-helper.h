@@ -151,6 +151,8 @@ ConstructLSUPacket(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum,
     lsaHeader.SetType(LsaHeader::LsType::RouterLSAs);
     lsaHeader.SetLength(20 + packet->GetSize());
     lsaHeader.SetSeqNum(seqNum);
+    lsaHeader.SetLsId(routerId.Get());
+    lsaHeader.SetAdvertisingRouter(routerId.Get());
     packet->AddHeader(lsaHeader);
 
     // Add OSPF header
@@ -182,7 +184,9 @@ ConstructLSUPacket(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum, uint1
     // Add LSA header
     LsaHeader lsaHeader;
     lsaHeader.SetType(LsaHeader::LsType::RouterLSAs);
-    lsaHeader.SetLength(routerLsas.size());
+    lsaHeader.SetLength(20 + packet->GetSize());
+    lsaHeader.SetLsId(routerId.Get());
+    lsaHeader.SetAdvertisingRouter(routerId.Get());
     packet->AddHeader(lsaHeader);
 
     // Add OSPF header

@@ -204,7 +204,7 @@ OspfHeader::Deserialize (Buffer::Iterator start)
 
   m_type = i.ReadU8 ();
   uint16_t size = i.ReadNtohU16 ();
-  m_payloadSize = size - m_headerSize;
+  m_payloadSize = size - 24;
   m_routerId = i.ReadNtohU32 ();
   m_area = i.ReadNtohU32 ();
   m_checksum = i.ReadNtohU16 ();

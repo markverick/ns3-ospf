@@ -200,7 +200,6 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
   m_boundDevices = devs;
   m_lastHelloReceived.resize(devs.GetN());
   m_helloTimeouts.resize(devs.GetN());
-  m_lsuTimeouts.resize(devs.GetN());
 
   // Create interface database
   Ptr<Ipv4> ipv4 = GetNode()->GetObject<Ipv4> ();
@@ -369,31 +368,36 @@ OspfApp::RefreshHelloTimeout(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
 // This is why TTL is not used from IP header
 // Will repeat if this node is the originator
 void
-OspfApp::SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags, Ipv4Address routerId, Ipv4Address toAddress) {
+OspfApp::SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
+                std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress) {
   auto p = lsuPacket->Copy();
   Ptr<Socket> socket = m_lsaSockets[ifIndex];
   m_txTrace (p);
   socket->SendTo (p, 0, InetSocketAddress (toAddress));
   // Schedule for retries
-  m_lsuTimeouts[ifIndex][routerId.Get()] =
+  if (m_lsuTimeouts[lsaKey].IsRunning()) {
+    m_lsuTimeouts[lsaKey].Remove();
+  }
+  m_lsuTimeouts[lsaKey] =
     Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()),
-                        &OspfApp::LSUTimeout, this, ifIndex, lsuPacket, flags, routerId, toAddress);
+                        &OspfApp::LSUTimeout, this, ifIndex, lsuPacket, flags, lsaKey, toAddress);
 }
 
 // Retransmit missing ACK
 void
-OspfApp::LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags, Ipv4Address routerId, Ipv4Address toAddress) {
+OspfApp::LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
+                  std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress) {
   // Sockets are closed
   if (m_lsaSockets.empty()) {
     return;
   }
 
   NS_LOG_INFO("Retry missing ACK from interface " << ifIndex << " from address " << toAddress);
-  SendLSU(ifIndex, lsuPacket, flags, routerId, toAddress);
+  SendLSU(ifIndex, lsuPacket, flags, lsaKey, toAddress);
 }
 
 void
-OspfApp::FloodLSU(Ptr<Packet> lsuPacket, uint32_t inputIfIndex) {
+OspfApp::FloodLSU(uint32_t inputIfIndex, Ptr<Packet> lsuPacket, std::tuple<uint8_t, uint32_t, uint32_t> lsaKey) {
   if (m_lsaSockets.empty()) {
     NS_LOG_INFO ("No sockets to flood LSU");
     return;
@@ -407,7 +411,7 @@ OspfApp::FloodLSU(Ptr<Packet> lsuPacket, uint32_t inputIfIndex) {
     // Send to neighbors with multicast address (only 1 neighbor for point-to-point)
     auto neighbors = m_ospfInterfaces[i]->GetNeighbors();
     for (auto neighbor : neighbors) {
-      SendLSU(i, lsuPacket, 0, neighbor->GetRouterId(), neighbor->GetIpAddress());
+      SendLSU(i, lsuPacket, 0, lsaKey, neighbor->GetIpAddress());
     }     
   }
 }
@@ -446,9 +450,10 @@ void
 OspfApp::AdjacencyUpdate() {
   NS_LOG_FUNCTION (this);
 
+  auto lsaKey = std::make_tuple(LsaHeader::LsType::RouterLSAs, m_routerId.Get(), m_routerId.Get());
   // Initialize seq number to zero if new
-  if (m_seqNumbers.find(m_routerId.Get()) == m_seqNumbers.end()) {
-    m_seqNumbers[m_routerId.Get()] = 0;
+  if (m_seqNumbers.find(lsaKey) == m_seqNumbers.end()) {
+    m_seqNumbers[lsaKey] = 0;
   }
 
   // Construct an LSU packet
@@ -460,13 +465,13 @@ OspfApp::AdjacencyUpdate() {
   // routerLsa->Print(std::cout);
 
   // Construct an LSU packet
-  Ptr<Packet> p = ConstructLSUPacket(m_routerId, m_areaId, ++m_seqNumbers[m_routerId.Get()], routerLsa);
+  Ptr<Packet> p = ConstructLSUPacket(m_routerId, m_areaId, ++m_seqNumbers[lsaKey], routerLsa);
 
   // Update routing according to the updated LSDB
   UpdateRouting();
   
   // Flood the network with multicast IP
-  FloodLSU(p, 0);
+  FloodLSU(0, p, lsaKey);
   // m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OspfApp::FloodLSU, this, p, 0);
 }
 
@@ -534,9 +539,9 @@ OspfApp::HandleLSAck (uint32_t ifIndex, OspfHeader ospfHeader, std::vector<LsaHe
   NS_LOG_FUNCTION (this << ifIndex << lsaHeaders.size());
 
   for (auto lsaHeader : lsaHeaders) {
-    // Remote timeout if the sequence numbers match
-    if (lsaHeader.GetSeqNum() == m_seqNumbers[m_routerId.Get()]) {
-      m_lsuTimeouts[ifIndex][ospfHeader.GetRouterId()].Remove();
+    // Remote timeout if the stored seq num is already satisfied
+    if (lsaHeader.GetSeqNum() == m_seqNumbers[lsaHeader.GetKey()]) {
+      m_lsuTimeouts[lsaHeader.GetKey()].Remove();
     }
   }
 }
@@ -555,10 +560,10 @@ OspfApp::HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsa
 
   // If the sequence number equals or less than that of the last packet received from the
   // originating router, the packet is dropped.
-  if (m_seqNumbers.find(originRouterId) == m_seqNumbers.end()) {
-    m_seqNumbers[originRouterId] = 0;
+  if (m_seqNumbers.find(lsaHeader.GetKey()) == m_seqNumbers.end()) {
+    m_seqNumbers[lsaHeader.GetKey()] = 0;
   }
-  if (seqNum <= m_seqNumbers[originRouterId]) {
+  if (seqNum <= m_seqNumbers[lsaHeader.GetKey()]) {
     // std::cout << "recv seqNum: "<< seqNum << ", stored seqNum: " << m_seqNumbers[originRouterId] << std::endl;
     NS_LOG_INFO("LSU is dropped: received sequence number <= stored sequence number");
     // Send direct ACK once receiving duplicated sequence number
@@ -571,14 +576,14 @@ OspfApp::HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsa
   // Filling in lsdb
   NS_LOG_INFO("Update the lsdb entry");
   m_routerLsdb[originRouterId] = routerLsa;
-  m_seqNumbers[originRouterId] = seqNum;
+  m_seqNumbers[lsaHeader.GetKey()] = seqNum;
 
   // Update routing table
   UpdateRouting();
 
   // Flood LSU to all interfaces except for receiving one
   Ptr<Packet> p = ConstructLSUPacket(ospfHeader, lsaHeader, routerLsa);
-  FloodLSU(p, ifIndex);
+  FloodLSU(ifIndex, p, lsaHeader.GetKey());
 
   // Send ACK to sender
   auto ackPacket = ConstructLSAckPacket(m_routerId, m_areaId, lsaHeader);
