@@ -93,6 +93,8 @@ public:
   void SetAdvertisingRouter (uint32_t advertisingRouter);
   uint32_t GetAdvertisingRouter(void) const;
 
+  std::tuple<uint8_t, uint32_t, uint32_t> GetKey();
+
   void SetSeqNum (uint32_t seqNum);
   uint32_t GetSeqNum(void) const;
 

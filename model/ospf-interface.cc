@@ -193,6 +193,22 @@ OspfInterface::GetNeighborLinks(uint32_t areaId) {
   return links;
 }
 
+// Get a list of <neighbor's router ID, router's IP address>
+std::vector<std::pair<uint32_t, uint32_t> >
+OspfInterface::GetActiveNeighborLinks() {
+  std::vector<std::pair<uint32_t, uint32_t> > links;
+  auto neighbors = GetNeighbors();
+  // NS_LOG_INFO("# neighbors: " << neighbors.size());
+  for (auto n : neighbors) {
+    // Only aggregate neighbors that is at least in ExStart
+    // NS_LOG_INFO("  (" << n->GetRouterId().Get() << ", " << m_ipAddress.Get() << ")");
+    if (n->GetState() >= OspfNeighbor::ExStart) {
+      links.emplace_back(n->GetRouterId().Get(), m_ipAddress.Get());
+    }
+  }
+  return links;
+}
+
 // Get a list of <neighbor's router ID, router's IP address> that matches parameter's area
 std::vector<std::pair<uint32_t, uint32_t> >
 OspfInterface::GetActiveNeighborLinks(uint32_t areaId) {

@@ -52,7 +52,7 @@ NS_LOG_COMPONENT_DEFINE("OspfFourNode");
 
 Ipv4Address ospfHelloAddress("224.0.0.5");
 
-const uint32_t SIM_SECONDS = 20;
+const uint32_t SIM_SECONDS = 100;
 
 void SetLinkDown(Ptr<NetDevice> nd) {
     Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
