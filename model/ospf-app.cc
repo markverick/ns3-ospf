@@ -153,11 +153,11 @@ OspfApp::StartApplication (void)
     // For Hello, both bind and listen to m_helloAddress
     auto helloSocket = Socket::CreateSocket (GetNode (), tid);
     InetSocketAddress helloSocketAddress(m_helloAddress);
-    if (helloSocket->Bind (anySocketAddress) == -1)
+    if (helloSocket->Bind (helloSocketAddress) == -1)
     {
       NS_FATAL_ERROR ("Failed to bind socket");
     }
-    helloSocket->Connect (anySocketAddress);
+    helloSocket->Connect (helloSocketAddress);
     helloSocket->SetAllowBroadcast (true);
     helloSocket->SetAttribute("Protocol", UintegerValue(89));
     helloSocket->BindToNetDevice(m_boundDevices.Get(i));
@@ -167,11 +167,11 @@ OspfApp::StartApplication (void)
     // For LSA, both bind and listen to m_lsaAddress
     auto lsaSocket = Socket::CreateSocket (GetNode (), tid);
     InetSocketAddress lsaSocketAddress(m_lsaAddress);
-    if (lsaSocket->Bind (anySocketAddress) == -1)
+    if (lsaSocket->Bind (lsaSocketAddress) == -1)
     {
       NS_FATAL_ERROR ("Failed to bind socket");
     }
-    lsaSocket->Connect (anySocketAddress);
+    lsaSocket->Connect (lsaSocketAddress);
     lsaSocket->SetAllowBroadcast (true);
     lsaSocket->SetAttribute("Protocol", UintegerValue(89));
     lsaSocket->SetIpTtl(1);
