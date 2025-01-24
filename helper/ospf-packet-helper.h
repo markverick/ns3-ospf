@@ -199,7 +199,7 @@ ConstructLSUPacket(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum, uint1
 Ptr<Packet>
 ConstructLSAckPacket(Ipv4Address routerId, uint32_t areaId, std::vector<LsaHeader> lsaHeaders) {
     // Create a packet with the payload and the OSPF header
-    Ptr<Packet> lsAckPayload = Create<ns3::Packet>();
+    Ptr<Packet> lsAckPayload = Create<Packet>();
 
     // Fill in the lsaHeader
     for (LsaHeader lsaHeader : lsaHeaders) {
@@ -209,7 +209,7 @@ ConstructLSAckPacket(Ipv4Address routerId, uint32_t areaId, std::vector<LsaHeade
     // Add OSPF header
     OspfHeader ospfHeader;
     ospfHeader.SetType(OspfHeader::OspfType::OspfLSAck);
-    ospfHeader.SetPayloadSize(lsAckPayload->GetSerializedSize());
+    ospfHeader.SetPayloadSize(lsAckPayload->GetSize());
     ospfHeader.SetRouterId(routerId.Get());
     ospfHeader.SetArea(areaId);
     lsAckPayload->AddHeader(ospfHeader);

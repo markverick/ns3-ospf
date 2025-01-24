@@ -383,7 +383,10 @@ OspfApp::SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags, Ipv4Ad
 // Retransmit missing ACK
 void
 OspfApp::LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags, Ipv4Address routerId, Ipv4Address toAddress) {
-  NS_LOG_FUNCTION (this);
+  // Sockets are closed
+  if (m_lsaSockets.empty()) {
+    return;
+  }
 
   NS_LOG_INFO("Retry missing ACK from interface " << ifIndex << " from address " << toAddress);
   SendLSU(ifIndex, lsuPacket, flags, routerId, toAddress);
@@ -557,9 +560,10 @@ OspfApp::HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsa
   }
   if (seqNum <= m_seqNumbers[originRouterId]) {
     // std::cout << "recv seqNum: "<< seqNum << ", stored seqNum: " << m_seqNumbers[originRouterId] << std::endl;
-    NS_LOG_INFO("LSU is dropped and ACK is triggered: received sequence number <= stored sequence number");
+    NS_LOG_INFO("LSU is dropped: received sequence number <= stored sequence number");
     // Send direct ACK once receiving duplicated sequence number
     auto ackPacket = ConstructLSAckPacket(m_routerId, m_areaId, lsaHeader);
+    NS_LOG_DEBUG("Sending ACK [" << ackPacket->GetSize() << "] from " << m_routerId << " to interface " << ifIndex);
     SendAck(ifIndex, ackPacket, Ipv4Address(originRouterId));
     return;
   }
@@ -579,7 +583,7 @@ OspfApp::HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsa
   // Send ACK to sender
   auto ackPacket = ConstructLSAckPacket(m_routerId, m_areaId, lsaHeader);
   SendAck(ifIndex, ackPacket, Ipv4Address(originRouterId));
-  NS_LOG_DEBUG("Sending ACK from " << m_routerId << " to interface " << ifIndex);
+  NS_LOG_DEBUG("Sending ACK [" << ackPacket->GetSize() << "] from " << m_routerId << " to interface " << ifIndex);
 }
 
 void
@@ -754,7 +758,7 @@ OspfApp::HandleRead (Ptr<Socket> socket)
   } else if (ospfHeader.GetType() == OspfHeader::OspfType::OspfLSAck) {
     // Strip lsa headers until the payload runs out
     std::vector<LsaHeader> lsaHeaders;
-    while (packet->GetSerializedSize() > 0) {
+    while (packet->GetSize() > 0) {
       LsaHeader lsaHeader;
       packet->RemoveHeader(lsaHeader);
       lsaHeaders.emplace_back(lsaHeader);
