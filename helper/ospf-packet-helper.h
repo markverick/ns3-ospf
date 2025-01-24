@@ -149,7 +149,7 @@ ConstructLSUPacket(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum,
     // Add LSA header
     LsaHeader lsaHeader;
     lsaHeader.SetType(LsaHeader::LsType::RouterLSAs);
-    lsaHeader.SetLength(1);
+    lsaHeader.SetLength(20 + packet->GetSize());
     lsaHeader.SetSeqNum(seqNum);
     packet->AddHeader(lsaHeader);
 
