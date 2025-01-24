@@ -107,8 +107,9 @@ private:
   virtual void ScheduleTransmitHello (Time dt);
   virtual void SendHello ();
   virtual void SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId);
-  virtual void FloodLSU (Ptr<Packet> p, uint32_t inputIfIndex);
-  virtual void LSUTimeout(Ptr<Packet> p);
+  virtual void FloodLSU (Ptr<Packet> lsuPacket, uint32_t inputIfIndex);
+  virtual void SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags, Ipv4Address routerId, Ipv4Address toAddress);
+  virtual void LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags, Ipv4Address routerId, Ipv4Address toAddress);
   virtual void HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   /**
@@ -126,15 +127,17 @@ private:
 
   void HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
 
-  void HandleLSAck (uint32_t ifIndex, Ipv4Address remoteRouterId, uint16_t seqNum);
+  void HandleLSAck (uint32_t ifIndex, OspfHeader ospfHeader, std::vector<LsaHeader> lsaHeaders);
 
   void UpdateRouting ();
 
   void RefreshHelloTimeout(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
-  void RefreshLsuTimer();
+  void AdjacencyUpdate();
 
+  Ptr<RouterLsa> GetRouterLsa();
   Ptr<RouterLsa> GetRouterLsa(uint32_t areaId);
+
   std::vector<uint32_t> GetAllNeighborRouterIds();
 
   uint16_t m_port; //!< Port on which we listen for incoming packets.
@@ -166,7 +169,8 @@ private:
   uint16_t m_ttl;
   Ptr<Ipv4StaticRouting> m_routing;
   std::vector<Ptr<OspfInterface> > m_ospfInterfaces;
-  EventId m_lsuTimeout;
+  // a map <neighbor's routerId, EventId> for each interface
+  std::vector<std::unordered_map<uint32_t, EventId> > m_lsuTimeouts; 
   EventId m_ackEvent;
   std::map<uint32_t, uint16_t> m_seqNumbers; 
   std::map<uint32_t, Ptr<RouterLsa> > m_routerLsdb; // adjacency list of [routerId] -> remoteRouterId

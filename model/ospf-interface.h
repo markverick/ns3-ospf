@@ -83,6 +83,7 @@ public:
   //  Vector of <neighbor's routerIds, its own interface ipAddress>
   std::vector<std::pair<uint32_t, uint32_t> > GetNeighborLinks();
   std::vector<std::pair<uint32_t, uint32_t> > GetNeighborLinks(uint32_t areaId);
+  std::vector<std::pair<uint32_t, uint32_t> > GetActiveNeighborLinks();
   std::vector<std::pair<uint32_t, uint32_t> > GetActiveNeighborLinks(uint32_t areaId);
 
 

@@ -86,28 +86,6 @@ ConstructHelloPacket(Ipv4Address routerId, uint32_t areaId, Ipv4Mask mask, uint1
     return packet;
 }
 
-Ptr<Packet>
-ConstructAckPayload(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum) {
-    uint32_t payloadSize = 4;
-
-    // Create an ack payload
-    Buffer payload;
-    payload.AddAtStart(payloadSize);
-    Buffer::Iterator i = payload.Begin();
-
-    i.WriteHtonU16 (seqNum);
-    i.WriteHtonU16 (0); // padding
-
-    // Create a packet with the payload and the OSPF header
-    Ptr<Packet> packet = Create<Packet>(payload.PeekData(), payloadSize);
-    OspfHeader header;
-    header.SetType(OspfHeader::OspfType::OspfLSAck);
-    header.SetPayloadSize(payloadSize);
-    header.SetRouterId(routerId.Get());
-    header.SetArea(areaId);
-    packet->AddHeader(header);
-    return packet;
-}
 
 // Return null if ttl becomes zero
 Ptr<Packet>
@@ -216,6 +194,33 @@ ConstructLSUPacket(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum, uint1
     packet->AddHeader(ospfHeader);
 
     return packet;
+}
+
+Ptr<Packet>
+ConstructLSAckPacket(Ipv4Address routerId, uint32_t areaId, std::vector<LsaHeader> lsaHeaders) {
+    // Create a packet with the payload and the OSPF header
+    Ptr<Packet> lsAckPayload = Create<ns3::Packet>();
+
+    // Fill in the lsaHeader
+    for (LsaHeader lsaHeader : lsaHeaders) {
+        lsAckPayload->AddHeader(lsaHeader);
+    }
+
+    // Add OSPF header
+    OspfHeader ospfHeader;
+    ospfHeader.SetType(OspfHeader::OspfType::OspfLSAck);
+    ospfHeader.SetPayloadSize(lsAckPayload->GetSerializedSize());
+    ospfHeader.SetRouterId(routerId.Get());
+    ospfHeader.SetArea(areaId);
+    lsAckPayload->AddHeader(ospfHeader);
+    return lsAckPayload;
+}
+
+Ptr<Packet>
+ConstructLSAckPacket(Ipv4Address routerId, uint32_t areaId, LsaHeader lsaHeader) {
+    std::vector<LsaHeader> lsaHeaders;
+    lsaHeaders.emplace_back(lsaHeader);
+    return ConstructLSAckPacket(routerId, areaId, lsaHeaders);
 }
 
 //  Return a tuple of <subnet, mask, neighbor's router ID>
