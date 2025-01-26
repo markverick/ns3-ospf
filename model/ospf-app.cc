@@ -39,6 +39,7 @@
 #include "lsa-header.h"
 #include "router-lsa.h"
 #include "ospf-hello.h"
+#include "ls-ack.h"
 #include "ospf-interface.h"
 #include "ospf-neighbor.h"
 
@@ -534,8 +535,9 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
 }
 
 void 
-OspfApp::HandleLSAck (uint32_t ifIndex, OspfHeader ospfHeader, std::vector<LsaHeader> lsaHeaders)
+OspfApp::HandleLsAck (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<LsAck> lsAck)
 {
+  auto lsaHeaders = lsAck->GetLsaHeaders();
   NS_LOG_FUNCTION (this << ifIndex << lsaHeaders.size());
 
   for (auto lsaHeader : lsaHeaders) {
@@ -761,14 +763,8 @@ OspfApp::HandleRead (Ptr<Socket> socket)
     Ptr<RouterLsa> routerLsa = Create<RouterLsa>(packet);
     HandleRouterLSU(socket->GetBoundNetDevice()->GetIfIndex(), ospfHeader, lsaHeader, routerLsa);
   } else if (ospfHeader.GetType() == OspfHeader::OspfType::OspfLSAck) {
-    // Strip lsa headers until the payload runs out
-    std::vector<LsaHeader> lsaHeaders;
-    while (packet->GetSize() > 0) {
-      LsaHeader lsaHeader;
-      packet->RemoveHeader(lsaHeader);
-      lsaHeaders.emplace_back(lsaHeader);
-    }
-    HandleLSAck(socket->GetBoundNetDevice()->GetIfIndex(), ospfHeader, lsaHeaders);
+    Ptr<LsAck> lsAck = Create<LsAck>(packet);
+    HandleLsAck(socket->GetBoundNetDevice()->GetIfIndex(), ospfHeader, lsAck);
   } else {
     NS_LOG_ERROR("Unknown packet type");
   }

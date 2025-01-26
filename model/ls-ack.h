@@ -43,6 +43,7 @@ public:
 
   LsAck ();
   LsAck (std::vector<LsaHeader> lsaHeaders);
+  LsAck (Ptr<Packet> packet);
 
   void AddLsaHeader (LsaHeader lsaHeader);
   void ClearLsaHeader (void);
@@ -50,6 +51,7 @@ public:
   LsaHeader SetLsaHeaders (std::vector<LsaHeader> lsaHeaders);
 
   LsaHeader GetLsaHeader (uint32_t index);
+  std::vector<LsaHeader> GetLsaHeaders ();
   uint32_t GetNLsaHeaders ();
 
   static TypeId GetTypeId (void);

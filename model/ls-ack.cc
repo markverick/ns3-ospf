@@ -43,6 +43,11 @@ LsAck::LsAck (std::vector<LsaHeader> lsaHeaders)
   }
 }
 
+LsAck::LsAck (Ptr<Packet> packet)
+{
+  Deserialize(packet);
+}
+
 void
 LsAck::AddLsaHeader (LsaHeader lsaHeader) {
   m_lsaHeaders.emplace_back(lsaHeader);
@@ -69,12 +74,15 @@ LsAck::GetLsaHeader (uint32_t index) {
   return m_lsaHeaders[index];
 }
 
+std::vector<LsaHeader>
+LsAck::GetLsaHeaders () {
+  return m_lsaHeaders;
+}
+
 uint32_t
 LsAck::GetNLsaHeaders () {
   return m_lsaHeaders.size();
 }
-
-
 
 TypeId 
 LsAck::GetTypeId (void)
@@ -101,7 +109,7 @@ LsAck::Print (std::ostream &os) const
 uint32_t 
 LsAck::GetSerializedSize (void) const
 {
-	return m_lsaHeaders.size() * 4;
+	return m_lsaHeaders.size() * 20;
 }
 
 Ptr<Packet>
@@ -124,7 +132,8 @@ LsAck::Serialize (Buffer::Iterator start) const
   Buffer::Iterator i = start;
 
   for (auto lsaHeader : m_lsaHeaders) {
-    lsaHeader.Serialize(start);
+    lsaHeader.Serialize(i);
+    i.Next(lsaHeader.GetSerializedSize());
   }
   return GetSerializedSize();
 }
@@ -137,7 +146,7 @@ LsAck::Deserialize (Buffer::Iterator start)
 
   while (!i.IsEnd()) {
     LsaHeader lsaHeader;
-    lsaHeader.Deserialize(i);
+    i.Next(lsaHeader.Deserialize(i));
     m_lsaHeaders.emplace_back(lsaHeader);
   }
   return GetSerializedSize ();

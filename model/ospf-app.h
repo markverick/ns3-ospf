@@ -32,6 +32,7 @@
 #include "lsa-header.h"
 #include "router-lsa.h"
 #include "ospf-hello.h"
+#include "ls-ack.h"
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
@@ -129,7 +130,7 @@ private:
 
   void HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
 
-  void HandleLSAck (uint32_t ifIndex, OspfHeader ospfHeader, std::vector<LsaHeader> lsaHeaders);
+  void HandleLsAck (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<LsAck> lsAck);
 
   void UpdateRouting ();
 
