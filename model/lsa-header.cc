@@ -119,7 +119,7 @@ LsaHeader::GetAdvertisingRouter (void) const
 }
 
 // Get the unique key <LS Type, Link-State ID, Advertising Router>
-std::tuple<uint8_t, uint32_t, uint32_t>
+LsaHeader::LsaKey
 LsaHeader::GetKey()
 {
   return std::make_tuple(m_type, m_lsId, m_advertisingRouter);

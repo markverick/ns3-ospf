@@ -369,7 +369,7 @@ OspfApp::RefreshHelloTimeout(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
 // Will repeat if this node is the originator
 void
 OspfApp::SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
-                std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress) {
+                LsaHeader::LsaKey lsaKey, Ipv4Address toAddress) {
   auto p = lsuPacket->Copy();
   Ptr<Socket> socket = m_lsaSockets[ifIndex];
   m_txTrace (p);
@@ -386,7 +386,7 @@ OspfApp::SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
 // Retransmit missing ACK
 void
 OspfApp::LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
-                  std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress) {
+                  LsaHeader::LsaKey lsaKey, Ipv4Address toAddress) {
   // Sockets are closed
   if (m_lsaSockets.empty()) {
     return;
@@ -397,7 +397,7 @@ OspfApp::LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
 }
 
 void
-OspfApp::FloodLSU(uint32_t inputIfIndex, Ptr<Packet> lsuPacket, std::tuple<uint8_t, uint32_t, uint32_t> lsaKey) {
+OspfApp::FloodLSU(uint32_t inputIfIndex, Ptr<Packet> lsuPacket, LsaHeader::LsaKey lsaKey) {
   if (m_lsaSockets.empty()) {
     NS_LOG_INFO ("No sockets to flood LSU");
     return;

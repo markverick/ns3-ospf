@@ -30,14 +30,14 @@ namespace ns3 {
 /**
  * \ingroup ospf
  *
- * \brief OSPF  Hello Packet
+ * \brief OSPF Hello Object
  */
 
 class OspfHello : public Object
 {
 public:
   /**
-   * \brief Construct a router LSA
+   * \brief Construct a Hello object
    */
 
   OspfHello ();
