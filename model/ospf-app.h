@@ -32,6 +32,7 @@
 #include "lsa-header.h"
 #include "router-lsa.h"
 #include "ospf-hello.h"
+#include "ls-ack.h"
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
@@ -129,7 +130,7 @@ private:
 
   void HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
 
-  void HandleLSAck (uint32_t ifIndex, OspfHeader ospfHeader, std::vector<LsaHeader> lsaHeaders);
+  void HandleLsAck (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<LsAck> lsAck);
 
   void UpdateRouting ();
 
@@ -172,9 +173,9 @@ private:
   Ptr<Ipv4StaticRouting> m_routing;
   std::vector<Ptr<OspfInterface> > m_ospfInterfaces;
   // a map <lsaKey, EventId> for each interface
-  std::map<std::tuple<uint8_t, uint32_t, uint32_t>, EventId> m_lsuTimeouts; 
+  std::map<LsaHeader::LsaKey, EventId> m_lsuTimeouts; 
   EventId m_ackEvent;
-  std::map<std::tuple<uint8_t, uint32_t, uint32_t>, uint16_t> m_seqNumbers; 
+  std::map<LsaHeader::LsaKey, uint16_t> m_seqNumbers; 
   std::map<uint32_t, Ptr<RouterLsa> > m_routerLsdb; // adjacency list of [routerId] -> remoteRouterId
 
   // Routing

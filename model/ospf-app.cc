@@ -39,6 +39,7 @@
 #include "lsa-header.h"
 #include "router-lsa.h"
 #include "ospf-hello.h"
+#include "ls-ack.h"
 #include "ospf-interface.h"
 #include "ospf-neighbor.h"
 
@@ -369,7 +370,7 @@ OspfApp::RefreshHelloTimeout(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
 // Will repeat if this node is the originator
 void
 OspfApp::SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
-                std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress) {
+                LsaHeader::LsaKey lsaKey, Ipv4Address toAddress) {
   auto p = lsuPacket->Copy();
   Ptr<Socket> socket = m_lsaSockets[ifIndex];
   m_txTrace (p);
@@ -386,7 +387,7 @@ OspfApp::SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
 // Retransmit missing ACK
 void
 OspfApp::LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
-                  std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress) {
+                  LsaHeader::LsaKey lsaKey, Ipv4Address toAddress) {
   // Sockets are closed
   if (m_lsaSockets.empty()) {
     return;
@@ -397,7 +398,7 @@ OspfApp::LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
 }
 
 void
-OspfApp::FloodLSU(uint32_t inputIfIndex, Ptr<Packet> lsuPacket, std::tuple<uint8_t, uint32_t, uint32_t> lsaKey) {
+OspfApp::FloodLSU(uint32_t inputIfIndex, Ptr<Packet> lsuPacket, LsaHeader::LsaKey lsaKey) {
   if (m_lsaSockets.empty()) {
     NS_LOG_INFO ("No sockets to flood LSU");
     return;
@@ -534,8 +535,9 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
 }
 
 void 
-OspfApp::HandleLSAck (uint32_t ifIndex, OspfHeader ospfHeader, std::vector<LsaHeader> lsaHeaders)
+OspfApp::HandleLsAck (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<LsAck> lsAck)
 {
+  auto lsaHeaders = lsAck->GetLsaHeaders();
   NS_LOG_FUNCTION (this << ifIndex << lsaHeaders.size());
 
   for (auto lsaHeader : lsaHeaders) {
@@ -761,14 +763,8 @@ OspfApp::HandleRead (Ptr<Socket> socket)
     Ptr<RouterLsa> routerLsa = Create<RouterLsa>(packet);
     HandleRouterLSU(socket->GetBoundNetDevice()->GetIfIndex(), ospfHeader, lsaHeader, routerLsa);
   } else if (ospfHeader.GetType() == OspfHeader::OspfType::OspfLSAck) {
-    // Strip lsa headers until the payload runs out
-    std::vector<LsaHeader> lsaHeaders;
-    while (packet->GetSize() > 0) {
-      LsaHeader lsaHeader;
-      packet->RemoveHeader(lsaHeader);
-      lsaHeaders.emplace_back(lsaHeader);
-    }
-    HandleLSAck(socket->GetBoundNetDevice()->GetIfIndex(), ospfHeader, lsaHeaders);
+    Ptr<LsAck> lsAck = Create<LsAck>(packet);
+    HandleLsAck(socket->GetBoundNetDevice()->GetIfIndex(), ospfHeader, lsAck);
   } else {
     NS_LOG_ERROR("Unknown packet type");
   }

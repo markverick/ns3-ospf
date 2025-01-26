@@ -60,6 +60,8 @@ public:
       ASExternalLSAs = 0x5
     };
 
+  typedef std::tuple<uint8_t, uint32_t, uint32_t> LsaKey;
+
   /**
    * \brief Set Ospf Type Field
    * \param type OSPF Type value
@@ -93,7 +95,7 @@ public:
   void SetAdvertisingRouter (uint32_t advertisingRouter);
   uint32_t GetAdvertisingRouter(void) const;
 
-  std::tuple<uint8_t, uint32_t, uint32_t> GetKey();
+  LsaKey GetKey();
 
   void SetSeqNum (uint32_t seqNum);
   uint32_t GetSeqNum(void) const;

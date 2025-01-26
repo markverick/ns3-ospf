@@ -10,6 +10,7 @@ def build(bld):
         'model/lsa-header.cc',
         'model/ospf-hello.cc',
         'model/router-lsa.cc',
+        'model/ls-ack.cc',
         'helper/ospf-app-helper.cc',
         ]
 
@@ -31,6 +32,7 @@ def build(bld):
         'model/lsa-header.h',
         'model/router-lsa.h',
         'model/ospf-hello.h',
+        'model/ls-ack.h',
         'helper/ospf-app-helper.h',
         'helper/ospf-packet-helper.h'
         ]

@@ -41,6 +41,7 @@
 #include "ns3/ospf-neighbor.h"
 #include "ns3/router-lsa.h"
 #include "ns3/ospf-hello.h"
+#include "ns3/ls-ack.h"
 
 namespace ns3
 {
@@ -203,12 +204,8 @@ ConstructLSUPacket(Ipv4Address routerId, uint32_t areaId, uint16_t seqNum, uint1
 Ptr<Packet>
 ConstructLSAckPacket(Ipv4Address routerId, uint32_t areaId, std::vector<LsaHeader> lsaHeaders) {
     // Create a packet with the payload and the OSPF header
-    Ptr<Packet> lsAckPayload = Create<Packet>();
-
-    // Fill in the lsaHeader
-    for (LsaHeader lsaHeader : lsaHeaders) {
-        lsAckPayload->AddHeader(lsaHeader);
-    }
+    Ptr<LsAck> lsAck = Create<LsAck>(lsaHeaders);
+    Ptr<Packet> lsAckPayload = lsAck->ConstructPacket();
 
     // Add OSPF header
     OspfHeader ospfHeader;
