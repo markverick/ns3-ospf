@@ -136,7 +136,7 @@ OspfApp::StartApplication (void)
   m_randomVariable->SetAttribute("Max", DoubleValue(0.005)); // Maximum value in seconds (5 ms)
 
   m_randomVariableSeq->SetAttribute("Min", DoubleValue(0.0));
-  m_randomVariableSeq->SetAttribute("Max", DoubleValue(1 << 31)); // 31 so it won't overflow
+  m_randomVariableSeq->SetAttribute("Max", DoubleValue((1 << 16) * 1000)); // arbitrary number
 
   // Add local null sockets
   m_sockets.emplace_back(nullptr);
@@ -490,26 +490,28 @@ OspfApp::RecomputeRouterLsa() {
 }
 
 void
-OspfApp::NegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
+OspfApp::NegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, bool bitMS) {
   auto interface = m_ospfInterfaces[ifIndex];
-  uint32_t ddSeqNum = m_randomVariableSeq->GetInteger();
-  neighbor->SetDdSeqNum(ddSeqNum);
+  uint32_t ddSeqNum = neighbor->GetDDSeqNum();
   NS_LOG_INFO("DD Sequence Num (" << ddSeqNum << ") is generated to negotiate neighbor " <<
               neighbor->GetNeighborString()  << " via interface " << ifIndex);
-  Ptr<OspfDbd> ospfDbd = Create<OspfDbd>(interface->GetMtu(), 0, 0, 1, 1, 1, ddSeqNum);
+  Ptr<OspfDbd> ospfDbd = Create<OspfDbd>(interface->GetMtu(), 0, 0, 1, 1, bitMS, ddSeqNum);
   Ptr<Packet> packet = ospfDbd->ConstructPacket();
   EncapsulateOspfPacket(packet, m_routerId, interface->GetArea(), OspfHeader::OspfType::OspfDBD);
-  // Keep sending DBD until neighbor state changes to Exchange
   SendDbd(ifIndex, packet, neighbor);
-  auto event = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()),
-                                              &OspfApp::SendDbd, this, ifIndex, packet, neighbor);
-  neighbor->BindEvent(event);
+
+  if (bitMS) {
+    // Master keep sending DBD until stopped
+    auto event = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()),
+                                                &OspfApp::SendDbd, this, ifIndex, packet, neighbor);
+    neighbor->BindEvent(event);
+  }
 }
 
 void
 OspfApp::PollMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
   auto interface = m_ospfInterfaces[ifIndex];
-  uint32_t ddSeqNum = neighbor->GetDdSeqNum();
+  uint32_t ddSeqNum = neighbor->GetDDSeqNum();
 
   Ptr<OspfDbd> ospfDbd = Create<OspfDbd>(interface->GetMtu(), 0, 0, 0, 1, 1, ddSeqNum);
   std::vector<LsaHeader> lsaHeaders = neighbor->PopMaxMtuDbdQueue(interface->GetMtu());
@@ -585,8 +587,9 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
         neighbor->SetState(OspfNeighbor::ExStart);
         // Re-compute its own router LSA and routing table
         RecomputeRouterLsa();
-        // Send DBD to negotiate master/slave and DD seq num
-        NegotiateDbd(ifIndex, neighbor);
+        // Send DBD to negotiate master/slave and DD seq num, starting with self as a Master
+        neighbor->SetDDSeqNum(m_randomVariableSeq->GetInteger());
+        NegotiateDbd(ifIndex, neighbor, true);
       } else {
         // Never go here unless its alt-area.
         NS_LOG_INFO("Interface " << ifIndex << " is across the area");
@@ -608,7 +611,7 @@ OspfApp::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     return; 
   }
   if (neighbor->GetState() < OspfNeighbor::NeighborState::ExStart) {
-    NS_LOG_WARN ("Received DBD when two-way adjacency hasn't formed yet");
+    NS_LOG_INFO ("Received DBD when two-way adjacency hasn't formed yet");
     return;
   }
   if (m_routerId.Get() == neighbor->GetRouterId().Get()) {
@@ -616,35 +619,41 @@ OspfApp::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     return;
   }
   // Negotiation (ExStart)
-  if (dbd->IsNegotiate()) {
+  if (dbd->GetBitI()) {
     if (neighbor->GetState() > OspfNeighbor::ExStart) {
-      NS_LOG_WARN ("DBD Dropped. Negotiation has already done");
+      NS_LOG_INFO ("DBD Dropped. DBD Exchange has already done");
       return;
     }
     // Remove negotiation retransmission timer and advance to Exchange
-    neighbor->RemoveEvent();
-    neighbor->SetState(OspfNeighbor::Exchange);
+    
 
     // Neighbor is Master
     if (m_routerId.Get() < neighbor->GetRouterId().Get()) {
-      NS_LOG_INFO("Set to slave (" << m_routerId.Get() << "<" << neighbor->GetRouterId().Get() <<  ") with DD Seq Num: " << dbd->GetDDSeqNum());
+      NS_LOG_INFO("Set to slave (" << m_routerId << "<" << neighbor->GetRouterId() <<  ") with DD Seq Num: " << dbd->GetDDSeqNum());
       // Match DD Seq Num with Master
-      neighbor->SetDdSeqNum(dbd->GetDDSeqNum());
+      neighbor->SetDDSeqNum(dbd->GetDDSeqNum());
       // Snapshot LSDB headers during Exchange for consistency
       for (const auto& pair : m_routerLsdb) {
         neighbor->AddDbdQueue(pair.second.first);
       }
-    } else if (m_routerId.Get() > neighbor->GetRouterId().Get()) {
-      NS_LOG_INFO("Set to master (" << m_routerId.Get() << ">" << neighbor->GetRouterId().Get() <<  ") with DD Seq Num: " << dbd->GetDDSeqNum());
+      NegotiateDbd(ifIndex, neighbor, false);
+      neighbor->SetState(OspfNeighbor::Exchange);
+    } else if (m_routerId.Get() > neighbor->GetRouterId().Get() && !dbd->GetBitMS()) {
+      NS_LOG_INFO("Set to master (" << m_routerId<< ">" << neighbor->GetRouterId() <<  ") with DD Seq Num: " << neighbor->GetDDSeqNum());
       // Snapshot LSDB headers during Exchange for consistency
       for (const auto& pair : m_routerLsdb) {
         neighbor->AddDbdQueue(pair.second.first);
       }
+      neighbor->SetState(OspfNeighbor::Exchange);
       PollMasterDbd(ifIndex, neighbor);
     }
     return;
   }
-  if (!dbd->GetBitI()) {
+  if (neighbor->GetState() < OspfNeighbor::Exchange) {
+    NS_LOG_INFO ("Neighbor must be at least Exchange to start processing DBD");
+    return;
+  }
+  if (dbd->GetBitI()) {
     NS_LOG_ERROR ("Bit I must be set to 1 only when both M and MS set to 1");
     return;
   }
@@ -673,13 +682,13 @@ OspfApp::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
 void
 OspfApp::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd) {
   Ptr<OspfInterface> interface = m_ospfInterfaces[ifIndex];
-  if (dbd->GetDDSeqNum() < neighbor->GetDdSeqNum() || dbd->GetDDSeqNum() > neighbor->GetDdSeqNum() + 1) {
+  if (dbd->GetDDSeqNum() < neighbor->GetDDSeqNum() || dbd->GetDDSeqNum() > neighbor->GetDDSeqNum() + 1) {
     // Drop the packet if out of order
-    NS_LOG_ERROR ("DD sequence number is out-of-order");
+    NS_LOG_ERROR ("DD sequence number is out-of-order " << neighbor->GetDDSeqNum() << " <> " << dbd->GetDDSeqNum());
     return;
   }
   Ptr<OspfDbd> dbdResponse;
-  if (dbd->GetDDSeqNum() == neighbor->GetDdSeqNum() + 1) {
+  if (dbd->GetDDSeqNum() == neighbor->GetDDSeqNum() + 1) {
     // Already received this DD seq Num; send the last DBD
     dbdResponse = neighbor->GetLastDbdSent();
   } else {
@@ -691,7 +700,7 @@ OspfApp::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<Ospf
 
     // Generate its own next DBD, echoing DD seq num of the master
     lsaHeaders = neighbor->PopMaxMtuDbdQueue(interface->GetMtu());
-    dbdResponse = Create<OspfDbd>(interface->GetMtu(), 0, 0, 0, 1, 1, dbd->GetDDSeqNum());
+    dbdResponse = Create<OspfDbd>(interface->GetMtu(), 0, 0, 0, 1, 0, dbd->GetDDSeqNum());
     if (neighbor->IsDbdQueueEmpty()) {
       // No (M)ore packets (the last DBD)
       dbdResponse->SetBitM(0);
@@ -705,7 +714,7 @@ OspfApp::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<Ospf
   SendDbd(ifIndex, packet, neighbor);
 
   // Increase its own DD to expect for the next one
-  neighbor->IncrementDdSeqNum();
+  neighbor->IncrementDDSeqNum();
 
   if (!dbd->GetBitM() && neighbor->IsDbdQueueEmpty()) {
     NS_LOG_INFO("Database exchange is done. Advance to Loading");
@@ -717,7 +726,7 @@ OspfApp::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<Ospf
 void
 OspfApp::HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd) {
   Ptr<OspfInterface> interface = m_ospfInterfaces[ifIndex];
-  if (dbd->GetDDSeqNum() != neighbor->GetDdSeqNum()) {
+  if (dbd->GetDDSeqNum() != neighbor->GetDDSeqNum()) {
     // Out-of-order
     NS_LOG_ERROR ("DD sequence number is out-of-order");
     return;

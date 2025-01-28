@@ -152,7 +152,7 @@ private:
   void RefreshHelloTimeout(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   // ExStart
-  void NegotiateDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  void NegotiateDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, bool bitMS);
 
   // Exchange
   void SendMasterDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);

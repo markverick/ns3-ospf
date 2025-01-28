@@ -91,8 +91,8 @@ public:
   std::string GetNeighborString();
 
   // Database Descriptions
-  uint32_t GetDdSeqNum();
-  void SetDdSeqNum(uint32_t ddSeqNum);
+  uint32_t GetDDSeqNum();
+  void SetDDSeqNum(uint32_t ddSeqNum);
 
   Ptr<OspfDbd> GetLastDbdSent();
   void SetLastDbdSent(Ptr<OspfDbd> dbd);
@@ -105,7 +105,7 @@ public:
   bool IsLsaKeyOutdated(LsaHeader::LsaKey lsaKey, uint32_t seqNum);
 
   // DB Description queue
-  void IncrementDdSeqNum();
+  void IncrementDDSeqNum();
   void ClearDbdQueue();
   void AddDbdQueue(LsaHeader lsaHeader);
   LsaHeader PopDbdQueue();

@@ -107,17 +107,17 @@ OspfNeighbor::SetState(OspfNeighbor::NeighborState state) {
 }
 
 uint32_t
-OspfNeighbor::GetDdSeqNum() {
+OspfNeighbor::GetDDSeqNum() {
   return m_ddSeqNum;
 }
 
 void
-OspfNeighbor::SetDdSeqNum(uint32_t ddSeqNum) {
+OspfNeighbor::SetDDSeqNum(uint32_t ddSeqNum) {
   m_ddSeqNum = ddSeqNum;
 }
 
 void
-OspfNeighbor::IncrementDdSeqNum() {
+OspfNeighbor::IncrementDDSeqNum() {
   m_ddSeqNum++;
 }
 
