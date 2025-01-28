@@ -54,13 +54,14 @@ OspfInterface::~OspfInterface()
 }
 
 OspfInterface::OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t routerDeadInterval,
-                             uint32_t area, uint32_t metric)
+                             uint32_t area, uint32_t metric, uint32_t mtu)
   : m_ipAddress(ipAddress),
     m_ipMask(ipMask),
     m_helloInterval(helloInterval),
     m_routerDeadInterval(routerDeadInterval),
     m_area(area),
-    m_metric(metric)
+    m_metric(metric),
+    m_mtu(mtu)
 {
 }
 
@@ -102,6 +103,16 @@ OspfInterface::GetArea() {
 void
 OspfInterface::SetArea(uint32_t area) {
   m_area = area;
+}
+
+uint32_t
+OspfInterface::GetMtu() {
+  return m_mtu;
+}
+
+void
+OspfInterface::SetMtu(uint32_t mtu) {
+  m_mtu = mtu;
 }
 
 uint16_t

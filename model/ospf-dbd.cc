@@ -68,6 +68,14 @@ OspfDbd::GetMtu () const {
   return m_mtu;
 }
 
+bool
+OspfDbd::IsNegotiate () const {
+  if (m_bitI && m_bitM && m_bitMS) {
+    return true;
+  }
+  return false;
+}
+
 void
 OspfDbd::SetOptions (uint8_t options) {
   m_options = options;

@@ -49,6 +49,8 @@ public:
   void SetOptions (uint8_t options);
   uint8_t GetOptions() const;
 
+  bool IsNegotiate () const;
+
   void SetBitI (bool bitI);
   bool GetBitI() const;
 

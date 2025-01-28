@@ -36,6 +36,9 @@
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
+#include "queue"
+#include "lsa-header.h"
+#include "ospf-dbd.h"
 #include "algorithm"
 
 namespace ns3 {
@@ -85,6 +88,33 @@ public:
 
   void RefreshLastHelloReceived ();
 
+  std::string GetNeighborString();
+
+  // Database Descriptions
+  uint32_t GetDdSeqNum();
+  void SetDdSeqNum(uint32_t ddSeqNum);
+
+  Ptr<OspfDbd> GetLastDbdSent();
+  void SetLastDbdSent(Ptr<OspfDbd> dbd);
+
+  void InsertLsaKey(LsaHeader lsaHeader);
+  void InsertLsaKey(LsaHeader::LsaKey lsaKey, uint32_t seqNum);
+  uint32_t GetLsaKeySeqNum(LsaHeader::LsaKey lsaKey);
+  void ClearLsaKey();
+  bool IsLsaKeyOutdated(LsaHeader lsaHeader);
+  bool IsLsaKeyOutdated(LsaHeader::LsaKey lsaKey, uint32_t seqNum);
+
+  // DB Description queue
+  void IncrementDdSeqNum();
+  void ClearDbdQueue();
+  void AddDbdQueue(LsaHeader lsaHeader);
+  LsaHeader PopDbdQueue();
+  std::vector<LsaHeader> PopMaxMtuDbdQueue(uint32_t mtu);
+  bool IsDbdQueueEmpty();
+
+  // Neighbor-specific timeout
+  void RemoveEvent();
+  void BindEvent(EventId event);
 
 
 
@@ -92,6 +122,13 @@ public:
   Ipv4Address m_ipAddress;
   uint32_t m_area;
   NeighborState m_state;
+
+  // Database Descriptions
+  uint32_t m_ddSeqNum;
+  std::queue<LsaHeader> m_dbdQueue;
+  Ptr<OspfDbd> m_lastDbdSent;
+  std::map<LsaHeader::LsaKey, uint32_t> m_lsaSeqNums; // Neighbor's headers
+  EventId m_event;
   Time m_lastHelloReceived;
 };
 

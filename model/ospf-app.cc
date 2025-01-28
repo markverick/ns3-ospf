@@ -39,6 +39,7 @@
 #include "lsa-header.h"
 #include "router-lsa.h"
 #include "ospf-hello.h"
+#include "ospf-dbd.h"
 #include "ls-ack.h"
 #include "ospf-interface.h"
 #include "ospf-neighbor.h"
@@ -85,10 +86,6 @@ OspfApp::GetTypeId (void)
                    TimeValue (Seconds(5)),
                    MakeTimeAccessor (&OspfApp::m_rxmtInterval),
                    MakeTimeChecker ())
-    .AddAttribute ("TTL", "Time To Live",
-                   UintegerValue (64),
-                   MakeUintegerAccessor (&OspfApp::m_ttl),
-                   MakeUintegerChecker<uint16_t> ())
     .AddAttribute ("DefaultArea", "Default area ID for interfaces",
                    UintegerValue (0),
                    MakeUintegerAccessor (&OspfApp::m_areaId),
@@ -137,6 +134,9 @@ OspfApp::StartApplication (void)
   // Generate random variables
   m_randomVariable->SetAttribute("Min", DoubleValue(0.0)); // Minimum value in seconds
   m_randomVariable->SetAttribute("Max", DoubleValue(0.005)); // Maximum value in seconds (5 ms)
+
+  m_randomVariableSeq->SetAttribute("Min", DoubleValue(0.0));
+  m_randomVariableSeq->SetAttribute("Max", DoubleValue(1 << 31)); // 31 so it won't overflow
 
   // Add local null sockets
   m_sockets.emplace_back(nullptr);
@@ -187,6 +187,7 @@ OspfApp::StartApplication (void)
     }
     unicastSocket->SetAllowBroadcast (true);
     unicastSocket->SetAttribute("Protocol", UintegerValue(89));
+    lsaSocket->SetIpTtl(1); // Only allow local hop
     unicastSocket->BindToNetDevice(m_boundDevices.Get(i));
     unicastSocket->SetRecvCallback (MakeCallback (&OspfApp::HandleRead, this));
     m_sockets.emplace_back(unicastSocket);
@@ -213,7 +214,9 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
   for (uint32_t i = 1; i < m_boundDevices.GetN(); i++) {
     auto sourceIp = ipv4->GetAddress(i, 0).GetAddress();
     auto mask = ipv4->GetAddress(i, 0).GetMask();
-    Ptr<OspfInterface> ospfInterface = Create<OspfInterface> (sourceIp, mask, m_helloInterval.GetSeconds(), m_routerDeadInterval.GetSeconds(), m_areaId, 1);
+    Ptr<OspfInterface> ospfInterface = Create<OspfInterface> (sourceIp, mask, m_helloInterval.GetSeconds(),
+                                                             m_routerDeadInterval.GetSeconds(), m_areaId, 1,
+                                                             m_boundDevices.Get(i)->GetMtu());
     m_ospfInterfaces.emplace_back(ospfInterface);
   }
 }
@@ -293,19 +296,29 @@ OspfApp::SendHello ()
 }
 
 void 
-OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId)
+OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address(originRouterId))
 {
-  NS_LOG_FUNCTION (this << ifIndex << originRouterId);
   if (m_lsaSockets.empty()) return;
-
 
   Address ackSocketAddress;
   auto socket = m_lsaSockets[ifIndex];
   socket->GetSockName (ackSocketAddress);
-  m_txTrace (ackPayload);
+  m_txTrace (ackPacket);
 
-  socket->SendTo (ackPayload, 0, InetSocketAddress (m_lsaAddress));
-  NS_LOG_INFO ("ack sent to " << originRouterId << " via interface " << ifIndex << " : " << m_ospfInterfaces[ifIndex]->GetAddress());
+  socket->SendTo (ackPacket, 0, InetSocketAddress (m_lsaAddress)); // TODO: Change to unicast later
+  NS_LOG_INFO ("LS Ack sent via interface " << ifIndex << " : " << m_ospfInterfaces[ifIndex]->GetAddress());
+}
+
+void 
+OspfApp::SendDbd (uint32_t ifIndex, Ptr<Packet> dbdPacket, Ptr<OspfNeighbor> neighbor)
+{
+  if (m_sockets.empty()) return;
+  auto socket = m_sockets[ifIndex];
+  m_txTrace (dbdPacket);
+
+  socket->SendTo (dbdPacket, 0, InetSocketAddress (neighbor->GetIpAddress()));
+  NS_LOG_INFO ("DBD sent to via interface " << ifIndex << " : " << m_ospfInterfaces[ifIndex]->GetAddress());
+
 }
 
 void 
@@ -349,7 +362,7 @@ OspfApp::HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRoute
   NS_ASSERT(neighbor != nullptr);
   // Set the interface to down, which keeps hello going
   neighbor->SetState(OspfNeighbor::Down);
-  AdjacencyUpdate();
+  RecomputeRouterLsa();
   NS_LOG_DEBUG("Interface " << ospfInterface->GetAddress() << " has removed routerId: "
               << remoteRouterId << ", remoteIp" << remoteIp << " neighbors");
 }
@@ -448,7 +461,7 @@ OspfApp::GetRouterLsa(uint32_t areaId) {
 }
 
 void
-OspfApp::AdjacencyUpdate() {
+OspfApp::RecomputeRouterLsa() {
   NS_LOG_FUNCTION (this);
 
   auto lsaKey = std::make_tuple(LsaHeader::LsType::RouterLSAs, m_routerId.Get(), m_routerId.Get());
@@ -457,23 +470,64 @@ OspfApp::AdjacencyUpdate() {
     m_seqNumbers[lsaKey] = 0;
   }
 
-  // Construct an LSU packet
+  // Increment a seq number
+  m_seqNumbers[lsaKey]++;
+
+  // Construct its router LSA
   Ptr<RouterLsa> routerLsa = GetRouterLsa();
 
   // Assign routerLsa to its router LSDB
-  m_routerLsdb[m_routerId.Get()] = routerLsa;
-
-  // routerLsa->Print(std::cout);
-
-  // Construct an LSU packet
-  Ptr<Packet> p = ConstructLSUPacket(m_routerId, m_areaId, ++m_seqNumbers[lsaKey], routerLsa);
+  LsaHeader lsaHeader;
+  lsaHeader.SetType(LsaHeader::LsType::RouterLSAs);
+  lsaHeader.SetLength(20 + routerLsa->GetSerializedSize());
+  lsaHeader.SetSeqNum(m_seqNumbers[lsaKey]);
+  lsaHeader.SetLsId(m_routerId.Get());
+  lsaHeader.SetAdvertisingRouter(m_routerId.Get());
+  m_routerLsdb[m_routerId.Get()] = std::make_pair(lsaHeader, routerLsa);
 
   // Update routing according to the updated LSDB
   UpdateRouting();
-  
-  // Flood the network with multicast IP
-  FloodLSU(0, p, lsaKey);
-  // m_lsuTimeout = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), &OspfApp::FloodLSU, this, p, 0);
+}
+
+void
+OspfApp::NegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
+  auto interface = m_ospfInterfaces[ifIndex];
+  uint32_t ddSeqNum = m_randomVariableSeq->GetInteger();
+  neighbor->SetDdSeqNum(ddSeqNum);
+  NS_LOG_INFO("DD Sequence Num (" << ddSeqNum << ") is generated to negotiate neighbor " <<
+              neighbor->GetNeighborString()  << " via interface " << ifIndex);
+  Ptr<OspfDbd> ospfDbd = Create<OspfDbd>(interface->GetMtu(), 0, 0, 1, 1, 1, ddSeqNum);
+  Ptr<Packet> packet = ospfDbd->ConstructPacket();
+  EncapsulateOspfPacket(packet, m_routerId, interface->GetArea(), OspfHeader::OspfType::OspfDBD);
+  // Keep sending DBD until neighbor state changes to Exchange
+  SendDbd(ifIndex, packet, neighbor);
+  auto event = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()),
+                                              &OspfApp::SendDbd, this, ifIndex, packet, neighbor);
+  neighbor->BindEvent(event);
+}
+
+void
+OspfApp::PollMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
+  auto interface = m_ospfInterfaces[ifIndex];
+  uint32_t ddSeqNum = neighbor->GetDdSeqNum();
+
+  Ptr<OspfDbd> ospfDbd = Create<OspfDbd>(interface->GetMtu(), 0, 0, 0, 1, 1, ddSeqNum);
+  std::vector<LsaHeader> lsaHeaders = neighbor->PopMaxMtuDbdQueue(interface->GetMtu());
+  if (neighbor->IsDbdQueueEmpty()) {
+    // No (M)ore packets (the last DBD)
+    ospfDbd->SetBitM(0);
+  }
+  for (auto header : lsaHeaders) {
+    ospfDbd->AddLsaHeader(header);
+  }
+  Ptr<Packet> packet = ospfDbd->ConstructPacket();
+  EncapsulateOspfPacket(packet, m_routerId, interface->GetArea(), OspfHeader::OspfType::OspfDBD);
+
+  // Keep sending DBD until receiving corresponding DBD from slave
+  SendDbd(ifIndex, packet, neighbor);
+  auto event = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()),
+                                              &OspfApp::SendDbd, this, ifIndex, packet, neighbor);
+  neighbor->BindEvent(event);
 }
 
 // std::vector<Ptr<OSPFInterface> > ospfInterfaces
@@ -526,13 +580,162 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
   if (neighbor->GetState() == OspfNeighbor::Init) {
     // Advance to ExStart if it's bidirectional (TODO: two-way for broadcast networks)
     if (hello->IsNeighbor(m_routerId.Get())) {
-      NS_LOG_INFO("Interface " << ifIndex << " is now bi-directional");
-      neighbor->SetState(OspfNeighbor::Full); // TODO: Change to ExStart and add Data Sync
-      // Adjacency formed, start sending updates
-      AdjacencyUpdate();
+      if (neighbor->GetArea() == ospfInterface->GetArea()) {
+        NS_LOG_INFO("Interface " << ifIndex << " is now bi-directional");
+        neighbor->SetState(OspfNeighbor::ExStart);
+        // Re-compute its own router LSA and routing table
+        RecomputeRouterLsa();
+        // Send DBD to negotiate master/slave and DD seq num
+        NegotiateDbd(ifIndex, neighbor);
+      } else {
+        // Never go here unless its alt-area.
+        NS_LOG_INFO("Interface " << ifIndex << " is across the area");
+        neighbor->SetState(OspfNeighbor::TwoWay);
+        RecomputeRouterLsa();
+      }
     }
   }
 }
+
+void 
+OspfApp::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<OspfDbd> dbd)
+{
+  auto ospfInterface = m_ospfInterfaces[ifIndex];
+  Ptr<OspfNeighbor> neighbor = ospfInterface->GetNeighbor(Ipv4Address(ospfHeader.GetRouterId()), ipHeader.GetSource());
+  if (neighbor == nullptr) {
+    NS_LOG_WARN ("Received DBD when neighbor (" << Ipv4Address(ospfHeader.GetRouterId()) <<
+                ", " << ipHeader.GetSource() <<  ") has not been formed");
+    return; 
+  }
+  if (neighbor->GetState() < OspfNeighbor::NeighborState::ExStart) {
+    NS_LOG_WARN ("Received DBD when two-way adjacency hasn't formed yet");
+    return;
+  }
+  if (m_routerId.Get() == neighbor->GetRouterId().Get()) {
+    NS_LOG_ERROR ("Received DBD has the same router ID; drop the packet");
+    return;
+  }
+  // Negotiation (ExStart)
+  if (dbd->IsNegotiate()) {
+    if (neighbor->GetState() > OspfNeighbor::ExStart) {
+      NS_LOG_WARN ("DBD Dropped. Negotiation has already done");
+      return;
+    }
+    // Remove negotiation retransmission timer and advance to Exchange
+    neighbor->RemoveEvent();
+    neighbor->SetState(OspfNeighbor::Exchange);
+
+    // Neighbor is Master
+    if (m_routerId.Get() < neighbor->GetRouterId().Get()) {
+      NS_LOG_INFO("Set to slave (" << m_routerId.Get() << "<" << neighbor->GetRouterId().Get() <<  ") with DD Seq Num: " << dbd->GetDDSeqNum());
+      // Match DD Seq Num with Master
+      neighbor->SetDdSeqNum(dbd->GetDDSeqNum());
+      // Snapshot LSDB headers during Exchange for consistency
+      for (const auto& pair : m_routerLsdb) {
+        neighbor->AddDbdQueue(pair.second.first);
+      }
+    } else if (m_routerId.Get() > neighbor->GetRouterId().Get()) {
+      NS_LOG_INFO("Set to master (" << m_routerId.Get() << ">" << neighbor->GetRouterId().Get() <<  ") with DD Seq Num: " << dbd->GetDDSeqNum());
+      // Snapshot LSDB headers during Exchange for consistency
+      for (const auto& pair : m_routerLsdb) {
+        neighbor->AddDbdQueue(pair.second.first);
+      }
+      PollMasterDbd(ifIndex, neighbor);
+    }
+    return;
+  }
+  if (!dbd->GetBitI()) {
+    NS_LOG_ERROR ("Bit I must be set to 1 only when both M and MS set to 1");
+    return;
+  }
+  // bitI = 0 : DBD includes LSA headers
+  if (dbd->GetBitMS()) {
+    // Self is slave. Neighbor is Master
+    if (m_routerId.Get() > neighbor->GetRouterId().Get()) {
+      // TODO: Reset adjacency
+      NS_LOG_ERROR("Both neighbors cannot be masters");
+      return;
+    }
+    HandleMasterDbd(ifIndex, neighbor, dbd);
+    // CompareAndSendLSRequests(dbd->GetLsaHeaders());
+  }
+  else  {
+    // Self is Master. Neighbor is Slave
+    if (m_routerId.Get() < neighbor->GetRouterId().Get()) {
+      // TODO: Reset adjacency
+      NS_LOG_ERROR("Both neighbors cannot be slaves");
+      return;
+    }
+    HandleSlaveDbd(ifIndex, neighbor, dbd);
+  }
+}
+
+void
+OspfApp::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd) {
+  Ptr<OspfInterface> interface = m_ospfInterfaces[ifIndex];
+  if (dbd->GetDDSeqNum() < neighbor->GetDdSeqNum() || dbd->GetDDSeqNum() > neighbor->GetDdSeqNum() + 1) {
+    // Drop the packet if out of order
+    NS_LOG_ERROR ("DD sequence number is out-of-order");
+    return;
+  }
+  Ptr<OspfDbd> dbdResponse;
+  if (dbd->GetDDSeqNum() == neighbor->GetDdSeqNum() + 1) {
+    // Already received this DD seq Num; send the last DBD
+    dbdResponse = neighbor->GetLastDbdSent();
+  } else {
+    // Process neighbor DBD
+    auto lsaHeaders = dbd->GetLsaHeaders();
+    for (auto header : lsaHeaders) {
+      neighbor->InsertLsaKey(header);
+    }
+
+    // Generate its own next DBD, echoing DD seq num of the master
+    lsaHeaders = neighbor->PopMaxMtuDbdQueue(interface->GetMtu());
+    dbdResponse = Create<OspfDbd>(interface->GetMtu(), 0, 0, 0, 1, 1, dbd->GetDDSeqNum());
+    if (neighbor->IsDbdQueueEmpty()) {
+      // No (M)ore packets (the last DBD)
+      dbdResponse->SetBitM(0);
+    }
+    for (auto header : lsaHeaders) {
+      dbdResponse->AddLsaHeader(header);
+    }
+  }
+  Ptr<Packet> packet = dbdResponse->ConstructPacket();
+  EncapsulateOspfPacket(packet, m_routerId, interface->GetArea(), OspfHeader::OspfType::OspfDBD);
+  SendDbd(ifIndex, packet, neighbor);
+
+  // Increase its own DD to expect for the next one
+  neighbor->IncrementDdSeqNum();
+
+  if (!dbd->GetBitM() && neighbor->IsDbdQueueEmpty()) {
+    NS_LOG_INFO("Database exchange is done. Advance to Loading");
+    neighbor->SetState(OspfNeighbor::Loading);
+    neighbor->RemoveEvent();
+  }
+}
+
+void
+OspfApp::HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd) {
+  Ptr<OspfInterface> interface = m_ospfInterfaces[ifIndex];
+  if (dbd->GetDDSeqNum() != neighbor->GetDdSeqNum()) {
+    // Out-of-order
+    NS_LOG_ERROR ("DD sequence number is out-of-order");
+    return;
+  }
+  // Process neighbor DBD
+  auto lsaHeaders = dbd->GetLsaHeaders();
+  for (auto header : lsaHeaders) {
+    neighbor->InsertLsaKey(header);
+  }
+  if (!dbd->GetBitM() && neighbor->IsDbdQueueEmpty()) {
+    NS_LOG_INFO("Database exchange is done. Advance to Loading");
+    neighbor->SetState(OspfNeighbor::Loading);
+    neighbor->RemoveEvent();
+  }
+}
+
+
+// void CompareAndSendLSRequests () {}
 
 void 
 OspfApp::HandleLsAck (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<LsAck> lsAck)
@@ -577,7 +780,7 @@ OspfApp::HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsa
 
   // Filling in lsdb
   NS_LOG_INFO("Update the lsdb entry");
-  m_routerLsdb[originRouterId] = routerLsa;
+  m_routerLsdb[originRouterId] = std::make_pair(lsaHeader, routerLsa);
   m_seqNumbers[lsaHeader.GetKey()] = seqNum;
 
   // Update routing table
@@ -599,9 +802,9 @@ OspfApp::PrintLsdb() {
   std::cout << "===== Router ID: " << m_routerId << " =====" << std::endl;
   for (auto& pair : m_routerLsdb) {
     std::cout << "At t=" << Simulator::Now().GetSeconds() << " , Router: " << Ipv4Address(pair.first) << std::endl;
-    std::cout << "  Neighbors: " << pair.second->GetNLink() << std::endl;
-    for (uint32_t i = 0; i < pair.second->GetNLink(); i++) {
-      RouterLink link = pair.second->GetLink(i);
+    std::cout << "  Neighbors: " << pair.second.second->GetNLink() << std::endl;
+    for (uint32_t i = 0; i < pair.second.second->GetNLink(); i++) {
+      RouterLink link = pair.second.second->GetLink(i);
       std::cout << "  (" << Ipv4Address(link.m_linkData) << ", " << link.m_metric <<  ")" << std::endl;
     }
   }
@@ -633,8 +836,8 @@ OspfApp::GetLsdbHash() {
   for (auto& pair : m_routerLsdb) {
     ss << Ipv4Address(pair.first) << std::endl;
     ss << Ipv4Address(pair.first) << std::endl;
-    for (uint32_t i = 0; i < pair.second->GetNLink(); i++) {
-      RouterLink link = pair.second->GetLink(i);
+    for (uint32_t i = 0; i < pair.second.second->GetNLink(); i++) {
+      RouterLink link = pair.second.second->GetLink(i);
       ss << "  (" << Ipv4Address(link.m_linkData) << Ipv4Address(link.m_metric) <<  ")" << std::endl;
     }
   }
@@ -675,9 +878,9 @@ OspfApp::UpdateRouting() {
     // Skip if the lsdb doesn't have any neighbors for that router
     if (m_routerLsdb.find(u) == m_routerLsdb.end()) continue;
 
-    for (uint32_t i = 0; i < m_routerLsdb[u]->GetNLink(); i++) {
-      v = m_routerLsdb[u]->GetLink(i).m_linkId;
-      auto metric = m_routerLsdb[u]->GetLink(i).m_metric;
+    for (uint32_t i = 0; i < m_routerLsdb[u].second->GetNLink(); i++) {
+      v = m_routerLsdb[u].second->GetLink(i).m_linkId;
+      auto metric = m_routerLsdb[u].second->GetLink(i).m_metric;
       if (distanceTo.find(v) == distanceTo.end() || w + metric < distanceTo[v]) {
         distanceTo[v] = w + metric;
         prevHop[v] = u;
@@ -719,10 +922,10 @@ OspfApp::UpdateRouting() {
       if (ifIndex) break;
     }
     NS_ASSERT(ifIndex > 0);
-    for(uint32_t i = 0; i < routerLsa->GetNLink(); i++) {
-      NS_LOG_DEBUG("Add route: " << Ipv4Address(routerLsa->GetLink(i).m_linkData) << ", "
+    for(uint32_t i = 0; i < routerLsa.second->GetNLink(); i++) {
+      NS_LOG_DEBUG("Add route: " << Ipv4Address(routerLsa.second->GetLink(i).m_linkData) << ", "
                     << ifIndex << ", " << distanceTo[remoteRouterId]);
-      m_routing->AddHostRouteTo(Ipv4Address(routerLsa->GetLink(i).m_linkData), ifIndex, distanceTo[remoteRouterId]);
+      m_routing->AddHostRouteTo(Ipv4Address(routerLsa.second->GetLink(i).m_linkData), ifIndex, distanceTo[remoteRouterId]);
     }
     
   }
@@ -756,6 +959,9 @@ OspfApp::HandleRead (Ptr<Socket> socket)
   if (ospfHeader.GetType() == OspfHeader::OspfType::OspfHello) {
     Ptr<OspfHello> hello = Create<OspfHello>(packet);
     HandleHello(socket->GetBoundNetDevice()->GetIfIndex(), ipHeader, ospfHeader, hello);
+  } else if (ospfHeader.GetType() == OspfHeader::OspfType::OspfDBD) {
+    Ptr<OspfDbd> dbd = Create<OspfDbd>(packet);
+    HandleDbd(socket->GetBoundNetDevice()->GetIfIndex(), ipHeader, ospfHeader, dbd);
   } else if (ospfHeader.GetType() == OspfHeader::OspfType::OspfLSUpdate) {
     // Read LSU packet and handle the payload
     LsaHeader lsaHeader;
