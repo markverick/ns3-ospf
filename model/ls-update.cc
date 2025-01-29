@@ -23,6 +23,7 @@
 #include "ns3/log.h"
 #include "ns3/header.h"
 #include "ns3/packet.h"
+#include "router-lsa.h"
 #include "ls-update.h"
 
 namespace ns3 {
@@ -129,12 +130,16 @@ LsUpdate::Deserialize (Buffer::Iterator start)
   for (uint32_t j = 0; j < numLsa; j++) {
     LsaHeader lsaHeader;
     i.Next(lsaHeader.Deserialize(i));
-    Ptr<Lsa> lsa;
-    i.Next(lsa->Deserialize(i));
-    m_lsaList.emplace_back(lsaHeader, lsa);
-    m_serializedSize += lsaHeader.GetLength();
+    if (lsaHeader.GetType() == LsaHeader::RouterLSAs) {
+        Ptr<RouterLsa> lsa = Create<RouterLsa>();
+        i.Next(lsa->Deserialize(i));
+        m_lsaList.emplace_back(lsaHeader, lsa);
+        m_serializedSize += lsaHeader.GetLength();
+    } else {
+        NS_ASSERT_MSG(true, "Unsupported LSA Type");
+    }
   }
-  return GetSerializedSize ();
+  return m_serializedSize;
 }
 
 uint32_t

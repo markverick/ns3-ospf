@@ -405,7 +405,7 @@ OspfApp::GetRouterLsa() {
       allLinks.emplace_back(l.first, l.second, m_ospfInterfaces[i]->GetMetric());
     }
   }
-  NS_LOG_INFO("LSA Created with " << allLinks.size() << " links");
+  NS_LOG_INFO("LSA Created with " << allLinks.size() << " active links");
   return ConstructRouterLsa(allLinks);
 }
 
@@ -420,7 +420,7 @@ OspfApp::GetRouterLsa(uint32_t areaId) {
       allLinks.emplace_back(l.first, l.second, m_ospfInterfaces[i]->GetMetric());
     }
   }
-  NS_LOG_INFO("LSA Created with " << allLinks.size() << " links");
+  NS_LOG_INFO("LSA Created with " << allLinks.size() << " active links");
   return ConstructRouterLsa(allLinks);
 }
 
@@ -448,14 +448,6 @@ OspfApp::RecomputeRouterLsa() {
   lsaHeader.SetLsId(m_routerId.Get());
   lsaHeader.SetAdvertisingRouter(m_routerId.Get());
   m_routerLsdb[m_routerId.Get()] = std::make_pair(lsaHeader, routerLsa);
-
-  // Create its LSU packet containing its own links
-  Ptr<LsUpdate> lsUpdate = Create<LsUpdate>();
-  lsUpdate->AddLsa(m_routerLsdb[m_routerId.Get()]);
-
-  // Flood to all neighbors
-  FloodLsu(0, lsUpdate);
-
 
   // Update routing according to the updated LSDB
   UpdateRouting();
@@ -512,6 +504,13 @@ OspfApp::AdvanceToFull(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
   neighbor->RemoveEvent();
   
   RecomputeRouterLsa();
+
+  // Create its LSU packet containing its own links
+  Ptr<LsUpdate> lsUpdate = Create<LsUpdate>();
+  lsUpdate->AddLsa(m_routerLsdb[m_routerId.Get()]);
+
+  // Flood its Router-LSA to all neighbors
+  FloodLsu(0, lsUpdate);
 }
 
 // std::vector<Ptr<OSPFInterface> > ospfInterfaces
@@ -796,6 +795,7 @@ OspfApp::HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
 void
 OspfApp::SatisfyLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
   if (neighbor->IsLsrQueueEmpty()) {
+    NS_LOG_INFO ("LSR Queue is empty. Advance to FULL");
     AdvanceToFull(ifIndex, neighbor);
     return; 
   }

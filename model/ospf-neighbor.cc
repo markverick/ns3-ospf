@@ -283,7 +283,7 @@ OspfNeighbor::PopMaxMtuFromLsrQueue(uint32_t mtu) {
   while (!m_lsrQueue.empty() && currentBytes + lsaKeySize < mtu) {
     if (currentBytes + lsaKeySize <= mtu) {
       lsaKeyList.emplace_back(key);
-      m_dbdQueue.pop();
+      m_lsrQueue.pop();
       currentBytes += lsaKeySize;
     }
   }
