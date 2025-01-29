@@ -146,13 +146,13 @@ OspfNeighbor::IsDbdQueueEmpty() {
 }
 
 std::vector<LsaHeader>
-OspfNeighbor::PopMaxMtuDbdQueue(uint32_t mtu) {
+OspfNeighbor::PopMaxMtuFromDbdQueue(uint32_t mtu) {
   mtu =  mtu - 100; // Just in case of encapsulations
   std::vector<LsaHeader> lsaHeaderList;
   uint32_t currentBytes = 0;
   LsaHeader header = m_dbdQueue.front();
   // Keep popping until the queue runs out or reaching the mtu
-  while (!m_dbdQueue.empty() && currentBytes < mtu) {
+  while (!m_dbdQueue.empty() && currentBytes + header.GetSerializedSize() < mtu) {
     uint32_t lsaSize = header.GetSerializedSize();
     if (currentBytes + lsaSize <= mtu) {
       lsaHeaderList.emplace_back(header);
@@ -198,12 +198,87 @@ OspfNeighbor::IsLsaKeyOutdated(LsaHeader lsaHeader) {
   return IsLsaKeyOutdated(lsaHeader.GetKey(), lsaHeader.GetSeqNum());
 }
 
+// Check if a single LsaKey is outdated
 bool
 OspfNeighbor::IsLsaKeyOutdated(LsaHeader::LsaKey lsaKey, uint32_t ddSeqNum) {
   if (m_lsaSeqNums.find(lsaKey) == m_lsaSeqNums.end()) {
-    return true;
+    return false;
   }
   return ddSeqNum < m_lsaSeqNums[lsaKey];
+}
+
+// Not used for now.
+std::vector<LsaHeader::LsaKey>
+OspfNeighbor::GetOutdatedLsaKeys(std::vector<LsaHeader> localLsaHeaders) {
+  std::vector<LsaHeader::LsaKey> lsaKeys;
+  std::map<LsaHeader::LsaKey, uint32_t> localLsaSeqNum;
+  // Map the given keys
+  for (auto lsaHeader : localLsaHeaders) {
+    localLsaSeqNum[lsaHeader.GetKey()] = lsaHeader.GetSeqNum();
+  }
+  for (auto& [lsaKey, seqNum] : m_lsaSeqNums) {
+    if (localLsaSeqNum.find(lsaKey) == localLsaSeqNum.end()) {
+      // Get missing keys
+      lsaKeys.emplace_back(lsaKey);
+    } else {
+      // Get outdated keys
+      if (localLsaSeqNum[lsaKey] < seqNum) {
+        lsaKeys.emplace_back(lsaKey);
+      }
+    }
+  }
+  NS_LOG_INFO("Number of outdated keys: " << lsaKeys.size());
+  return lsaKeys;
+}
+
+// Check localLsaHeaders to see which one is outdated or missing
+// Then add to LSR queue 
+void
+OspfNeighbor::AddOutdatedLsaKeysToQueue(std::vector<LsaHeader> localLsaHeaders) {
+  // Reset the queue
+  while (!m_lsrQueue.empty()) {
+    m_lsrQueue.pop();
+  }
+  std::map<LsaHeader::LsaKey, uint32_t> localLsaSeqNum;
+  // Map the given keys
+  for (auto lsaHeader : localLsaHeaders) {
+    localLsaSeqNum[lsaHeader.GetKey()] = lsaHeader.GetSeqNum();
+  }
+  for (auto& [lsaKey, seqNum] : m_lsaSeqNums) {
+    if (localLsaSeqNum.find(lsaKey) == localLsaSeqNum.end()) {
+      // Get missing keys
+      m_lsrQueue.emplace(lsaKey);
+    } else {
+      // Get outdated keys
+      if (localLsaSeqNum[lsaKey] < seqNum) {
+        m_lsrQueue.emplace(lsaKey);
+      }
+    }
+  }
+  NS_LOG_INFO("Number of outdated keys: " << m_lsrQueue.size());
+}
+
+bool
+OspfNeighbor::IsLsrQueueEmpty() {
+  return m_lsrQueue.empty();
+}
+
+std::vector<LsaHeader::LsaKey>
+OspfNeighbor::PopMaxMtuFromLsrQueue(uint32_t mtu) {
+  mtu =  mtu - 100; // Just in case of encapsulations
+  std::vector<LsaHeader::LsaKey> lsaKeyList;
+  uint32_t currentBytes = 0;
+  LsaHeader::LsaKey key = m_lsrQueue.front();
+  // Keep popping until the queue runs out or reaching the mtu
+  uint32_t lsaKeySize = 12;
+  while (!m_lsrQueue.empty() && currentBytes + lsaKeySize < mtu) {
+    if (currentBytes + lsaKeySize <= mtu) {
+      lsaKeyList.emplace_back(key);
+      m_dbdQueue.pop();
+      currentBytes += lsaKeySize;
+    }
+  }
+  return lsaKeyList;
 }
 
 void

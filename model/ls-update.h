@@ -18,40 +18,38 @@
  * Author: Sirapop Theeranantachai (stheera@g.ucla.edu)
  */
 
-#ifndef LS_ACK_H
-#define LS_ACK_H
+#ifndef LS_UPDATE
+#define LS_UPDATE
 
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
 #include "ospf-interface.h"
 #include "lsa-header.h"
+#include "lsa.h"
 
 namespace ns3 {
 /**
  * \ingroup ospf
  *
- * \brief LS Acknowledge Object
+ * \brief LS Update Object
  */
 
-class LsAck : public Object
+class LsUpdate : public Object
 {
 public:
   /**
-   * \brief Construct a LS Acknowledge Object
+   * \brief Construct a LS Update Object
    */
 
-  LsAck ();
-  LsAck (std::vector<LsaHeader> lsaHeaders);
-  LsAck (Ptr<Packet> packet);
+  LsUpdate ();
+  LsUpdate (Ptr<Packet> packet);
 
-  void AddLsaHeader (LsaHeader lsaHeader);
-  void ClearLsaHeaders (void);
-  bool HasLsaHeader (LsaHeader lsaHeader);
-
-  LsaHeader GetLsaHeader (uint32_t index);
-  std::vector<LsaHeader> GetLsaHeaders ();
-  uint32_t GetNLsaHeaders ();
+  void AddLsa (LsaHeader header, Ptr<Lsa> lsa);
+  void AddLsa (std::pair<LsaHeader, Ptr<Lsa> > lsa);
+  std::vector<std::pair<LsaHeader, Ptr<Lsa> > > GetLsaList();
+  bool IsAllLsaMatched (std::vector<LsaHeader::LsaKey> lsaKeys);
+  uint32_t GetNLsa ();
 
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
@@ -62,10 +60,11 @@ public:
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
 private:
-  std::vector<LsaHeader> m_lsaHeaders; //storing neighbor's router ID
+  std::vector<std::pair<LsaHeader, Ptr<Lsa> > > m_lsaList; // storing headers
+  uint32_t m_serializedSize;
 };
 
 } // namespace ns3
 
 
-#endif /* LS_ACK_H */
+#endif /* LS_UPDATE */

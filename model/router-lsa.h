@@ -24,6 +24,7 @@
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
+#include "lsa.h"
 
 namespace ns3 {
 /**
@@ -50,7 +51,7 @@ public:
   uint16_t m_metric;
 };
 
-class RouterLsa : public Object
+class RouterLsa : public Lsa
 {
 public:
   /**

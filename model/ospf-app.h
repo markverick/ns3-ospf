@@ -111,13 +111,11 @@ private:
   // Packet Helpers
   void SendHello ();
   void SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteIp);
-  void SendDbd (uint32_t ifIndex, Ptr<Packet> dbdPacket, Ptr<OspfNeighbor> neighbor);
-  void FloodLSU (uint32_t inputIfIndex, Ptr<Packet> lsuPacket, std::tuple<uint8_t, uint32_t, uint32_t> lsaKey);
-  void SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
-                      std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress);
+  void SendToNeighbor (uint32_t ifIndex, Ptr<Packet> dbdPacket, Ptr<OspfNeighbor> neighbor);
+  void FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu);
 
   // Timeouts
-  void LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
+  void LsuTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
                       std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress);
   void HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
@@ -134,8 +132,13 @@ private:
   void HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<OspfHello> hello);
 
   void HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<OspfDbd> dbd);
+  void HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd);
   void HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd);
   void HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd);
+
+  void HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsRequest> lsr);
+
+  void HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsUpdate> lsu);
 
   void HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
 
@@ -158,6 +161,13 @@ private:
   void SendMasterDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
   void PollMasterDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
+  // Loading
+  void CompareAndSendLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  void SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  void SatisfyLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+
+  // Full
+  void AdvanceToFull (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
   uint16_t m_port; //!< Port on which we listen for incoming packets.
   std::vector<Ptr<Socket>> m_sockets; //!< Unicast socket

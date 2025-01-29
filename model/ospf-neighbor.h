@@ -38,6 +38,7 @@
 #include "ns3/header.h"
 #include "queue"
 #include "lsa-header.h"
+#include "ls-request.h"
 #include "ospf-dbd.h"
 #include "algorithm"
 
@@ -97,20 +98,28 @@ public:
   Ptr<OspfDbd> GetLastDbdSent();
   void SetLastDbdSent(Ptr<OspfDbd> dbd);
 
+  // DB Description queue
+  void IncrementDDSeqNum();
+  void ClearDbdQueue();
+  void AddDbdQueue(LsaHeader lsaHeader);
+  LsaHeader PopDbdQueue();
+  std::vector<LsaHeader> PopMaxMtuFromDbdQueue(uint32_t mtu);
+  bool IsDbdQueueEmpty();
+
+  // LS Request Queue
+  Ptr<LsRequest> GetLastLsrSent();
+  void SetLastLsrSent(Ptr<LsRequest> lsr);
+
   void InsertLsaKey(LsaHeader lsaHeader);
   void InsertLsaKey(LsaHeader::LsaKey lsaKey, uint32_t seqNum);
   uint32_t GetLsaKeySeqNum(LsaHeader::LsaKey lsaKey);
   void ClearLsaKey();
   bool IsLsaKeyOutdated(LsaHeader lsaHeader);
   bool IsLsaKeyOutdated(LsaHeader::LsaKey lsaKey, uint32_t seqNum);
-
-  // DB Description queue
-  void IncrementDDSeqNum();
-  void ClearDbdQueue();
-  void AddDbdQueue(LsaHeader lsaHeader);
-  LsaHeader PopDbdQueue();
-  std::vector<LsaHeader> PopMaxMtuDbdQueue(uint32_t mtu);
-  bool IsDbdQueueEmpty();
+  std::vector<LsaHeader::LsaKey> GetOutdatedLsaKeys(std::vector<LsaHeader> localLsaHeaders);
+  void AddOutdatedLsaKeysToQueue(std::vector<LsaHeader> localLsaHeaders);
+  bool IsLsrQueueEmpty();
+  std::vector<LsaHeader::LsaKey> PopMaxMtuFromLsrQueue(uint32_t mtu);
 
   // Neighbor-specific timeout
   void RemoveEvent();
@@ -126,10 +135,14 @@ public:
   // Database Descriptions
   uint32_t m_ddSeqNum;
   std::queue<LsaHeader> m_dbdQueue;
+  std::queue<LsaHeader::LsaKey> m_lsrQueue;
+  Ptr<LsRequest> m_lastLsrSent;
   Ptr<OspfDbd> m_lastDbdSent;
   std::map<LsaHeader::LsaKey, uint32_t> m_lsaSeqNums; // Neighbor's headers
   EventId m_event;
   Time m_lastHelloReceived;
+
+  // LS Request
 };
 
 } // namespace ns3

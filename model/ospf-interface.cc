@@ -213,7 +213,7 @@ OspfInterface::GetActiveNeighborLinks() {
   for (auto n : neighbors) {
     // Only aggregate neighbors that is at least in ExStart
     // NS_LOG_INFO("  (" << n->GetRouterId().Get() << ", " << m_ipAddress.Get() << ")");
-    if (n->GetState() >= OspfNeighbor::ExStart) {
+    if (n->GetState() == OspfNeighbor::Full) {
       links.emplace_back(n->GetRouterId().Get(), m_ipAddress.Get());
     }
   }
