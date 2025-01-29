@@ -876,11 +876,11 @@ OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
   NS_LOG_FUNCTION (this << ifIndex << lsaHeaders.size());
 
   for (auto lsaHeader : lsaHeaders) {
-    // Remote timeout if the stored seq num is already satisfied
-    if (lsaHeader.GetSeqNum() == m_seqNumbers[lsaHeader.GetKey()]) {
+    // Remove timeout if the stored seq num is already satisfied
+    if (lsaHeader.GetSeqNum() <= m_seqNumbers[lsaHeader.GetKey()]) {
       bool isRemoved = neighbor->RemoveLsuTimeout(lsaHeader.GetKey());
       if (isRemoved) {
-        NS_LOG_INFO ("Removed key: " << lsaHeader.GetAdvertisingRouter() << " from the retx timer");
+        NS_LOG_INFO ("Removed key (advertising router): " << Ipv4Address(lsaHeader.GetAdvertisingRouter()) << " from the retx timer");
       } else {
         NS_LOG_INFO ("Key: " << lsaHeader.GetAdvertisingRouter() << " does not exist in the retx timer");
       }

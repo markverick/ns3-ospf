@@ -232,7 +232,7 @@ EncapsulateOspfPacket(Ptr<Packet> packet, Ipv4Address routerId, uint32_t areaId,
     // Add OSPF header
     OspfHeader ospfHeader;
     ospfHeader.SetType(type);
-    ospfHeader.SetPayloadSize(packet->GetSerializedSize());
+    ospfHeader.SetPayloadSize(packet->GetSize());
     ospfHeader.SetRouterId(routerId.Get());
     ospfHeader.SetArea(areaId);
     packet->AddHeader(ospfHeader);
