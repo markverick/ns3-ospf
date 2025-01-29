@@ -119,18 +119,20 @@ public:
   bool IsLsaKeyOutdated(LsaHeader::LsaKey lsaKey, uint32_t seqNum);
   std::vector<LsaHeader::LsaKey> GetOutdatedLsaKeys(std::vector<LsaHeader> localLsaHeaders);
   void AddOutdatedLsaKeysToQueue(std::vector<LsaHeader> localLsaHeaders);
+  uint32_t GetLsrQueueSize();
   bool IsLsrQueueEmpty();
   std::vector<LsaHeader::LsaKey> PopMaxMtuFromLsrQueue(uint32_t mtu);
 
   // LS Update Acks
-  void InsertPendingAck(LsaHeader::LsaKey lsaKey, LsaHeader lsaHeader, Ptr<Lsa> lsa);
-  void ErasePendingAck(LsaHeader::LsaKey lsaKey);
-  uint32_t GetPendingSeqNum(LsaHeader::LsaKey lsaKey);
-  std::map<LsaHeader::LsaKey, std::pair<LsaHeader, Ptr<Lsa> > > GetPendingAcks(LsaHeader::LsaKey lsaKey);
+  // Lsa-key specific timeout
+  void BindLsuTimeout(LsaHeader::LsaKey lsaKey, EventId event);
+  EventId GetLsuTimeout(LsaHeader::LsaKey lsaKey);
+  bool RemoveLsuTimeout(LsaHeader::LsaKey lsaKey);
+  void ClearLsuTimeouts();
 
   // Neighbor-specific timeout
-  void RemoveEvent();
-  void BindEvent(EventId event);
+  void RemoveTimeout();
+  void BindTimeout(EventId event);
 
 
 
@@ -153,7 +155,7 @@ public:
 
   // LS Update
   // Pending ack, value is <LsaHeader, LSA>
-  std::map<LsaHeader::LsaKey, std::pair<LsaHeader, Ptr<Lsa> > > m_pendingAcks; 
+  std::map<LsaHeader::LsaKey, EventId> m_lsuTimeouts; // timeout events for LS Update
 };
 
 } // namespace ns3

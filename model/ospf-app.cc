@@ -304,19 +304,43 @@ OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address(originRou
 void 
 OspfApp::SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor)
 {
-  if (m_sockets.empty()) return;
+  if (m_sockets.empty()) {
+    neighbor->ClearLsuTimeouts();
+    return;
+  }
   auto socket = m_sockets[ifIndex];
   m_txTrace (packet);
 
   socket->SendTo (packet, 0, InetSocketAddress (neighbor->GetIpAddress()));
-  NS_LOG_INFO ("Packet sent to via interface " << ifIndex << " : " << m_ospfInterfaces[ifIndex]->GetAddress());
+  // NS_LOG_INFO ("Packet sent to via interface " << ifIndex << " : " << m_ospfInterfaces[ifIndex]->GetAddress());
+}
+
+void 
+OspfApp::SendToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor)
+{
+  // NS_LOG_FUNCTION (this);
+  // No sockets to send
+  if (m_sockets.empty()) return;
+  SendToNeighbor (ifIndex, packet, neighbor);
+  auto event = Simulator::Schedule(interval, &OspfApp::SendToNeighborInterval, this, interval, ifIndex, packet, neighbor);
+  neighbor->BindTimeout(event);
+}
+
+void 
+OspfApp::SendLsuToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor, LsaHeader::LsaKey lsaKey)
+{
+  // NS_LOG_FUNCTION (this);
+  // No sockets to send
+  if (m_sockets.empty()) return;
+  SendToNeighbor (ifIndex, packet, neighbor);
+  auto event = Simulator::Schedule(interval, &OspfApp::SendLsuToNeighborInterval, this, interval, ifIndex, packet, neighbor, lsaKey);
+  neighbor->BindLsuTimeout(lsaKey, event);
 }
 
 void 
 OspfApp::StopApplication ()
 {
   NS_LOG_FUNCTION (this);
-  m_lsuTimeouts.clear();
   for (auto timer : m_helloTimeouts) {
     timer.Remove();
   }
@@ -378,6 +402,8 @@ OspfApp::FloodLsu(uint32_t inputIfIndex, Ptr<LsUpdate> lsu) {
   NS_ASSERT_MSG(lsu->GetNLsa() == 1, "Only LSU with one LSA is allowed to flood (simplification)");
   NS_LOG_FUNCTION (this << lsu->GetNLsa() << inputIfIndex);
 
+  auto lsaKey = lsu->GetLsaList()[0].first.GetKey();
+
   for (uint32_t i = 1; i < m_lsaSockets.size(); i++)
   {
     // Skip the incoming interface
@@ -387,9 +413,10 @@ OspfApp::FloodLsu(uint32_t inputIfIndex, Ptr<LsUpdate> lsu) {
     // Send to neighbors with multicast address (only 1 neighbor for point-to-point)
     auto neighbors = m_ospfInterfaces[i]->GetNeighbors();
     for (auto neighbor : neighbors) {
+      if (neighbor->GetState() < OspfNeighbor::Full) continue;
       Ptr<Packet> packet = lsu->ConstructPacket();
       EncapsulateOspfPacket(packet, m_routerId, interface->GetArea(), OspfHeader::OspfType::OspfLSUpdate);
-      SendToNeighbor(i, packet, neighbor);
+      SendLsuToNeighborInterval(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), i, packet, neighbor, lsaKey);
     }     
   }
 }
@@ -462,13 +489,15 @@ OspfApp::NegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, bool bitMS)
   Ptr<OspfDbd> ospfDbd = Create<OspfDbd>(interface->GetMtu(), 0, 0, 1, 1, bitMS, ddSeqNum);
   Ptr<Packet> packet = ospfDbd->ConstructPacket();
   EncapsulateOspfPacket(packet, m_routerId, interface->GetArea(), OspfHeader::OspfType::OspfDBD);
-  SendToNeighbor(ifIndex, packet, neighbor);
 
   if (bitMS) {
     // Master keep sending DBD until stopped
-    auto event = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()),
-                                                &OspfApp::SendToNeighbor, this, ifIndex, packet, neighbor);
-    neighbor->BindEvent(event);
+    NS_LOG_INFO("Router started advertising as master");
+    SendToNeighborInterval(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), ifIndex, packet, neighbor);
+  } else {
+    // Implicit ACK, replying with being slave
+    NS_LOG_INFO("Router responds as slave");
+    SendToNeighbor(ifIndex, packet, neighbor);
   }
 }
 
@@ -490,18 +519,26 @@ OspfApp::PollMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
   EncapsulateOspfPacket(packet, m_routerId, interface->GetArea(), OspfHeader::OspfType::OspfDBD);
 
   // Keep sending DBD until receiving corresponding DBD from slave
-  SendToNeighbor(ifIndex, packet, neighbor);
-  auto event = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()),
-                                              &OspfApp::SendToNeighbor, this, ifIndex, packet, neighbor);
-  neighbor->BindEvent(event);
+  NS_LOG_INFO("Master start polling for DBD with LSAs");
+  SendToNeighborInterval(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), ifIndex, packet, neighbor);
+}
+
+void
+OspfApp::AdvanceToLoading(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
+  NS_LOG_INFO("Database exchange is done. Advance to Loading");
+  auto interface = m_ospfInterfaces[ifIndex];
+  neighbor->SetState(OspfNeighbor::Loading);
+  neighbor->RemoveTimeout();
+  CompareAndSendLsr(ifIndex, neighbor);
 }
 
 void
 OspfApp::AdvanceToFull(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
+  NS_LOG_INFO("LSR Queue is empty. Loading is done. Advance to FULL");
   auto interface = m_ospfInterfaces[ifIndex];
   neighbor->SetState(OspfNeighbor::Full);
   // Remove data sync timeout
-  neighbor->RemoveEvent();
+  neighbor->RemoveTimeout();
   
   RecomputeRouterLsa();
 
@@ -602,7 +639,7 @@ OspfApp::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
   // Negotiation (ExStart)
   if (dbd->GetBitI()) {
     if (neighbor->GetState() > OspfNeighbor::ExStart) {
-      NS_LOG_INFO ("DBD Dropped. DBD Exchange has already done");
+      NS_LOG_INFO ("DBD Dropped. Negotiation has already done");
       return;
     }
     // Receive Negotiate DBD
@@ -644,7 +681,7 @@ OspfApp::HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<O
 {
   // Neighbor is Master
   if (m_routerId.Get() < neighbor->GetRouterId().Get()) {
-    NS_LOG_INFO("Set to slave (" << m_routerId << "<" << neighbor->GetRouterId() <<  ") with DD Seq Num: " << dbd->GetDDSeqNum());
+    NS_LOG_INFO("Set to slave (" << m_routerId << " < " << neighbor->GetRouterId() <<  ") with DD Seq Num: " << dbd->GetDDSeqNum());
     // Match DD Seq Num with Master
     neighbor->SetDDSeqNum(dbd->GetDDSeqNum());
     // Snapshot LSDB headers during Exchange for consistency
@@ -654,7 +691,7 @@ OspfApp::HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<O
     NegotiateDbd(ifIndex, neighbor, false);
     neighbor->SetState(OspfNeighbor::Exchange);
   } else if (m_routerId.Get() > neighbor->GetRouterId().Get() && !dbd->GetBitMS()) {
-    NS_LOG_INFO("Set to master (" << m_routerId<< ">" << neighbor->GetRouterId() <<  ") with DD Seq Num: " << neighbor->GetDDSeqNum());
+    NS_LOG_INFO("Set to master (" << m_routerId<< " > " << neighbor->GetRouterId() <<  ") with DD Seq Num: " << neighbor->GetDDSeqNum());
     // Snapshot LSDB headers during Exchange for consistency
     for (const auto& pair : m_routerLsdb) {
       neighbor->AddDbdQueue(pair.second.first);
@@ -675,9 +712,11 @@ OspfApp::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<Ospf
   }
   Ptr<OspfDbd> dbdResponse;
   if (dbd->GetDDSeqNum() == neighbor->GetDDSeqNum() + 1) {
+    NS_LOG_INFO("Received duplicated DBD from Master");
     // Already received this DD seq Num; send the last DBD
     dbdResponse = neighbor->GetLastDbdSent();
   } else {
+    NS_LOG_INFO("Received new DBD from Master");
     // Process neighbor DBD
     auto lsaHeaders = dbd->GetLsaHeaders();
     for (auto header : lsaHeaders) {
@@ -703,10 +742,7 @@ OspfApp::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<Ospf
   neighbor->IncrementDDSeqNum();
 
   if (!dbd->GetBitM() && neighbor->IsDbdQueueEmpty()) {
-    NS_LOG_INFO("Database exchange is done. Advance to Loading");
-    neighbor->SetState(OspfNeighbor::Loading);
-    neighbor->RemoveEvent();
-    CompareAndSendLsr(ifIndex, neighbor);
+    AdvanceToLoading(ifIndex, neighbor);
   }
 }
 
@@ -719,15 +755,13 @@ OspfApp::HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfD
     return;
   }
   // Process neighbor DBD
+  NS_LOG_INFO("Received DBD response from slave");
   auto lsaHeaders = dbd->GetLsaHeaders();
   for (auto header : lsaHeaders) {
     neighbor->InsertLsaKey(header);
   }
   if (!dbd->GetBitM() && neighbor->IsDbdQueueEmpty()) {
-    NS_LOG_INFO("Database exchange is done. Advance to Loading");
-    neighbor->SetState(OspfNeighbor::Loading);
-    neighbor->RemoveEvent();
-    CompareAndSendLsr(ifIndex, neighbor);
+    AdvanceToLoading(ifIndex, neighbor);
   }
 }
 
@@ -749,12 +783,11 @@ OspfApp::HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
   if (lsUpdate->GetNLsa() != lsr->GetNLsaKeys()) {
     NS_LOG_WARN ("LSDB does not contain some LSAs in LS Request");
   }
+  NS_LOG_INFO ("Received LSR (" << lsr->GetNLsaKeys() << ") from interface: " << ifIndex);
   Ptr<Packet> packet = lsUpdate->ConstructPacket();
   EncapsulateOspfPacket(packet, m_routerId, interface->GetArea(), OspfHeader::OspfType::OspfLSUpdate);
+  // Implicit Ack, only send once
   SendToNeighbor(ifIndex, packet, neighbor);
-  auto event = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()),
-                                                &OspfApp::SendToNeighbor, this, ifIndex, packet, neighbor);
-  neighbor->BindEvent(event);
 }
 
 void
@@ -774,6 +807,11 @@ OspfApp::HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     for (auto& [lsaHeader, lsa] : receivedLsa) {
       // If LSU is an implicit ACK to LSR
       lastLsr->RemoveLsaKey(lsaHeader.GetKey());
+      if (lsaHeader.GetType() == LsaHeader::RouterLSAs) {
+        m_routerLsdb[lsaHeader.GetAdvertisingRouter()] = std::make_pair(lsaHeader, DynamicCast<RouterLsa>(lsa));
+        m_seqNumbers[lsaHeader.GetKey()] = lsaHeader.GetSeqNum();
+        RecomputeRouterLsa();
+      }
     }
     // Get the next LSR or advance to FULL if no more is left
     if (lastLsr->IsLsaKeyEmpty()) {
@@ -789,13 +827,12 @@ OspfApp::HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
   }
   auto lsa = lsu->GetLsaList()[0];
   if (lsa.first.GetType() == LsaHeader::RouterLSAs) {
-    HandleRouterLsu(ifIndex, ospfHeader, lsa.first, DynamicCast<RouterLsa>(lsa.second));
+    HandleRouterLsu(ifIndex, ipHeader, ospfHeader, lsa.first, DynamicCast<RouterLsa>(lsa.second));
   }
 }
 void
 OspfApp::SatisfyLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
   if (neighbor->IsLsrQueueEmpty()) {
-    NS_LOG_INFO ("LSR Queue is empty. Advance to FULL");
     AdvanceToFull(ifIndex, neighbor);
     return; 
   }
@@ -808,15 +845,16 @@ OspfApp::CompareAndSendLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
   for (auto& [remoteRouterId, routerLsa] : m_routerLsdb) {
     localLsaHeaders.emplace_back(routerLsa.first);
   }
+  NS_LOG_INFO("Number of local LSAs: " << localLsaHeaders.size());
   neighbor->AddOutdatedLsaKeysToQueue(localLsaHeaders);
-
+  NS_LOG_INFO("Number of outdated LSA: " << neighbor->GetLsrQueueSize());
   SendNextLsr(ifIndex, neighbor);
 }
 
 void
 OspfApp::SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
   if (neighbor->IsLsrQueueEmpty()) {
-    NS_LOG_INFO ("LSR Queue is empty. Advance to FULL");
+    NS_LOG_INFO("Number of outdated LSA: " << neighbor->GetLsrQueueSize());
     AdvanceToFull(ifIndex, neighbor);
     return;
   }
@@ -825,59 +863,65 @@ OspfApp::SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
   Ptr<LsRequest> lsRequest = Create<LsRequest>(lsaKeys);
   Ptr<Packet> packet = lsRequest->ConstructPacket();
   EncapsulateOspfPacket(packet, m_routerId, interface->GetArea(), OspfHeader::OspfType::OspfLSRequest);
-  SendToNeighbor(ifIndex, packet, neighbor);
   neighbor->SetLastLsrSent(lsRequest);
-  auto event = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()),
-                                                &OspfApp::SendToNeighbor, this, ifIndex, packet, neighbor);
-  neighbor->BindEvent(event);
+  SendToNeighborInterval(m_rxmtInterval + Seconds(m_randomVariable->GetValue()), ifIndex, packet, neighbor);
 }
 
 void 
-OspfApp::HandleLsAck (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<LsAck> lsAck)
+OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsAck> lsAck)
 {
+  auto interface = m_ospfInterfaces[ifIndex];
+  Ptr<OspfNeighbor> neighbor = interface->GetNeighbor(Ipv4Address(ospfHeader.GetRouterId()), ipHeader.GetSource());
   auto lsaHeaders = lsAck->GetLsaHeaders();
   NS_LOG_FUNCTION (this << ifIndex << lsaHeaders.size());
 
   for (auto lsaHeader : lsaHeaders) {
     // Remote timeout if the stored seq num is already satisfied
     if (lsaHeader.GetSeqNum() == m_seqNumbers[lsaHeader.GetKey()]) {
-      m_lsuTimeouts[lsaHeader.GetKey()].Remove();
+      bool isRemoved = neighbor->RemoveLsuTimeout(lsaHeader.GetKey());
+      if (isRemoved) {
+        NS_LOG_INFO ("Removed key: " << lsaHeader.GetAdvertisingRouter() << " from the retx timer");
+      } else {
+        NS_LOG_INFO ("Key: " << lsaHeader.GetAdvertisingRouter() << " does not exist in the retx timer");
+      }
     }
   }
 }
 
 void 
-OspfApp::HandleRouterLsu (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
+OspfApp::HandleRouterLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
 {
   NS_LOG_FUNCTION(this << ifIndex);
+  auto interface = m_ospfInterfaces[ifIndex];
+  Ptr<OspfNeighbor> neighbor = interface->GetNeighbor(Ipv4Address(ospfHeader.GetRouterId()), ipHeader.GetSource());
   // If the LSU was originally generated by the receiving router, the packet is dropped.
-  uint32_t originRouterId = ospfHeader.GetRouterId();
-  if (originRouterId == m_routerId.Get()) {
+  if (neighbor->GetRouterId() == m_routerId) {
     NS_LOG_INFO("LSU is dropped, received LSU has originated here");
     return;
   }
   uint16_t seqNum = lsaHeader.GetSeqNum();
+  LsaHeader::LsaKey lsaKey = lsaHeader.GetKey();
 
   // Initialize seqNum if not exist
-  if (m_seqNumbers.find(lsaHeader.GetKey()) == m_seqNumbers.end()) {
-    m_seqNumbers[lsaHeader.GetKey()] = 0;
+  if (m_seqNumbers.find(lsaKey) == m_seqNumbers.end()) {
+    m_seqNumbers[lsaKey] = 0;
   }
   // If the sequence number equals or less than that of the last packet received from the
   // originating router, the packet is dropped.
-  if (seqNum <= m_seqNumbers[lsaHeader.GetKey()]) {
+  if (seqNum <= m_seqNumbers[lsaKey]) {
     // std::cout << "recv seqNum: "<< seqNum << ", stored seqNum: " << m_seqNumbers[originRouterId] << std::endl;
     NS_LOG_INFO("LSU is dropped: received sequence number <= stored sequence number");
     // Send direct ACK once receiving duplicated sequence number
     auto ackPacket = ConstructLSAckPacket(m_routerId, m_areaId, lsaHeader);
     NS_LOG_DEBUG("Sending ACK [" << ackPacket->GetSize() << "] from " << m_routerId << " to interface " << ifIndex);
-    SendAck(ifIndex, ackPacket, Ipv4Address(originRouterId));
+    SendAck(ifIndex, ackPacket, neighbor->GetRouterId());
     return;
   }
 
   // Filling in lsdb
   NS_LOG_INFO("Update the lsdb entry");
-  m_routerLsdb[originRouterId] = std::make_pair(lsaHeader, routerLsa);
-  m_seqNumbers[lsaHeader.GetKey()] = seqNum;
+  m_routerLsdb[neighbor->GetRouterId().Get()] = std::make_pair(lsaHeader, routerLsa);
+  m_seqNumbers[lsaKey] = seqNum;
 
   // Update routing table
   UpdateRouting();
@@ -885,11 +929,12 @@ OspfApp::HandleRouterLsu (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsa
   // Flood LSU to all interfaces except for receiving one
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate>();
   lsUpdate->AddLsa(m_routerLsdb[m_routerId.Get()]);
+  // FloodLsu will handle per-neighbor retransmission
   FloodLsu(ifIndex, lsUpdate);
 
   // Send ACK to sender
   auto ackPacket = ConstructLSAckPacket(m_routerId, m_areaId, lsaHeader);
-  SendAck(ifIndex, ackPacket, Ipv4Address(originRouterId));
+  SendAck(ifIndex, ackPacket, neighbor->GetRouterId());
   NS_LOG_DEBUG("Sending ACK [" << ackPacket->GetSize() << "] from " << m_routerId << " to interface " << ifIndex);
 }
 
@@ -1067,7 +1112,7 @@ OspfApp::HandleRead (Ptr<Socket> socket)
     HandleLsu(socket->GetBoundNetDevice()->GetIfIndex(), ipHeader, ospfHeader, lsu);
   } else if (ospfHeader.GetType() == OspfHeader::OspfType::OspfLSAck) {
     Ptr<LsAck> lsAck = Create<LsAck>(packet);
-    HandleLsAck(socket->GetBoundNetDevice()->GetIfIndex(), ospfHeader, lsAck);
+    HandleLsAck(socket->GetBoundNetDevice()->GetIfIndex(), ipHeader, ospfHeader, lsAck);
   } else {
     NS_LOG_ERROR("Unknown packet type");
   }

@@ -112,7 +112,9 @@ private:
   // Packet Helpers
   void SendHello ();
   void SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteIp);
-  void SendToNeighbor (uint32_t ifIndex, Ptr<Packet> dbdPacket, Ptr<OspfNeighbor> neighbor);
+  void SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor);
+  void SendToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor);
+  void SendLsuToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor, LsaHeader::LsaKey lsaKey);
   void FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu);
 
   // Timeouts
@@ -141,9 +143,9 @@ private:
 
   void HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsUpdate> lsu);
 
-  void HandleRouterLsu (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
+  void HandleRouterLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
 
-  void HandleLsAck (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<LsAck> lsAck);
+  void HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsAck> lsAck);
 
   // LSA
   Ptr<RouterLsa> GetRouterLsa(); // Generate local Router-LSA based on adjacencies
@@ -163,6 +165,7 @@ private:
   void PollMasterDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
   // Loading
+  void AdvanceToLoading (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
   void CompareAndSendLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
   void SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
   void SatisfyLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
@@ -203,7 +206,6 @@ private:
   // LSA
   Time m_rxmtInterval; // retransmission timer
   Ipv4Address m_lsaAddress; //!< multicast address for LSA
-  std::map<LsaHeader::LsaKey, EventId> m_lsuTimeouts; // timeout events for LS Update
   std::map<LsaHeader::LsaKey, uint16_t> m_seqNumbers; // sequence number of stored LSA
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa> > > m_routerLsdb; // LSDB for each remote router ID
 

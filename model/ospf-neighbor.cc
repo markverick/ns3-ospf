@@ -266,7 +266,10 @@ OspfNeighbor::AddOutdatedLsaKeysToQueue(std::vector<LsaHeader> localLsaHeaders) 
   }
   NS_LOG_INFO("Number of outdated keys: " << m_lsrQueue.size());
 }
-
+uint32_t
+OspfNeighbor::GetLsrQueueSize() {
+  return m_lsrQueue.size();
+}
 bool
 OspfNeighbor::IsLsrQueueEmpty() {
   return m_lsrQueue.empty();
@@ -292,32 +295,43 @@ OspfNeighbor::PopMaxMtuFromLsrQueue(uint32_t mtu) {
 
 // LS Update / Acknowledge
 void
-OspfNeighbor::InsertPendingAck(LsaHeader::LsaKey lsaKey, LsaHeader lsaHeader, Ptr<Lsa> lsa) {
-  m_pendingAcks[lsaKey] = std::make_pair(lsaHeader, lsa);
+OspfNeighbor::BindLsuTimeout(LsaHeader::LsaKey lsaKey, EventId event) {
+  if (m_lsuTimeouts[lsaKey].IsRunning()) {
+    m_lsuTimeouts[lsaKey].Remove();
+  }
+  m_lsuTimeouts[lsaKey] = event;
+}
+EventId
+OspfNeighbor::GetLsuTimeout(LsaHeader::LsaKey lsaKey) {
+  return m_lsuTimeouts[lsaKey];
+}
+bool
+OspfNeighbor::RemoveLsuTimeout(LsaHeader::LsaKey lsaKey) {
+  auto it = m_lsuTimeouts.find(lsaKey);
+  if (it != m_lsuTimeouts.end()) {
+    it->second.Remove();
+    m_lsuTimeouts.erase(it);
+    return true;
+  }
+  return false;
 }
 void
-OspfNeighbor::ErasePendingAck(LsaHeader::LsaKey lsaKey) {
-  m_pendingAcks.erase(lsaKey);
-}
-uint32_t
-OspfNeighbor::GetPendingSeqNum(LsaHeader::LsaKey lsaKey) {
-  if (m_pendingAcks.find(lsaKey) == m_pendingAcks.end()) return 0;
-  return m_pendingAcks[lsaKey].first.GetSeqNum();
-}
-std::map<LsaHeader::LsaKey, std::pair<LsaHeader, Ptr<Lsa>> >
-OspfNeighbor::GetPendingAcks(LsaHeader::LsaKey lsaKey) {
-  return m_pendingAcks;
+OspfNeighbor::ClearLsuTimeouts(void) {
+  for (auto pair : m_lsuTimeouts) {
+    pair.second.Remove();
+  }
 }
 
+// Sequential Event
 void
-OspfNeighbor::RemoveEvent() {
+OspfNeighbor::RemoveTimeout() {
   if (m_event.IsRunning()) {
     m_event.Remove();
   }
 }
 
 void
-OspfNeighbor::BindEvent(EventId event) {
+OspfNeighbor::BindTimeout(EventId event) {
   if (m_event.IsRunning()) {
     m_event.Remove();
   }
