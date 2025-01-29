@@ -34,6 +34,7 @@
 #include "ospf-dbd.h"
 #include "ospf-hello.h"
 #include "ls-ack.h"
+#include "ls-update.h"
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
@@ -140,7 +141,7 @@ private:
 
   void HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsUpdate> lsu);
 
-  void HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
+  void HandleRouterLsu (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
 
   void HandleLsAck (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<LsAck> lsAck);
 

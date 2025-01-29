@@ -34,7 +34,6 @@
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
 
-#include "lsa-header.h"
 #include "ospf-neighbor.h"
 
 namespace ns3 {
@@ -173,6 +172,16 @@ OspfNeighbor::SetLastDbdSent(Ptr<OspfDbd> dbd) {
   m_lastDbdSent = dbd;
 }
 
+Ptr<LsRequest>
+OspfNeighbor::GetLastLsrSent() {
+  return m_lastLsrSent;
+}
+
+void
+OspfNeighbor::SetLastLsrSent(Ptr<LsRequest> lsr) {
+  m_lastLsrSent = lsr;
+}
+
 void
 OspfNeighbor::InsertLsaKey(LsaHeader lsaHeader) {
   InsertLsaKey(lsaHeader.GetKey(), lsaHeader.GetSeqNum());
@@ -279,6 +288,25 @@ OspfNeighbor::PopMaxMtuFromLsrQueue(uint32_t mtu) {
     }
   }
   return lsaKeyList;
+}
+
+// LS Update / Acknowledge
+void
+OspfNeighbor::InsertPendingAck(LsaHeader::LsaKey lsaKey, LsaHeader lsaHeader, Ptr<Lsa> lsa) {
+  m_pendingAcks[lsaKey] = std::make_pair(lsaHeader, lsa);
+}
+void
+OspfNeighbor::ErasePendingAck(LsaHeader::LsaKey lsaKey) {
+  m_pendingAcks.erase(lsaKey);
+}
+uint32_t
+OspfNeighbor::GetPendingSeqNum(LsaHeader::LsaKey lsaKey) {
+  if (m_pendingAcks.find(lsaKey) == m_pendingAcks.end()) return 0;
+  return m_pendingAcks[lsaKey].first.GetSeqNum();
+}
+std::map<LsaHeader::LsaKey, std::pair<LsaHeader, Ptr<Lsa>> >
+OspfNeighbor::GetPendingAcks(LsaHeader::LsaKey lsaKey) {
+  return m_pendingAcks;
 }
 
 void

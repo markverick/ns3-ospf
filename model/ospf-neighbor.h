@@ -36,10 +36,11 @@
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
-#include "queue"
+#include "lsa.h"
 #include "lsa-header.h"
-#include "ls-request.h"
 #include "ospf-dbd.h"
+#include "ls-request.h"
+#include "queue"
 #include "algorithm"
 
 namespace ns3 {
@@ -121,6 +122,12 @@ public:
   bool IsLsrQueueEmpty();
   std::vector<LsaHeader::LsaKey> PopMaxMtuFromLsrQueue(uint32_t mtu);
 
+  // LS Update Acks
+  void InsertPendingAck(LsaHeader::LsaKey lsaKey, LsaHeader lsaHeader, Ptr<Lsa> lsa);
+  void ErasePendingAck(LsaHeader::LsaKey lsaKey);
+  uint32_t GetPendingSeqNum(LsaHeader::LsaKey lsaKey);
+  std::map<LsaHeader::LsaKey, std::pair<LsaHeader, Ptr<Lsa> > > GetPendingAcks(LsaHeader::LsaKey lsaKey);
+
   // Neighbor-specific timeout
   void RemoveEvent();
   void BindEvent(EventId event);
@@ -136,13 +143,17 @@ public:
   uint32_t m_ddSeqNum;
   std::queue<LsaHeader> m_dbdQueue;
   std::queue<LsaHeader::LsaKey> m_lsrQueue;
-  Ptr<LsRequest> m_lastLsrSent;
   Ptr<OspfDbd> m_lastDbdSent;
   std::map<LsaHeader::LsaKey, uint32_t> m_lsaSeqNums; // Neighbor's headers
   EventId m_event;
   Time m_lastHelloReceived;
 
   // LS Request
+  Ptr<LsRequest> m_lastLsrSent;
+
+  // LS Update
+  // Pending ack, value is <LsaHeader, LSA>
+  std::map<LsaHeader::LsaKey, std::pair<LsaHeader, Ptr<Lsa> > > m_pendingAcks; 
 };
 
 } // namespace ns3

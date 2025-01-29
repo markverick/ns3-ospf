@@ -36,8 +36,8 @@
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
-#include "algorithm"
 #include "ospf-neighbor.h"
+#include "algorithm"
 
 namespace ns3 {
 

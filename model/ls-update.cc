@@ -56,20 +56,6 @@ LsUpdate::GetLsaList () {
   return m_lsaList;
 }
 
-bool
-LsUpdate::IsAllLsaMatched (std::vector<LsaHeader::LsaKey> lsaKeys) {
-    if (m_lsaList.size() != lsaKeys.size()) {
-        return;
-    }
-    std::vector<LsaHeader::LsaKey> selfLsaKeys;
-    for (auto& [lsaHeader, lsa] : m_lsaList) {
-        selfLsaKeys.emplace_back(lsaHeader.GetKey());
-    }
-    sort(lsaKeys.begin(), lsaKeys.end());
-    sort(selfLsaKeys.begin(), selfLsaKeys.end());
-    return lsaKeys == selfLsaKeys;
-}
-
 uint32_t
 LsUpdate::GetNLsa () {
   return m_lsaList.size();

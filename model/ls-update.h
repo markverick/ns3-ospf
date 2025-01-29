@@ -48,7 +48,6 @@ public:
   void AddLsa (LsaHeader header, Ptr<Lsa> lsa);
   void AddLsa (std::pair<LsaHeader, Ptr<Lsa> > lsa);
   std::vector<std::pair<LsaHeader, Ptr<Lsa> > > GetLsaList();
-  bool IsAllLsaMatched (std::vector<LsaHeader::LsaKey> lsaKeys);
   uint32_t GetNLsa ();
 
   static TypeId GetTypeId (void);

@@ -35,17 +35,6 @@
 #include "ns3/random-variable-stream.h"
 #include "ns3/core-module.h"
 #include "ns3/ospf-packet-helper.h"
-#include "ospf-header.h"
-#include "lsa-header.h"
-#include "router-lsa.h"
-#include "ospf-hello.h"
-#include "ospf-dbd.h"
-#include "lsa.h"
-#include "ls-ack.h"
-#include "ls-request.h"
-#include "ls-update.h"
-#include "ospf-interface.h"
-#include "ospf-neighbor.h"
 
 #include "filesystem"
 #include "tuple"
@@ -380,51 +369,29 @@ OspfApp::RefreshHelloTimeout(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
                                                     &OspfApp::HelloTimeout, this, ospfInterface, remoteRouterId, remoteIp);
 }
 
-// Retransmit missing ACK
-void
-OspfApp::LsuTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
-                  LsaHeader::LsaKey lsaKey, Ipv4Address toAddress) {
-  // Sockets are closed
-  if (m_lsaSockets.empty()) {
-    return;
-  }
-
-  NS_LOG_INFO("Retry missing ACK from interface " << ifIndex << " from address " << toAddress);
-  SendLsu(ifIndex, lsuPacket, flags, lsaKey, toAddress);
-}
-
 void
 OspfApp::FloodLsu(uint32_t inputIfIndex, Ptr<LsUpdate> lsu) {
   if (m_lsaSockets.empty()) {
     NS_LOG_INFO ("No sockets to flood LSU");
     return;
   }
+  NS_ASSERT_MSG(lsu->GetNLsa() == 1, "Only LSU with one LSA is allowed to flood (simplification)");
   NS_LOG_FUNCTION (this << lsu->GetNLsa() << inputIfIndex);
-  Ptr<OspfInterface> interface;
+
   for (uint32_t i = 1; i < m_lsaSockets.size(); i++)
   {
-    interface = m_lsaSockets[i];
     // Skip the incoming interface
     if (inputIfIndex == i) continue;
+    auto interface = m_ospfInterfaces[i];
     
-    // For alt-area only.
-    if (m_areaId != interface->GetArea()) continue;
-
-    // Construct packets per interface
-    Ptr<Packet> packet = lsu->ConstructPacket();
-    EncapsulateOspfPacket(packet, m_routerId, interface->GetArea(), OspfHeader::OspfType::OspfLSUpdate);
-    // Send to neighbors
-    auto neighbors = interface->GetNeighbors();
+    // Send to neighbors with multicast address (only 1 neighbor for point-to-point)
+    auto neighbors = m_ospfInterfaces[i]->GetNeighbors();
     for (auto neighbor : neighbors) {
+      Ptr<Packet> packet = lsu->ConstructPacket();
+      EncapsulateOspfPacket(packet, m_routerId, interface->GetArea(), OspfHeader::OspfType::OspfLSUpdate);
       SendToNeighbor(i, packet, neighbor);
-      // Set timeout for ACK
-      m_lsuTimeouts[lsu] = Simulator::Schedule(m_rxmtInterval + Seconds(m_randomVariable->GetValue()),
-                                                &OspfApp::SendToNeighbor, this, ifIndex, packet, neighbor);
-      ;
     }     
   }
-  // Schedule next flood
-  
 }
 
 // Generate Local Router LSA with all areas
@@ -640,7 +607,7 @@ OspfApp::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
       return;
     }
     // Receive Negotiate DBD
-    HandleNegotiateDbd(ifIndex, neighbor);
+    HandleNegotiateDbd(ifIndex, neighbor, dbd);
     return;
   }
   if (neighbor->GetState() < OspfNeighbor::Exchange) {
@@ -790,30 +757,41 @@ OspfApp::HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
                                                 &OspfApp::SendToNeighbor, this, ifIndex, packet, neighbor);
   neighbor->BindEvent(event);
 }
-void
-OspfApp::CompareAndSendLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
-  auto interface = m_ospfInterfaces[ifIndex];
-  std::vector<LsaHeader> localLsaHeaders;
-  for (auto& [remoteRouterId, routerLsa] : m_routerLsdb) {
-    localLsaHeaders.emplace_back(routerLsa.first);
-  }
-  neighbor->AddOutdatedLsaKeysToQueue(localLsaHeaders);
-
-  SendNextLsr(ifIndex, neighbor);
-}
 
 void
 OspfApp::HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsUpdate> lsu) {
   auto interface = m_ospfInterfaces[ifIndex];
   Ptr<OspfNeighbor> neighbor = interface->GetNeighbor(Ipv4Address(ospfHeader.GetRouterId()), ipHeader.GetSource());
   
-  // If LSU is an implicit ACK to LSR
-  if (lsu->IsAllLsaMatched(neighbor->GetLastLsrSent()->GetLsaKeys())) {
-    SatisfyLsr(ifIndex, neighbor);
+  if (neighbor->GetState() < OspfNeighbor::Loading) {
+    // Drop if the neighbor is not at least loading
     return;
   }
-
-  // Flood
+  if (neighbor->GetState() == OspfNeighbor::Loading) {
+    // Satisfy LS Requests 
+    auto lastLsr = neighbor->GetLastLsrSent();
+    auto receivedLsa = lsu->GetLsaList();
+    // Remove LSA from the current LSR
+    for (auto& [lsaHeader, lsa] : receivedLsa) {
+      // If LSU is an implicit ACK to LSR
+      lastLsr->RemoveLsaKey(lsaHeader.GetKey());
+    }
+    // Get the next LSR or advance to FULL if no more is left
+    if (lastLsr->IsLsaKeyEmpty()) {
+      SendNextLsr(ifIndex, neighbor);
+    }
+    return;
+  }
+  // FULL
+  if (lsu->GetNLsa() != 1) {
+    // Simplified version does not aggregate LSAs in one LSU.
+    NS_LOG_WARN ("LSU contains more than one LSA. Drop the LSU");
+    return;
+  }
+  auto lsa = lsu->GetLsaList()[0];
+  if (lsa.first.GetType() == LsaHeader::RouterLSAs) {
+    HandleRouterLsu(ifIndex, ospfHeader, lsa.first, DynamicCast<RouterLsa>(lsa.second));
+  }
 }
 void
 OspfApp::SatisfyLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
@@ -832,18 +810,14 @@ OspfApp::CompareAndSendLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
   }
   neighbor->AddOutdatedLsaKeysToQueue(localLsaHeaders);
 
-  // No need to exchange LSR
-  if (neighbor->IsLsrQueueEmpty()) {
-    AdvanceToFull(ifIndex, neighbor);
-    return; 
-  }
   SendNextLsr(ifIndex, neighbor);
 }
 
 void
 OspfApp::SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
   if (neighbor->IsLsrQueueEmpty()) {
-    NS_LOG_INFO ("LSR Queue is empty");
+    NS_LOG_INFO ("LSR Queue is empty. Advance to FULL");
+    AdvanceToFull(ifIndex, neighbor);
     return;
   }
   auto interface = m_ospfInterfaces[ifIndex];
@@ -873,7 +847,7 @@ OspfApp::HandleLsAck (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<LsAck> lsAck)
 }
 
 void 
-OspfApp::HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
+OspfApp::HandleRouterLsu (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
 {
   NS_LOG_FUNCTION(this << ifIndex);
   // If the LSU was originally generated by the receiving router, the packet is dropped.
@@ -884,11 +858,12 @@ OspfApp::HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsa
   }
   uint16_t seqNum = lsaHeader.GetSeqNum();
 
-  // If the sequence number equals or less than that of the last packet received from the
-  // originating router, the packet is dropped.
+  // Initialize seqNum if not exist
   if (m_seqNumbers.find(lsaHeader.GetKey()) == m_seqNumbers.end()) {
     m_seqNumbers[lsaHeader.GetKey()] = 0;
   }
+  // If the sequence number equals or less than that of the last packet received from the
+  // originating router, the packet is dropped.
   if (seqNum <= m_seqNumbers[lsaHeader.GetKey()]) {
     // std::cout << "recv seqNum: "<< seqNum << ", stored seqNum: " << m_seqNumbers[originRouterId] << std::endl;
     NS_LOG_INFO("LSU is dropped: received sequence number <= stored sequence number");
@@ -908,8 +883,9 @@ OspfApp::HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsa
   UpdateRouting();
 
   // Flood LSU to all interfaces except for receiving one
-  Ptr<Packet> p = ConstructLSUPacket(ospfHeader, lsaHeader, routerLsa);
-  FloodLsu(ifIndex, p, lsaHeader.GetKey());
+  Ptr<LsUpdate> lsUpdate = Create<LsUpdate>();
+  lsUpdate->AddLsa(m_routerLsdb[m_routerId.Get()]);
+  FloodLsu(ifIndex, lsUpdate);
 
   // Send ACK to sender
   auto ackPacket = ConstructLSAckPacket(m_routerId, m_areaId, lsaHeader);

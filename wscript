@@ -8,10 +8,12 @@ def build(bld):
         'model/ospf-neighbor.cc',
         'model/ospf-header.cc',
         'model/lsa-header.cc',
+        'model/lsa.cc',
         'model/ospf-hello.cc',
         'model/router-lsa.cc',
         'model/ls-ack.cc',
         'model/ls-request.cc',
+        'model/ls-update.cc',
         'model/ospf-dbd.cc',
         'helper/ospf-app-helper.cc',
         ]
@@ -37,6 +39,7 @@ def build(bld):
         'model/ospf-hello.h',
         'model/ls-ack.h',
         'model/ls-request.h',
+        'model/ls-update.h',
         'model/ospf-dbd.h',
         'helper/ospf-app-helper.h',
         'helper/ospf-packet-helper.h'

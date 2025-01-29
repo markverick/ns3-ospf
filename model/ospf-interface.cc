@@ -35,7 +35,6 @@
 #include "ns3/header.h"
 
 #include "ospf-interface.h"
-#include "ospf-neighbor.h"
 
 namespace ns3 {
 
@@ -145,7 +144,7 @@ OspfInterface::GetNeighbor(Ipv4Address routerId, Ipv4Address remoteIp) {
   return nullptr;
 }
 std::vector<Ptr<OspfNeighbor> >
-OspfInterface:: GetNeighbors() {
+OspfInterface::GetNeighbors() {
   return m_neighbors;
 }
 

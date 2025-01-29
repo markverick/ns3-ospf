@@ -24,7 +24,6 @@
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
-#include "ospf-interface.h"
 #include "lsa-header.h"
 
 namespace ns3 {
@@ -46,6 +45,8 @@ public:
   LsRequest (Ptr<Packet> packet);
 
   void AddLsaKey (LsaHeader::LsaKey lsaKey);
+  bool RemoveLsaKey (LsaHeader::LsaKey lsaKey);
+  bool IsLsaKeyEmpty ();
   void ClearLsaKeys (void);
   bool HasLsaKey (LsaHeader::LsaKey lsaKey);
 

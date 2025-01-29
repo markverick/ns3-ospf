@@ -68,6 +68,22 @@ LsRequest::HasLsaKey (LsaHeader::LsaKey lsaKey) {
   return false;
 }
 
+bool
+LsRequest::RemoveLsaKey (LsaHeader::LsaKey lsaKey) {
+  for (auto it = m_lsaKeys.begin(); it != m_lsaKeys.end(); it++) {
+    if (*it == lsaKey) {
+        m_lsaKeys.erase(it);
+        return true;
+    }
+  }
+  return false;
+}
+
+bool
+LsRequest::IsLsaKeyEmpty () {
+  return m_lsaKeys.empty();
+}
+
 LsaHeader::LsaKey
 LsRequest::GetLsaKey (uint32_t index) {
   NS_ASSERT(index < m_lsaKeys.size());
