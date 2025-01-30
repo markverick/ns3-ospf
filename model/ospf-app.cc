@@ -720,19 +720,19 @@ OspfApp::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<Ospf
   } else {
     NS_LOG_INFO("Received new DBD from Master");
     // Process neighbor DBD
-    auto lsaHeaders = dbd->GetLsaHeaders();
-    for (auto header : lsaHeaders) {
+    auto masterLsaHeaders = dbd->GetLsaHeaders();
+    for (auto header : masterLsaHeaders) {
       neighbor->InsertLsaKey(header);
     }
 
     // Generate its own next DBD, echoing DD seq num of the master
-    lsaHeaders = neighbor->PopMaxMtuFromDbdQueue(interface->GetMtu());
+    auto slaveLsaHeaders = neighbor->PopMaxMtuFromDbdQueue(interface->GetMtu());
     dbdResponse = Create<OspfDbd>(interface->GetMtu(), 0, 0, 0, 1, 0, dbd->GetDDSeqNum());
     if (neighbor->IsDbdQueueEmpty()) {
       // No (M)ore packets (the last DBD)
       dbdResponse->SetBitM(0);
     }
-    for (auto header : lsaHeaders) {
+    for (auto header : slaveLsaHeaders) {
       dbdResponse->AddLsaHeader(header);
     }
   }
@@ -757,7 +757,7 @@ OspfApp::HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfD
     return;
   }
   // Process neighbor DBD
-  NS_LOG_INFO("Received DBD response from slave");
+  NS_LOG_INFO("Received DBD response [" << dbd->GetNLsaHeaders() << "] from slave");
   auto lsaHeaders = dbd->GetLsaHeaders();
   for (auto header : lsaHeaders) {
     neighbor->InsertLsaKey(header);
@@ -848,7 +848,7 @@ OspfApp::CompareAndSendLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
   }
   NS_LOG_INFO("Number of local LSAs: " << localLsaHeaders.size());
   neighbor->AddOutdatedLsaKeysToQueue(localLsaHeaders);
-  NS_LOG_INFO("Number of outdated LSA: " << neighbor->GetLsrQueueSize());
+  NS_LOG_INFO("Number of outdated LSA: " << neighbor->GetLsrQueueSize() << " / " << neighbor->GetLsrQueueSize());
   SendNextLsr(ifIndex, neighbor);
 }
 

@@ -149,15 +149,17 @@ OspfNeighbor::PopMaxMtuFromDbdQueue(uint32_t mtu) {
   mtu =  mtu - 100; // Just in case of encapsulations
   std::vector<LsaHeader> lsaHeaderList;
   uint32_t currentBytes = 0;
-  LsaHeader header = m_dbdQueue.front();
+  LsaHeader header;
   // Keep popping until the queue runs out or reaching the mtu
-  while (!m_dbdQueue.empty() && currentBytes + header.GetSerializedSize() < mtu) {
+  while (!m_dbdQueue.empty()) {
+    header = m_dbdQueue.front();
     uint32_t lsaSize = header.GetSerializedSize();
-    if (currentBytes + lsaSize <= mtu) {
-      lsaHeaderList.emplace_back(header);
-      m_dbdQueue.pop();
-      currentBytes += lsaSize;
+    if (currentBytes + lsaSize > mtu) {
+      break;
     }
+    lsaHeaderList.emplace_back(header);
+    m_dbdQueue.pop();
+    currentBytes += lsaSize; 
   }
   return lsaHeaderList;
 }
@@ -184,6 +186,7 @@ OspfNeighbor::SetLastLsrSent(Ptr<LsRequest> lsr) {
 
 void
 OspfNeighbor::InsertLsaKey(LsaHeader lsaHeader) {
+  std::cout << " !!! " << Ipv4Address(std::get<1>(lsaHeader.GetKey())) << ", "<< Ipv4Address(std::get<2>(lsaHeader.GetKey())) << std::endl;
   InsertLsaKey(lsaHeader.GetKey(), lsaHeader.GetSeqNum());
 }
 
@@ -280,15 +283,17 @@ OspfNeighbor::PopMaxMtuFromLsrQueue(uint32_t mtu) {
   mtu =  mtu - 100; // Just in case of encapsulations
   std::vector<LsaHeader::LsaKey> lsaKeyList;
   uint32_t currentBytes = 0;
-  LsaHeader::LsaKey key = m_lsrQueue.front();
+  LsaHeader::LsaKey key;
   // Keep popping until the queue runs out or reaching the mtu
   uint32_t lsaKeySize = 12;
-  while (!m_lsrQueue.empty() && currentBytes + lsaKeySize < mtu) {
-    if (currentBytes + lsaKeySize <= mtu) {
-      lsaKeyList.emplace_back(key);
-      m_lsrQueue.pop();
-      currentBytes += lsaKeySize;
+  while (!m_lsrQueue.empty()) {
+    if (currentBytes + lsaKeySize > mtu) {
+      break;
     }
+    key = m_lsrQueue.front();
+    lsaKeyList.emplace_back(key);
+    m_lsrQueue.pop();
+    currentBytes += lsaKeySize; 
   }
   return lsaKeyList;
 }
