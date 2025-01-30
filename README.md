@@ -27,8 +27,8 @@ NS_LOG="OspfInterface:OspfNeighbor" ./waf --run=ospf-metric --gdb
 
 # Major Simplifications
 - LS Updates that are subject to flooding may only contain 1 LSA each.
+   - LS Updates as implicit ACKs to LS Requests may contain LSAs up to the given MTU.
 - LS Updates received in a short interval do not aggregate.
-- LS Updates as implicit ACKs to LS Requests may contain LSAs up to the given MTU.
 
 # Current Limitation
 - No broadcast networks
