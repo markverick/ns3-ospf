@@ -153,22 +153,22 @@ main(int argc, char* argv[])
     ospfApp.Stop(Seconds(SIM_SECONDS));
 
     // User Traffic
-    uint16_t port = 9;  // well-known echo port number
-    UdpEchoServerHelper server (port);
-    ApplicationContainer apps = server.Install (c.Get (3));
-    apps.Start (Seconds (1.0));
-    apps.Stop (Seconds (SIM_SECONDS));
+    // uint16_t port = 9;  // well-known echo port number
+    // UdpEchoServerHelper server (port);
+    // ApplicationContainer apps = server.Install (c.Get (3));
+    // apps.Start (Seconds (1.0));
+    // apps.Stop (Seconds (SIM_SECONDS));
 
-    uint32_t tSize = 1024;
-    uint32_t maxPacketCount = 200;
-    Time interPacketInterval = Seconds (1.);
-    UdpEchoClientHelper client (Ipv4Address("10.1.1.9"), port);
-    client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
-    client.SetAttribute ("Interval", TimeValue (interPacketInterval));
-    client.SetAttribute ("PacketSize", UintegerValue (tSize));
-    apps = client.Install (c.Get (1));
-    apps.Start (Seconds (2.0));
-    apps.Stop (Seconds (SIM_SECONDS));
+    // uint32_t tSize = 1024;
+    // uint32_t maxPacketCount = 200;
+    // Time interPacketInterval = Seconds (1.);
+    // UdpEchoClientHelper client (Ipv4Address("10.1.1.9"), port);
+    // client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
+    // client.SetAttribute ("Interval", TimeValue (interPacketInterval));
+    // client.SetAttribute ("PacketSize", UintegerValue (tSize));
+    // apps = client.Install (c.Get (1));
+    // apps.Start (Seconds (2.0));
+    // apps.Stop (Seconds (SIM_SECONDS));
 
     // Print LSDB
     Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(3)->GetApplication(0));
