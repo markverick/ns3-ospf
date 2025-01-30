@@ -877,8 +877,8 @@ OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
   NS_LOG_FUNCTION (this << ifIndex << lsaHeaders.size());
 
   for (auto lsaHeader : lsaHeaders) {
-    // Remove timeout if the stored seq num is being satisfied
-    if (lsaHeader.GetSeqNum() == m_seqNumbers[lsaHeader.GetKey()]) {
+    // Remove timeout if the stored seq num have been satisfied
+    if (lsaHeader.GetSeqNum() <= m_seqNumbers[lsaHeader.GetKey()]) {
       bool isRemoved = neighbor->RemoveLsuTimeout(lsaHeader.GetKey());
       if (isRemoved) {
         NS_LOG_INFO ("Removed key (advertising router): " << Ipv4Address(lsaHeader.GetAdvertisingRouter()) << " from the retx timer");
