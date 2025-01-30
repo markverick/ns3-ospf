@@ -23,97 +23,75 @@
 #include "ns3/log.h"
 #include "ns3/header.h"
 #include "ns3/packet.h"
-#include "ls-ack.h"
+#include "router-lsa.h"
+#include "ls-update.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("LsAck");
+NS_LOG_COMPONENT_DEFINE ("LsUpdate");
 
-NS_OBJECT_ENSURE_REGISTERED (LsAck);
+NS_OBJECT_ENSURE_REGISTERED (LsUpdate);
 
-LsAck::LsAck ()
+LsUpdate::LsUpdate ()
 {
+    m_serializedSize = 4;
 }
-
-LsAck::LsAck (std::vector<LsaHeader> lsaHeaders)
-{
-  m_lsaHeaders.clear();
-  for (auto l : lsaHeaders) {
-    m_lsaHeaders.emplace_back(l);
-  }
-}
-
-LsAck::LsAck (Ptr<Packet> packet)
+LsUpdate::LsUpdate (Ptr<Packet> packet)
 {
   Deserialize(packet);
 }
 
 void
-LsAck::AddLsaHeader (LsaHeader lsaHeader) {
-  m_lsaHeaders.emplace_back(lsaHeader);
+LsUpdate::AddLsa (LsaHeader header, Ptr<Lsa> lsa) {
+  m_lsaList.emplace_back(header, lsa);
+  m_serializedSize += header.GetLength();
 }
-
 void
-LsAck::ClearLsaHeaders () {
-  m_lsaHeaders.clear();
+LsUpdate::AddLsa (std::pair<LsaHeader, Ptr<Lsa> > lsa) {
+    m_lsaList.emplace_back(lsa);
+  m_serializedSize += lsa.first.GetLength();
 }
 
-bool
-LsAck::HasLsaHeader (LsaHeader lsaHeader) {
-  for(auto l : m_lsaHeaders) {
-    if (l.GetKey() == lsaHeader.GetKey()) {
-      return true;
-    }
-  }
-  return false;
-}
-
-LsaHeader
-LsAck::GetLsaHeader (uint32_t index) {
-  NS_ASSERT(index < m_lsaHeaders.size());
-  return m_lsaHeaders[index];
-}
-
-std::vector<LsaHeader>
-LsAck::GetLsaHeaders () {
-  return m_lsaHeaders;
+std::vector<std::pair<LsaHeader, Ptr<Lsa> > >
+LsUpdate::GetLsaList () {
+  return m_lsaList;
 }
 
 uint32_t
-LsAck::GetNLsaHeaders () {
-  return m_lsaHeaders.size();
+LsUpdate::GetNLsa () {
+  return m_lsaList.size();
 }
 
 TypeId 
-LsAck::GetTypeId (void)
+LsUpdate::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::LsAck")
+  static TypeId tid = TypeId ("ns3::LsUpdate")
     .SetGroupName ("Ospf")
-    .AddConstructor<LsAck> ()
+    .AddConstructor<LsUpdate> ()
   ;
   return tid;
 }
 TypeId 
-LsAck::GetInstanceTypeId (void) const
+LsUpdate::GetInstanceTypeId (void) const
 {
   NS_LOG_FUNCTION (this);
   return GetTypeId ();
 }
 void 
-LsAck::Print (std::ostream &os) const
+LsUpdate::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
-  os << "# LSAs: " << m_lsaHeaders.size() << " ";
+  os << "# LSAs: " << m_lsaList.size() << " ";
   os << std::endl;
 }
 uint32_t 
-LsAck::GetSerializedSize (void) const
+LsUpdate::GetSerializedSize (void) const
 {
-	return m_lsaHeaders.size() * 20;
+  return m_serializedSize;
 }
 
 Ptr<Packet>
-LsAck::ConstructPacket () const
+LsUpdate::ConstructPacket () const
 {
   NS_LOG_FUNCTION (this);
 
@@ -126,34 +104,46 @@ LsAck::ConstructPacket () const
 }
 
 uint32_t
-LsAck::Serialize (Buffer::Iterator start) const
+LsUpdate::Serialize (Buffer::Iterator start) const
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
-
-  for (auto lsaHeader : m_lsaHeaders) {
-    lsaHeader.Serialize(i);
-    i.Next(lsaHeader.GetSerializedSize());
+  i.WriteHtonU32(m_lsaList.size());
+  for (auto lsa : m_lsaList) {
+    lsa.first.Serialize(i);
+    i.Next(lsa.first.GetSerializedSize());
+    lsa.second->Serialize(i);
+    i.Next(lsa.second->GetSerializedSize());
   }
   return GetSerializedSize();
 }
 
 uint32_t
-LsAck::Deserialize (Buffer::Iterator start)
+LsUpdate::Deserialize (Buffer::Iterator start)
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  while (!i.IsEnd()) {
+  uint32_t numLsa = i.ReadNtohU32();
+
+  m_serializedSize = 4;
+  for (uint32_t j = 0; j < numLsa; j++) {
     LsaHeader lsaHeader;
     i.Next(lsaHeader.Deserialize(i));
-    m_lsaHeaders.emplace_back(lsaHeader);
+    if (lsaHeader.GetType() == LsaHeader::RouterLSAs) {
+        Ptr<RouterLsa> lsa = Create<RouterLsa>();
+        i.Next(lsa->Deserialize(i));
+        m_lsaList.emplace_back(lsaHeader, lsa);
+        m_serializedSize += lsaHeader.GetLength();
+    } else {
+        NS_ASSERT_MSG(true, "Unsupported LSA Type");
+    }
   }
-  return GetSerializedSize ();
+  return m_serializedSize;
 }
 
 uint32_t
-LsAck::Deserialize (Ptr<Packet> packet)
+LsUpdate::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize();

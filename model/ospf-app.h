@@ -31,8 +31,10 @@
 #include "ospf-header.h"
 #include "lsa-header.h"
 #include "router-lsa.h"
+#include "ospf-dbd.h"
 #include "ospf-hello.h"
 #include "ls-ack.h"
+#include "ls-update.h"
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
@@ -105,16 +107,22 @@ private:
   virtual void StartApplication (void);
   virtual void StopApplication (void);
 
-  virtual void ScheduleTransmitHello (Time dt);
-  virtual void SendHello ();
-  virtual void SendAck (uint32_t ifIndex, Ptr<Packet> ackPayload, Ipv4Address originRouterId);
-  virtual void FloodLSU (uint32_t inputIfIndex, Ptr<Packet> lsuPacket, std::tuple<uint8_t, uint32_t, uint32_t> lsaKey);
-  virtual void SendLSU(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
-                      std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress);
-  virtual void LSUTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
-                      std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress);
-  virtual void HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  void ScheduleTransmitHello (Time dt);
 
+  // Packet Helpers
+  void SendHello ();
+  void SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteIp);
+  void SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor);
+  void SendToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor);
+  void SendLsuToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor, LsaHeader::LsaKey lsaKey);
+  void FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu);
+
+  // Timeouts
+  void LsuTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
+                      std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress);
+  void HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+
+  // Packet Handlers
   /**
    * \brief Handle a packet reception.
    *
@@ -124,24 +132,46 @@ private:
    */
   void HandleRead (Ptr<Socket> socket);
 
-  bool IsDeviceAlive(uint32_t ifIndex);
-
   void HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<OspfHello> hello);
 
-  void HandleRouterLSU (uint32_t ifIndex, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
+  void HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<OspfDbd> dbd);
+  void HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd);
+  void HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd);
+  void HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd);
 
-  void HandleLsAck (uint32_t ifIndex, OspfHeader ospfHeader, Ptr<LsAck> lsAck);
+  void HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsRequest> lsr);
 
-  void UpdateRouting ();
+  void HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsUpdate> lsu);
 
+  void HandleRouterLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
+
+  void HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsAck> lsAck);
+
+  // LSA
+  Ptr<RouterLsa> GetRouterLsa(); // Generate local Router-LSA based on adjacencies
+  Ptr<RouterLsa> GetRouterLsa(uint32_t areaId);
+  void RecomputeRouterLsa(); // Recompute local Router-LSA and inject to LSDB
+
+  void UpdateRouting (); // Update routing table based on LSDB
+
+  // Hello
   void RefreshHelloTimeout(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
-  void AdjacencyUpdate();
+  // ExStart
+  void NegotiateDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, bool bitMS);
 
-  Ptr<RouterLsa> GetRouterLsa();
-  Ptr<RouterLsa> GetRouterLsa(uint32_t areaId);
+  // Exchange
+  void SendMasterDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  void PollMasterDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
-  std::vector<uint32_t> GetAllNeighborRouterIds();
+  // Loading
+  void AdvanceToLoading (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  void CompareAndSendLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  void SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  void SatisfyLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+
+  // Full
+  void AdvanceToFull (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
   uint16_t m_port; //!< Port on which we listen for incoming packets.
   std::vector<Ptr<Socket>> m_sockets; //!< Unicast socket
@@ -157,6 +187,7 @@ private:
 
   // Randomization
   Ptr<UniformRandomVariable> m_randomVariable = CreateObject<UniformRandomVariable>();
+  Ptr<UniformRandomVariable> m_randomVariableSeq = CreateObject<UniformRandomVariable>();
 
   // Hello
   Time m_helloInterval; //!< Hello Interval
@@ -166,19 +197,17 @@ private:
   Time m_routerDeadInterval;
   EventId m_helloEvent; //!< Event to send the next hello packet
 
-  // LSU
-  Time m_rxmtInterval;
-  Ipv4Address m_lsaAddress; //!< Address of multicast hello message
-  uint16_t m_ttl;
-  Ptr<Ipv4StaticRouting> m_routing;
-  std::vector<Ptr<OspfInterface> > m_ospfInterfaces;
-  // a map <lsaKey, EventId> for each interface
-  std::map<LsaHeader::LsaKey, EventId> m_lsuTimeouts; 
-  EventId m_ackEvent;
-  std::map<LsaHeader::LsaKey, uint16_t> m_seqNumbers; 
-  std::map<uint32_t, Ptr<RouterLsa> > m_routerLsdb; // adjacency list of [routerId] -> remoteRouterId
-
+  // Interface
+  std::vector<Ptr<OspfInterface> > m_ospfInterfaces; // router interfaces
+  
   // Routing
+  Ptr<Ipv4StaticRouting> m_routing; // routing table
+
+  // LSA
+  Time m_rxmtInterval; // retransmission timer
+  Ipv4Address m_lsaAddress; //!< multicast address for LSA
+  std::map<LsaHeader::LsaKey, uint16_t> m_seqNumbers; // sequence number of stored LSA
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa> > > m_routerLsdb; // LSDB for each remote router ID
 
   /// Callbacks for tracing the packet Tx events
   TracedCallback<Ptr<const Packet> > m_txTrace;

@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright 2025 University of California, Los Angeles
+ * Copyright 2024 University of California, Los Angeles
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -18,40 +18,63 @@
  * Author: Sirapop Theeranantachai (stheera@g.ucla.edu)
  */
 
-#ifndef LS_ACK_H
-#define LS_ACK_H
+#ifndef OSPF_DBD_H
+#define OSPF_DBD_H
 
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
-#include "ospf-interface.h"
-#include "lsa-header.h"
+#include "ns3/lsa-header.h"
 
 namespace ns3 {
 /**
  * \ingroup ospf
  *
- * \brief LS Acknowledge Object
+ * \brief Database Description Payload
  */
 
-class LsAck : public Object
+class OspfDbd : public Object
 {
 public:
   /**
-   * \brief Construct a LS Acknowledge Object
+   * \brief Construct a router LSA
    */
+  OspfDbd ();
+  OspfDbd (uint16_t mtu, uint8_t options, uint8_t flags, bool bitI, bool bitM, bool bitMS, uint32_t ddSeqNum);
+  OspfDbd (Ptr<Packet> packet);
 
-  LsAck ();
-  LsAck (std::vector<LsaHeader> lsaHeaders);
-  LsAck (Ptr<Packet> packet);
+  void SetMtu (uint16_t mtu);
+  uint16_t GetMtu() const;
+
+  void SetOptions (uint8_t options);
+  uint8_t GetOptions() const;
+
+  bool IsNegotiate () const;
+
+  void SetBitI (bool bitI);
+  bool GetBitI() const;
+
+  void SetBitM (bool bitM);
+  bool GetBitM() const;
+
+  void SetBitMS (bool bitMS);
+  bool GetBitMS() const;
+
+  void SetFlags(uint8_t field);
+  uint8_t GetFlags() const;
+
+  void SetDDSeqNum (uint32_t ddSeqNum);
+  uint32_t GetDDSeqNum(void) const;
 
   void AddLsaHeader (LsaHeader lsaHeader);
-  void ClearLsaHeaders (void);
+  void ClearLsaHeader (void);
   bool HasLsaHeader (LsaHeader lsaHeader);
+  LsaHeader SetLsaHeaders (std::vector<LsaHeader> lsaHeaders);
 
   LsaHeader GetLsaHeader (uint32_t index);
   std::vector<LsaHeader> GetLsaHeaders ();
   uint32_t GetNLsaHeaders ();
+
 
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
@@ -62,10 +85,18 @@ public:
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
 private:
-  std::vector<LsaHeader> m_lsaHeaders; //storing neighbor's router ID
+
+  uint16_t m_mtu;
+  uint8_t m_options;
+  uint8_t m_flags;
+  bool m_bitI;
+  bool m_bitM;
+  bool m_bitMS;
+  uint32_t m_ddSeqNum;
+  std::vector<LsaHeader> m_lsaHeaders;
 };
 
 } // namespace ns3
 
 
-#endif /* LS_ACK_H */
+#endif /* OSPF_DBD_H */

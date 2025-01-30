@@ -1,6 +1,6 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * Copyright 2025 University of California, Los Angeles
+ * Copyright 2024 University of California, Los Angeles
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -18,54 +18,33 @@
  * Author: Sirapop Theeranantachai (stheera@g.ucla.edu)
  */
 
-#ifndef LS_ACK_H
-#define LS_ACK_H
+#ifndef LSA_H
+#define LSA_H
 
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
-#include "ospf-interface.h"
-#include "lsa-header.h"
+#include "ns3/packet.h"
 
 namespace ns3 {
 /**
  * \ingroup ospf
  *
- * \brief LS Acknowledge Object
+ * \brief Generic LSA
  */
 
-class LsAck : public Object
+class Lsa : public Object
 {
 public:
-  /**
-   * \brief Construct a LS Acknowledge Object
-   */
-
-  LsAck ();
-  LsAck (std::vector<LsaHeader> lsaHeaders);
-  LsAck (Ptr<Packet> packet);
-
-  void AddLsaHeader (LsaHeader lsaHeader);
-  void ClearLsaHeaders (void);
-  bool HasLsaHeader (LsaHeader lsaHeader);
-
-  LsaHeader GetLsaHeader (uint32_t index);
-  std::vector<LsaHeader> GetLsaHeaders ();
-  uint32_t GetNLsaHeaders ();
-
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
-  virtual void Print (std::ostream &os) const;
   virtual uint32_t GetSerializedSize (void) const;
   virtual uint32_t Serialize (Buffer::Iterator start) const;
-  virtual Ptr<Packet> ConstructPacket () const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
-private:
-  std::vector<LsaHeader> m_lsaHeaders; //storing neighbor's router ID
 };
 
 } // namespace ns3
 
 
-#endif /* LS_ACK_H */
+#endif /* LSA_H */

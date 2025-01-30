@@ -36,8 +36,8 @@
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
-#include "algorithm"
 #include "ospf-neighbor.h"
+#include "algorithm"
 
 namespace ns3 {
 
@@ -45,7 +45,8 @@ class OspfInterface: public Object
 {
 public:
   OspfInterface();
-  OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t routerDeadInterval, uint32_t area, uint32_t metric);
+  OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval,
+                uint32_t routerDeadInterval, uint32_t area, uint32_t metric, uint32_t mtu);
 
   ~OspfInterface();
 
@@ -60,6 +61,9 @@ public:
 
   uint32_t GetArea();
   void SetArea(uint32_t area);
+
+  uint32_t GetMtu();
+  void SetMtu(uint32_t mtu);
 
   uint16_t GetHelloInterval();
   void SetHelloInterval(uint16_t helloInterval);
@@ -94,6 +98,7 @@ public:
     uint32_t m_routerDeadInterval;
     uint32_t m_area;
     uint32_t m_metric;
+    uint32_t m_mtu;
     std::vector<Ptr<OspfNeighbor> > m_neighbors;
 };
 }

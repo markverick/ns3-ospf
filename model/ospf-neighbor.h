@@ -36,6 +36,11 @@
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
+#include "lsa.h"
+#include "lsa-header.h"
+#include "ospf-dbd.h"
+#include "ls-request.h"
+#include "queue"
 #include "algorithm"
 
 namespace ns3 {
@@ -85,6 +90,49 @@ public:
 
   void RefreshLastHelloReceived ();
 
+  std::string GetNeighborString();
+
+  // Database Descriptions
+  uint32_t GetDDSeqNum();
+  void SetDDSeqNum(uint32_t ddSeqNum);
+
+  Ptr<OspfDbd> GetLastDbdSent();
+  void SetLastDbdSent(Ptr<OspfDbd> dbd);
+
+  // DB Description queue
+  void IncrementDDSeqNum();
+  void ClearDbdQueue();
+  void AddDbdQueue(LsaHeader lsaHeader);
+  LsaHeader PopDbdQueue();
+  std::vector<LsaHeader> PopMaxMtuFromDbdQueue(uint32_t mtu);
+  bool IsDbdQueueEmpty();
+
+  // LS Request Queue
+  Ptr<LsRequest> GetLastLsrSent();
+  void SetLastLsrSent(Ptr<LsRequest> lsr);
+
+  void InsertLsaKey(LsaHeader lsaHeader);
+  void InsertLsaKey(LsaHeader::LsaKey lsaKey, uint32_t seqNum);
+  uint32_t GetLsaKeySeqNum(LsaHeader::LsaKey lsaKey);
+  void ClearLsaKey();
+  bool IsLsaKeyOutdated(LsaHeader lsaHeader);
+  bool IsLsaKeyOutdated(LsaHeader::LsaKey lsaKey, uint32_t seqNum);
+  std::vector<LsaHeader::LsaKey> GetOutdatedLsaKeys(std::vector<LsaHeader> localLsaHeaders);
+  void AddOutdatedLsaKeysToQueue(std::vector<LsaHeader> localLsaHeaders);
+  uint32_t GetLsrQueueSize();
+  bool IsLsrQueueEmpty();
+  std::vector<LsaHeader::LsaKey> PopMaxMtuFromLsrQueue(uint32_t mtu);
+
+  // LS Update Acks
+  // Lsa-key specific timeout
+  void BindLsuTimeout(LsaHeader::LsaKey lsaKey, EventId event);
+  EventId GetLsuTimeout(LsaHeader::LsaKey lsaKey);
+  bool RemoveLsuTimeout(LsaHeader::LsaKey lsaKey);
+  void ClearLsuTimeouts();
+
+  // Neighbor-specific timeout
+  void RemoveTimeout();
+  void BindTimeout(EventId event);
 
 
 
@@ -92,7 +140,22 @@ public:
   Ipv4Address m_ipAddress;
   uint32_t m_area;
   NeighborState m_state;
+
+  // Database Descriptions
+  uint32_t m_ddSeqNum;
+  std::queue<LsaHeader> m_dbdQueue;
+  std::queue<LsaHeader::LsaKey> m_lsrQueue;
+  Ptr<OspfDbd> m_lastDbdSent;
+  std::map<LsaHeader::LsaKey, uint32_t> m_lsaSeqNums; // Neighbor's headers
+  EventId m_event;
   Time m_lastHelloReceived;
+
+  // LS Request
+  Ptr<LsRequest> m_lastLsrSent;
+
+  // LS Update
+  // Pending ack, value is <LsaHeader, LSA>
+  std::map<LsaHeader::LsaKey, EventId> m_lsuTimeouts; // timeout events for LS Update
 };
 
 } // namespace ns3

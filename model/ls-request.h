@@ -18,40 +18,41 @@
  * Author: Sirapop Theeranantachai (stheera@g.ucla.edu)
  */
 
-#ifndef LS_ACK_H
-#define LS_ACK_H
+#ifndef LS_REQUEST_H
+#define LS_REQUEST_H
 
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
-#include "ospf-interface.h"
 #include "lsa-header.h"
 
 namespace ns3 {
 /**
  * \ingroup ospf
  *
- * \brief LS Acknowledge Object
+ * \brief LS Request Object
  */
 
-class LsAck : public Object
+class LsRequest : public Object
 {
 public:
   /**
-   * \brief Construct a LS Acknowledge Object
+   * \brief Construct a LS Request Object
    */
 
-  LsAck ();
-  LsAck (std::vector<LsaHeader> lsaHeaders);
-  LsAck (Ptr<Packet> packet);
+  LsRequest ();
+  LsRequest (std::vector<LsaHeader::LsaKey> lsaKeys);
+  LsRequest (Ptr<Packet> packet);
 
-  void AddLsaHeader (LsaHeader lsaHeader);
-  void ClearLsaHeaders (void);
-  bool HasLsaHeader (LsaHeader lsaHeader);
+  void AddLsaKey (LsaHeader::LsaKey lsaKey);
+  bool RemoveLsaKey (LsaHeader::LsaKey lsaKey);
+  bool IsLsaKeyEmpty ();
+  void ClearLsaKeys (void);
+  bool HasLsaKey (LsaHeader::LsaKey lsaKey);
 
-  LsaHeader GetLsaHeader (uint32_t index);
-  std::vector<LsaHeader> GetLsaHeaders ();
-  uint32_t GetNLsaHeaders ();
+  LsaHeader::LsaKey GetLsaKey (uint32_t index);
+  std::vector<LsaHeader::LsaKey> GetLsaKeys ();
+  uint32_t GetNLsaKeys ();
 
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
@@ -62,10 +63,10 @@ public:
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
 private:
-  std::vector<LsaHeader> m_lsaHeaders; //storing neighbor's router ID
+  std::vector<LsaHeader::LsaKey> m_lsaKeys; // storing LSA keys to request
 };
 
 } // namespace ns3
 
 
-#endif /* LS_ACK_H */
+#endif /* LS_REQUEST_H */

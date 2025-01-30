@@ -35,7 +35,6 @@
 #include "ns3/header.h"
 
 #include "ospf-interface.h"
-#include "ospf-neighbor.h"
 
 namespace ns3 {
 
@@ -54,13 +53,14 @@ OspfInterface::~OspfInterface()
 }
 
 OspfInterface::OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t routerDeadInterval,
-                             uint32_t area, uint32_t metric)
+                             uint32_t area, uint32_t metric, uint32_t mtu)
   : m_ipAddress(ipAddress),
     m_ipMask(ipMask),
     m_helloInterval(helloInterval),
     m_routerDeadInterval(routerDeadInterval),
     m_area(area),
-    m_metric(metric)
+    m_metric(metric),
+    m_mtu(mtu)
 {
 }
 
@@ -104,6 +104,16 @@ OspfInterface::SetArea(uint32_t area) {
   m_area = area;
 }
 
+uint32_t
+OspfInterface::GetMtu() {
+  return m_mtu;
+}
+
+void
+OspfInterface::SetMtu(uint32_t mtu) {
+  m_mtu = mtu;
+}
+
 uint16_t
 OspfInterface::GetHelloInterval() {
   return m_helloInterval;
@@ -134,7 +144,7 @@ OspfInterface::GetNeighbor(Ipv4Address routerId, Ipv4Address remoteIp) {
   return nullptr;
 }
 std::vector<Ptr<OspfNeighbor> >
-OspfInterface:: GetNeighbors() {
+OspfInterface::GetNeighbors() {
   return m_neighbors;
 }
 
@@ -202,7 +212,7 @@ OspfInterface::GetActiveNeighborLinks() {
   for (auto n : neighbors) {
     // Only aggregate neighbors that is at least in ExStart
     // NS_LOG_INFO("  (" << n->GetRouterId().Get() << ", " << m_ipAddress.Get() << ")");
-    if (n->GetState() >= OspfNeighbor::ExStart) {
+    if (n->GetState() == OspfNeighbor::Full) {
       links.emplace_back(n->GetRouterId().Get(), m_ipAddress.Get());
     }
   }

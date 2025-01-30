@@ -84,7 +84,7 @@ main(int argc, char* argv[])
     cmd.Parse(argc, argv);
 
     // Create results folder
-    std::filesystem::path dirName = "results/ospf-four-nodes";
+    std::filesystem::path dirName = "results/ospf-new-link";
   
     try {
         std::filesystem::create_directories(dirName);
@@ -97,9 +97,9 @@ main(int argc, char* argv[])
     NS_LOG_INFO("Create nodes.");
     NodeContainer c;
     c.Create(4);
-    NodeContainer n0n2 = NodeContainer(c.Get(0), c.Get(2));
+    NodeContainer n0n1 = NodeContainer(c.Get(0), c.Get(1));
     NodeContainer n1n2 = NodeContainer(c.Get(1), c.Get(2));
-    NodeContainer n3n2 = NodeContainer(c.Get(3), c.Get(2));
+    NodeContainer n2n3 = NodeContainer(c.Get(2), c.Get(3));
 
     InternetStackHelper internet;
     internet.Install(c);
@@ -110,25 +110,26 @@ main(int argc, char* argv[])
     p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
     p2p.SetChannelAttribute("Delay", StringValue("2ms"));
     
-    NetDeviceContainer d0d2 = p2p.Install(n0n2);
-
-
+    NetDeviceContainer d0d1 = p2p.Install(n0n1);
     NetDeviceContainer d1d2 = p2p.Install(n1n2);
-
-    p2p.SetDeviceAttribute("DataRate", StringValue("1500kbps"));
-    p2p.SetChannelAttribute("Delay", StringValue("10ms"));
-    NetDeviceContainer d3d2 = p2p.Install(n3n2);
+    NetDeviceContainer d2d3 = p2p.Install(n2n3);
 
     // Later, we add IP addresses.
 
 
     NS_LOG_INFO("Assign IP Addresses.");
     Ipv4AddressHelper ipv4("10.1.1.0", "255.255.255.252");
-    ipv4.Assign(d0d2);
+    ipv4.Assign(d0d1);
     ipv4.NewNetwork();
     ipv4.Assign(d1d2);
     ipv4.NewNetwork();
-    ipv4.Assign(d3d2);
+    ipv4.Assign(d2d3);
+
+    // Fake new link (for now)
+    Simulator::Schedule(Seconds(0.5), &SetLinkDown, d2d3.Get(0));
+    Simulator::Schedule(Seconds(0.5), &SetLinkDown, d2d3.Get(1));
+    Simulator::Schedule(Seconds(50), &SetLinkUp, d2d3.Get(0));
+    Simulator::Schedule(Seconds(50), &SetLinkUp, d2d3.Get(1));
 
     // Create router nodes, initialize routing database and set up the routing
     // tables in the nodes.
@@ -171,9 +172,15 @@ main(int argc, char* argv[])
     // apps.Stop (Seconds (SIM_SECONDS));
 
     // Print LSDB
-    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(3)->GetApplication(0));
+    Ptr<OspfApp> app3  = DynamicCast<OspfApp>(c.Get(3)->GetApplication(0));
     // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
-    Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName, "route.routes");
+    Simulator::Schedule(Seconds(80), &OspfApp::PrintRouting, app3, dirName, "n3t80.routes");
+    Simulator::Schedule(Seconds(45), &OspfApp::PrintRouting, app3, dirName, "n3t45.routes");
+
+    Ptr<OspfApp> app0  = DynamicCast<OspfApp>(c.Get(0)->GetApplication(0));
+    // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+    Simulator::Schedule(Seconds(80), &OspfApp::PrintRouting, app0, dirName, "n0t80.routes");
+    Simulator::Schedule(Seconds(45), &OspfApp::PrintRouting, app0, dirName, "n0t45.routes");
     for (int i = 0; i < 4; i++) {
         Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(i)->GetApplication(0));
         Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);

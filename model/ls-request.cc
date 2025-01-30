@@ -23,97 +23,113 @@
 #include "ns3/log.h"
 #include "ns3/header.h"
 #include "ns3/packet.h"
-#include "ls-ack.h"
+#include "ls-request.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("LsAck");
+NS_LOG_COMPONENT_DEFINE ("LsRequest");
 
-NS_OBJECT_ENSURE_REGISTERED (LsAck);
+NS_OBJECT_ENSURE_REGISTERED (LsRequest);
 
-LsAck::LsAck ()
+LsRequest::LsRequest ()
 {
 }
 
-LsAck::LsAck (std::vector<LsaHeader> lsaHeaders)
+LsRequest::LsRequest (std::vector<LsaHeader::LsaKey> lsaKeys)
 {
-  m_lsaHeaders.clear();
-  for (auto l : lsaHeaders) {
-    m_lsaHeaders.emplace_back(l);
+  m_lsaKeys.clear();
+  for (auto l : lsaKeys) {
+    m_lsaKeys.emplace_back(l);
   }
 }
 
-LsAck::LsAck (Ptr<Packet> packet)
+LsRequest::LsRequest (Ptr<Packet> packet)
 {
   Deserialize(packet);
 }
 
 void
-LsAck::AddLsaHeader (LsaHeader lsaHeader) {
-  m_lsaHeaders.emplace_back(lsaHeader);
+LsRequest::AddLsaKey (LsaHeader::LsaKey lsaKey) {
+  m_lsaKeys.emplace_back(lsaKey);
 }
 
 void
-LsAck::ClearLsaHeaders () {
-  m_lsaHeaders.clear();
+LsRequest::ClearLsaKeys () {
+  m_lsaKeys.clear();
 }
 
 bool
-LsAck::HasLsaHeader (LsaHeader lsaHeader) {
-  for(auto l : m_lsaHeaders) {
-    if (l.GetKey() == lsaHeader.GetKey()) {
+LsRequest::HasLsaKey (LsaHeader::LsaKey lsaKey) {
+  for(auto l : m_lsaKeys) {
+    if (l == lsaKey) {
       return true;
     }
   }
   return false;
 }
 
-LsaHeader
-LsAck::GetLsaHeader (uint32_t index) {
-  NS_ASSERT(index < m_lsaHeaders.size());
-  return m_lsaHeaders[index];
+bool
+LsRequest::RemoveLsaKey (LsaHeader::LsaKey lsaKey) {
+  for (auto it = m_lsaKeys.begin(); it != m_lsaKeys.end(); it++) {
+    if (*it == lsaKey) {
+        m_lsaKeys.erase(it);
+        return true;
+    }
+  }
+  return false;
 }
 
-std::vector<LsaHeader>
-LsAck::GetLsaHeaders () {
-  return m_lsaHeaders;
+bool
+LsRequest::IsLsaKeyEmpty () {
+  return m_lsaKeys.empty();
+}
+
+LsaHeader::LsaKey
+LsRequest::GetLsaKey (uint32_t index) {
+  NS_ASSERT(index < m_lsaKeys.size());
+  return m_lsaKeys[index];
+}
+
+std::vector<LsaHeader::LsaKey>
+LsRequest::GetLsaKeys () {
+  return m_lsaKeys;
 }
 
 uint32_t
-LsAck::GetNLsaHeaders () {
-  return m_lsaHeaders.size();
+LsRequest::GetNLsaKeys () {
+  return m_lsaKeys.size();
 }
 
 TypeId 
-LsAck::GetTypeId (void)
+LsRequest::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::LsAck")
+  static TypeId tid = TypeId ("ns3::LsRequest")
     .SetGroupName ("Ospf")
-    .AddConstructor<LsAck> ()
+    .AddConstructor<LsRequest> ()
   ;
   return tid;
 }
 TypeId 
-LsAck::GetInstanceTypeId (void) const
+LsRequest::GetInstanceTypeId (void) const
 {
   NS_LOG_FUNCTION (this);
   return GetTypeId ();
 }
 void 
-LsAck::Print (std::ostream &os) const
+LsRequest::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
-  os << "# LSAs: " << m_lsaHeaders.size() << " ";
+  os << "# LSAs: " << m_lsaKeys.size() << " ";
   os << std::endl;
 }
 uint32_t 
-LsAck::GetSerializedSize (void) const
+LsRequest::GetSerializedSize (void) const
 {
-	return m_lsaHeaders.size() * 20;
+	return m_lsaKeys.size() * 12;
 }
 
 Ptr<Packet>
-LsAck::ConstructPacket () const
+LsRequest::ConstructPacket () const
 {
   NS_LOG_FUNCTION (this);
 
@@ -126,34 +142,38 @@ LsAck::ConstructPacket () const
 }
 
 uint32_t
-LsAck::Serialize (Buffer::Iterator start) const
+LsRequest::Serialize (Buffer::Iterator start) const
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  for (auto lsaHeader : m_lsaHeaders) {
-    lsaHeader.Serialize(i);
-    i.Next(lsaHeader.GetSerializedSize());
+  for (auto lsaKey : m_lsaKeys) {
+    auto [type, lsId, advertisingRouter] = lsaKey;
+    i.WriteHtonU32(type);
+    i.WriteHtonU32(lsId);
+    i.WriteHtonU32(advertisingRouter);
   }
   return GetSerializedSize();
 }
 
 uint32_t
-LsAck::Deserialize (Buffer::Iterator start)
+LsRequest::Deserialize (Buffer::Iterator start)
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
+  uint32_t type, lsId, advertisingRouter;
   while (!i.IsEnd()) {
-    LsaHeader lsaHeader;
-    i.Next(lsaHeader.Deserialize(i));
-    m_lsaHeaders.emplace_back(lsaHeader);
+    type = i.ReadNtohU32();
+    lsId = i.ReadNtohU32();
+    advertisingRouter = i.ReadNtohU32();
+    m_lsaKeys.emplace_back(type, lsId, advertisingRouter);
   }
   return GetSerializedSize ();
 }
 
 uint32_t
-LsAck::Deserialize (Ptr<Packet> packet)
+LsRequest::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize();

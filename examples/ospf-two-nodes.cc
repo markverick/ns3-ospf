@@ -52,7 +52,7 @@ NS_LOG_COMPONENT_DEFINE("OspfTwoNode");
 
 Ipv4Address ospfHelloAddress("224.0.0.5");
 
-const uint32_t SIM_SECONDS = 100;
+const uint32_t SIM_SECONDS = 30;
 
 int
 main(int argc, char* argv[])
