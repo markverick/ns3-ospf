@@ -37,6 +37,7 @@ NS_LOG="OspfInterface:OspfNeighbor" ./waf --run=ospf-metric --gdb
 # Planned
 - Area routing
 - Automatic registration of new net devices
+- Writing tests for corner cases
 
 # Not yet planned
 3. Broadcast networks (Network-LSA)
