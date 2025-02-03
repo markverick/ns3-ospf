@@ -35,8 +35,8 @@ namespace ns3 {
 class RouterLink
 {
 public:
-  RouterLink();
-  RouterLink(uint32_t linkId, uint32_t linkData, uint8_t type, uint16_t metric);
+  RouterLink ();
+  RouterLink (uint32_t linkId, uint32_t linkData, uint8_t type, uint16_t metric);
   uint32_t m_linkId;
   /*
       Type   Link ID
@@ -61,21 +61,19 @@ public:
   RouterLsa (bool bitV, bool bitE, bool bitB);
   RouterLsa (Ptr<Packet> packet);
 
-
   void SetBitV (bool size);
-  bool GetBitV(void) const;
+  bool GetBitV (void) const;
 
   void SetBitE (bool size);
-  bool GetBitE(void) const;
+  bool GetBitE (void) const;
 
   void SetBitB (bool size);
-  bool GetBitB(void) const;
+  bool GetBitB (void) const;
 
   void AddLink (RouterLink routerLink);
   RouterLink GetLink (uint32_t index);
   uint16_t GetNLink ();
   void ClearLinks ();
-
 
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
@@ -85,8 +83,8 @@ public:
   virtual Ptr<Packet> ConstructPacket () const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
-private:
 
+private:
   bool m_bitV;
   bool m_bitE;
   bool m_bitB;
@@ -94,6 +92,5 @@ private:
 };
 
 } // namespace ns3
-
 
 #endif /* ROUTER_LSA_H */

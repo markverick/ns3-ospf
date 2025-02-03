@@ -41,32 +41,31 @@ public:
    */
 
   OspfHello ();
-  OspfHello (uint32_t mask, uint16_t helloInterval,
-         uint32_t routerDeadInterval);
-  OspfHello (uint32_t mask, uint16_t helloInterval,
-         uint32_t routerDeadInterval, std::vector<uint32_t> neighbors);
+  OspfHello (uint32_t mask, uint16_t helloInterval, uint32_t routerDeadInterval);
+  OspfHello (uint32_t mask, uint16_t helloInterval, uint32_t routerDeadInterval,
+             std::vector<uint32_t> neighbors);
   OspfHello (Ptr<Packet> packet);
 
   void SetMask (uint32_t mask);
-  uint32_t GetMask(void) const;
+  uint32_t GetMask (void) const;
 
   void SetHelloInterval (uint16_t helloInterval);
-  uint16_t GetHelloInterval(void) const;
+  uint16_t GetHelloInterval (void) const;
 
   void SetOptions (uint8_t options);
-  uint8_t GetOptions(void) const;
+  uint8_t GetOptions (void) const;
 
   void SetRouterPriority (uint8_t routerPriority);
-  uint8_t GetRouterPriority(void) const;
-  
+  uint8_t GetRouterPriority (void) const;
+
   void SetRouterDeadInterval (uint32_t routerDeadInterval);
-  uint32_t GetRouterDeadInterval(void) const;
+  uint32_t GetRouterDeadInterval (void) const;
 
   void SetDesignatedRouter (uint32_t designatedRouter);
-  uint32_t GetDesignatedRouter(void) const;
+  uint32_t GetDesignatedRouter (void) const;
 
   void SetBackupDesignatedRouter (uint32_t backupDesignatedRouter);
-  uint32_t GetBackupDesignatedRouter(void) const;
+  uint32_t GetBackupDesignatedRouter (void) const;
 
   void AddNeighbor (uint32_t neighborRouterId);
   void ClearNeighbor (void);
@@ -84,8 +83,8 @@ public:
   virtual Ptr<Packet> ConstructPacket () const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
-private:
 
+private:
   uint32_t m_mask;
   uint16_t m_helloInterval;
   uint8_t m_options;
@@ -97,6 +96,5 @@ private:
 };
 
 } // namespace ns3
-
 
 #endif /* OSPF_HELLO_H */

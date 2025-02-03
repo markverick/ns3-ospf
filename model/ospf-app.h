@@ -56,7 +56,7 @@ class Packet;
  *
  * Every packet received is sent back.
  */
-class OspfApp : public Application 
+class OspfApp : public Application
 {
 public:
   /**
@@ -67,7 +67,7 @@ public:
   OspfApp ();
 
   // Accessor for Static Routing
-  void SetRouting(Ptr<Ipv4StaticRouting>);
+  void SetRouting (Ptr<Ipv4StaticRouting>);
 
   // Set net device to be bound for multicast address
   void SetBoundNetDevices (NetDeviceContainer devs);
@@ -79,23 +79,23 @@ public:
   void SetMetrices (std::vector<uint32_t> metrices);
 
   // Add neighbor to an existing interface (for multiaccess networks)
-  void AddInterfaceNeighbor(uint32_t ifIndex, Ipv4Address destIp, Ipv4Address nextHopIp);
+  void AddInterfaceNeighbor (uint32_t ifIndex, Ipv4Address destIp, Ipv4Address nextHopIp);
 
   // Set router id
   void SetRouterId (Ipv4Address routerId);
 
   // Print LSDB
-  void PrintLsdb();
+  void PrintLsdb ();
 
   // Print Routing Table
-  void PrintRouting(std::filesystem::path dirName, std::string filename);
+  void PrintRouting (std::filesystem::path dirName, std::string filename);
 
   // Print Interface Areas
-  void PrintAreas();
+  void PrintAreas ();
 
   // Get LSDB hash (Lazy)
-  uint32_t GetLsdbHash();
-  void PrintLsdbHash();
+  uint32_t GetLsdbHash ();
+  void PrintLsdbHash ();
 
   virtual ~OspfApp ();
 
@@ -103,7 +103,6 @@ protected:
   virtual void DoDispose (void);
 
 private:
-
   virtual void StartApplication (void);
   virtual void StopApplication (void);
 
@@ -113,14 +112,17 @@ private:
   void SendHello ();
   void SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteIp);
   void SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor);
-  void SendToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor);
-  void SendLsuToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor, LsaHeader::LsaKey lsaKey);
+  void SendToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet,
+                               Ptr<OspfNeighbor> neighbor);
+  void SendLsuToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet,
+                                  Ptr<OspfNeighbor> neighbor, LsaHeader::LsaKey lsaKey);
   void FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu);
 
   // Timeouts
-  void LsuTimeout(uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
-                      std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress);
-  void HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  void LsuTimeout (uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
+                   std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress);
+  void HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId,
+                     Ipv4Address remoteIp);
 
   // Packet Handlers
   /**
@@ -132,7 +134,8 @@ private:
    */
   void HandleRead (Ptr<Socket> socket);
 
-  void HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<OspfHello> hello);
+  void HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                    Ptr<OspfHello> hello);
 
   void HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<OspfDbd> dbd);
   void HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd);
@@ -143,26 +146,28 @@ private:
 
   void HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsUpdate> lsu);
 
-  void HandleRouterLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
+  void HandleRouterLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                        LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
 
   void HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsAck> lsAck);
 
   // LSA
-  Ptr<RouterLsa> GetRouterLsa(); // Generate local Router-LSA based on adjacencies
-  Ptr<RouterLsa> GetRouterLsa(uint32_t areaId);
-  void RecomputeRouterLsa(); // Recompute local Router-LSA and inject to LSDB
+  Ptr<RouterLsa> GetRouterLsa (); // Generate local Router-LSA based on adjacencies
+  Ptr<RouterLsa> GetRouterLsa (uint32_t areaId);
+  void RecomputeRouterLsa (); // Recompute local Router-LSA and inject to LSDB
 
   void UpdateRouting (); // Update routing table based on LSDB
 
   // Hello
-  void RefreshHelloTimeout(uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  void RefreshHelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
+                            Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   // ExStart
-  void NegotiateDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, bool bitMS);
+  void NegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, bool bitMS);
 
   // Exchange
-  void SendMasterDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
-  void PollMasterDbd(uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  void SendMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  void PollMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
   // Loading
   void AdvanceToLoading (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
@@ -183,11 +188,11 @@ private:
   // Attributes
   Ipv4Address m_routerId; // eth0
   NetDeviceContainer m_boundDevices;
-  uint32_t m_areaId; // Only used for default value and for alt area and 
+  uint32_t m_areaId; // Only used for default value and for alt area and
 
   // Randomization
-  Ptr<UniformRandomVariable> m_randomVariable = CreateObject<UniformRandomVariable>();
-  Ptr<UniformRandomVariable> m_randomVariableSeq = CreateObject<UniformRandomVariable>();
+  Ptr<UniformRandomVariable> m_randomVariable = CreateObject<UniformRandomVariable> ();
+  Ptr<UniformRandomVariable> m_randomVariableSeq = CreateObject<UniformRandomVariable> ();
 
   // Hello
   Time m_helloInterval; //!< Hello Interval
@@ -198,8 +203,8 @@ private:
   EventId m_helloEvent; //!< Event to send the next hello packet
 
   // Interface
-  std::vector<Ptr<OspfInterface> > m_ospfInterfaces; // router interfaces
-  
+  std::vector<Ptr<OspfInterface>> m_ospfInterfaces; // router interfaces
+
   // Routing
   Ptr<Ipv4StaticRouting> m_routing; // routing table
 
@@ -207,23 +212,22 @@ private:
   Time m_rxmtInterval; // retransmission timer
   Ipv4Address m_lsaAddress; //!< multicast address for LSA
   std::map<LsaHeader::LsaKey, uint16_t> m_seqNumbers; // sequence number of stored LSA
-  std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa> > > m_routerLsdb; // LSDB for each remote router ID
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>
+      m_routerLsdb; // LSDB for each remote router ID
 
   /// Callbacks for tracing the packet Tx events
-  TracedCallback<Ptr<const Packet> > m_txTrace;
+  TracedCallback<Ptr<const Packet>> m_txTrace;
 
   /// Callbacks for tracing the packet Rx events
-  TracedCallback<Ptr<const Packet> > m_rxTrace;
+  TracedCallback<Ptr<const Packet>> m_rxTrace;
 
   /// Callbacks for tracing the packet Tx events, includes source and destination addresses
   TracedCallback<Ptr<const Packet>, const Address &, const Address &> m_txTraceWithAddresses;
 
   /// Callbacks for tracing the packet Rx events, includes source and destination addresses
   TracedCallback<Ptr<const Packet>, const Address &, const Address &> m_rxTraceWithAddresses;
-
 };
 
 } // namespace ns3
 
 #endif /* OSPF_APP_H */
-

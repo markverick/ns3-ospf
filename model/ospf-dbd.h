@@ -40,31 +40,32 @@ public:
    * \brief Construct a router LSA
    */
   OspfDbd ();
-  OspfDbd (uint16_t mtu, uint8_t options, uint8_t flags, bool bitI, bool bitM, bool bitMS, uint32_t ddSeqNum);
+  OspfDbd (uint16_t mtu, uint8_t options, uint8_t flags, bool bitI, bool bitM, bool bitMS,
+           uint32_t ddSeqNum);
   OspfDbd (Ptr<Packet> packet);
 
   void SetMtu (uint16_t mtu);
-  uint16_t GetMtu() const;
+  uint16_t GetMtu () const;
 
   void SetOptions (uint8_t options);
-  uint8_t GetOptions() const;
+  uint8_t GetOptions () const;
 
   bool IsNegotiate () const;
 
   void SetBitI (bool bitI);
-  bool GetBitI() const;
+  bool GetBitI () const;
 
   void SetBitM (bool bitM);
-  bool GetBitM() const;
+  bool GetBitM () const;
 
   void SetBitMS (bool bitMS);
-  bool GetBitMS() const;
+  bool GetBitMS () const;
 
-  void SetFlags(uint8_t field);
-  uint8_t GetFlags() const;
+  void SetFlags (uint8_t field);
+  uint8_t GetFlags () const;
 
   void SetDDSeqNum (uint32_t ddSeqNum);
-  uint32_t GetDDSeqNum(void) const;
+  uint32_t GetDDSeqNum (void) const;
 
   void AddLsaHeader (LsaHeader lsaHeader);
   void ClearLsaHeader (void);
@@ -75,7 +76,6 @@ public:
   std::vector<LsaHeader> GetLsaHeaders ();
   uint32_t GetNLsaHeaders ();
 
-
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
   virtual void Print (std::ostream &os) const;
@@ -84,8 +84,8 @@ public:
   virtual Ptr<Packet> ConstructPacket () const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
-private:
 
+private:
   uint16_t m_mtu;
   uint8_t m_options;
   uint8_t m_flags;
@@ -97,6 +97,5 @@ private:
 };
 
 } // namespace ns3
-
 
 #endif /* OSPF_DBD_H */

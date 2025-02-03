@@ -37,79 +37,85 @@ LsAck::LsAck ()
 
 LsAck::LsAck (std::vector<LsaHeader> lsaHeaders)
 {
-  m_lsaHeaders.clear();
-  for (auto l : lsaHeaders) {
-    m_lsaHeaders.emplace_back(l);
-  }
+  m_lsaHeaders.clear ();
+  for (auto l : lsaHeaders)
+    {
+      m_lsaHeaders.emplace_back (l);
+    }
 }
 
 LsAck::LsAck (Ptr<Packet> packet)
 {
-  Deserialize(packet);
+  Deserialize (packet);
 }
 
 void
-LsAck::AddLsaHeader (LsaHeader lsaHeader) {
-  m_lsaHeaders.emplace_back(lsaHeader);
+LsAck::AddLsaHeader (LsaHeader lsaHeader)
+{
+  m_lsaHeaders.emplace_back (lsaHeader);
 }
 
 void
-LsAck::ClearLsaHeaders () {
-  m_lsaHeaders.clear();
+LsAck::ClearLsaHeaders ()
+{
+  m_lsaHeaders.clear ();
 }
 
 bool
-LsAck::HasLsaHeader (LsaHeader lsaHeader) {
-  for(auto l : m_lsaHeaders) {
-    if (l.GetKey() == lsaHeader.GetKey()) {
-      return true;
+LsAck::HasLsaHeader (LsaHeader lsaHeader)
+{
+  for (auto l : m_lsaHeaders)
+    {
+      if (l.GetKey () == lsaHeader.GetKey ())
+        {
+          return true;
+        }
     }
-  }
   return false;
 }
 
 LsaHeader
-LsAck::GetLsaHeader (uint32_t index) {
-  NS_ASSERT(index < m_lsaHeaders.size());
+LsAck::GetLsaHeader (uint32_t index)
+{
+  NS_ASSERT (index < m_lsaHeaders.size ());
   return m_lsaHeaders[index];
 }
 
 std::vector<LsaHeader>
-LsAck::GetLsaHeaders () {
+LsAck::GetLsaHeaders ()
+{
   return m_lsaHeaders;
 }
 
 uint32_t
-LsAck::GetNLsaHeaders () {
-  return m_lsaHeaders.size();
+LsAck::GetNLsaHeaders ()
+{
+  return m_lsaHeaders.size ();
 }
 
-TypeId 
+TypeId
 LsAck::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::LsAck")
-    .SetGroupName ("Ospf")
-    .AddConstructor<LsAck> ()
-  ;
+  static TypeId tid = TypeId ("ns3::LsAck").SetGroupName ("Ospf").AddConstructor<LsAck> ();
   return tid;
 }
-TypeId 
+TypeId
 LsAck::GetInstanceTypeId (void) const
 {
   NS_LOG_FUNCTION (this);
   return GetTypeId ();
 }
-void 
+void
 LsAck::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
-  os << "# LSAs: " << m_lsaHeaders.size() << " ";
+  os << "# LSAs: " << m_lsaHeaders.size () << " ";
   os << std::endl;
 }
-uint32_t 
+uint32_t
 LsAck::GetSerializedSize (void) const
 {
-	return m_lsaHeaders.size() * 20;
+  return m_lsaHeaders.size () * 20;
 }
 
 Ptr<Packet>
@@ -118,10 +124,10 @@ LsAck::ConstructPacket () const
   NS_LOG_FUNCTION (this);
 
   Buffer buffer;
-  buffer.AddAtStart(GetSerializedSize());
-  Serialize(buffer.Begin());
-  
-  Ptr<Packet> packet = Create<Packet>(buffer.PeekData(), GetSerializedSize());
+  buffer.AddAtStart (GetSerializedSize ());
+  Serialize (buffer.Begin ());
+
+  Ptr<Packet> packet = Create<Packet> (buffer.PeekData (), GetSerializedSize ());
   return packet;
 }
 
@@ -131,11 +137,12 @@ LsAck::Serialize (Buffer::Iterator start) const
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  for (auto lsaHeader : m_lsaHeaders) {
-    lsaHeader.Serialize(i);
-    i.Next(lsaHeader.GetSerializedSize());
-  }
-  return GetSerializedSize();
+  for (auto lsaHeader : m_lsaHeaders)
+    {
+      lsaHeader.Serialize (i);
+      i.Next (lsaHeader.GetSerializedSize ());
+    }
+  return GetSerializedSize ();
 }
 
 uint32_t
@@ -144,11 +151,12 @@ LsAck::Deserialize (Buffer::Iterator start)
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  while (!i.IsEnd()) {
-    LsaHeader lsaHeader;
-    i.Next(lsaHeader.Deserialize(i));
-    m_lsaHeaders.emplace_back(lsaHeader);
-  }
+  while (!i.IsEnd ())
+    {
+      LsaHeader lsaHeader;
+      i.Next (lsaHeader.Deserialize (i));
+      m_lsaHeaders.emplace_back (lsaHeader);
+    }
   return GetSerializedSize ();
 }
 
@@ -156,13 +164,13 @@ uint32_t
 LsAck::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
-  uint32_t payloadSize = packet->GetSize();
+  uint32_t payloadSize = packet->GetSize ();
   uint8_t *payload = new uint8_t[payloadSize];
-  packet->CopyData(payload, payloadSize);
+  packet->CopyData (payload, payloadSize);
   Buffer buffer;
-  buffer.AddAtStart(payloadSize);
-  buffer.Begin().Write(payload, payloadSize);
-  Deserialize(buffer.Begin());
+  buffer.AddAtStart (payloadSize);
+  buffer.Begin ().Write (payload, payloadSize);
+  Deserialize (buffer.Begin ());
   return payloadSize;
 }
 

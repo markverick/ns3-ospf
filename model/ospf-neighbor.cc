@@ -41,317 +41,380 @@ namespace ns3 {
 NS_LOG_COMPONENT_DEFINE ("OspfNeighbor");
 
 OspfNeighbor::OspfNeighbor (Ipv4Address remoteRouterId, Ipv4Address ipAddress, uint32_t area)
-  : m_routerId(remoteRouterId),
-    m_ipAddress(ipAddress),
-    m_area(area)
+    : m_routerId (remoteRouterId), m_ipAddress (ipAddress), m_area (area)
 {
 }
 
-OspfNeighbor::OspfNeighbor(Ipv4Address remoteRouterId, Ipv4Address ipAddress, uint32_t area, OspfNeighbor::NeighborState state)
-  : m_routerId(remoteRouterId),
-    m_ipAddress(ipAddress),
-    m_area(area),
-    m_state(state)
+OspfNeighbor::OspfNeighbor (Ipv4Address remoteRouterId, Ipv4Address ipAddress, uint32_t area,
+                            OspfNeighbor::NeighborState state)
+    : m_routerId (remoteRouterId), m_ipAddress (ipAddress), m_area (area), m_state (state)
 {
 }
 
 Ipv4Address
-OspfNeighbor::GetRouterId() {
+OspfNeighbor::GetRouterId ()
+{
   return m_routerId;
 }
 
 void
-OspfNeighbor::SetRouterId(Ipv4Address routerId) {
+OspfNeighbor::SetRouterId (Ipv4Address routerId)
+{
   m_routerId = routerId;
 }
 
 void
-OspfNeighbor::SetRouterId(uint32_t routerId) {
-  m_routerId = Ipv4Address(routerId);
+OspfNeighbor::SetRouterId (uint32_t routerId)
+{
+  m_routerId = Ipv4Address (routerId);
 }
 
 Ipv4Address
-OspfNeighbor::GetIpAddress() {
+OspfNeighbor::GetIpAddress ()
+{
   return m_ipAddress;
 }
 
 void
-OspfNeighbor::SetIpAddress(Ipv4Address ipAddress) {
+OspfNeighbor::SetIpAddress (Ipv4Address ipAddress)
+{
   m_ipAddress = ipAddress;
 }
 
 void
-OspfNeighbor::SetIpAddress(uint32_t ipAddress) {
-  m_ipAddress = Ipv4Address(ipAddress);
+OspfNeighbor::SetIpAddress (uint32_t ipAddress)
+{
+  m_ipAddress = Ipv4Address (ipAddress);
 }
 
 uint32_t
-OspfNeighbor::GetArea() {
+OspfNeighbor::GetArea ()
+{
   return m_area;
 }
 
 void
-OspfNeighbor::SetArea(uint32_t area) {
+OspfNeighbor::SetArea (uint32_t area)
+{
   m_area = area;
 }
 
 OspfNeighbor::NeighborState
-OspfNeighbor::GetState() {
+OspfNeighbor::GetState ()
+{
   return m_state;
 }
 
 void
-OspfNeighbor::SetState(OspfNeighbor::NeighborState state) {
+OspfNeighbor::SetState (OspfNeighbor::NeighborState state)
+{
   m_state = state;
 }
 
 uint32_t
-OspfNeighbor::GetDDSeqNum() {
+OspfNeighbor::GetDDSeqNum ()
+{
   return m_ddSeqNum;
 }
 
 void
-OspfNeighbor::SetDDSeqNum(uint32_t ddSeqNum) {
+OspfNeighbor::SetDDSeqNum (uint32_t ddSeqNum)
+{
   m_ddSeqNum = ddSeqNum;
 }
 
 void
-OspfNeighbor::IncrementDDSeqNum() {
+OspfNeighbor::IncrementDDSeqNum ()
+{
   m_ddSeqNum++;
 }
 
 void
-OspfNeighbor::ClearDbdQueue() {
-  while (m_dbdQueue.empty()) {
-    m_dbdQueue.pop();
-  }
+OspfNeighbor::ClearDbdQueue ()
+{
+  while (m_dbdQueue.empty ())
+    {
+      m_dbdQueue.pop ();
+    }
 }
 
 void
-OspfNeighbor::AddDbdQueue(LsaHeader routerLsa) {
-  m_dbdQueue.emplace(routerLsa);
+OspfNeighbor::AddDbdQueue (LsaHeader routerLsa)
+{
+  m_dbdQueue.emplace (routerLsa);
 }
 
 LsaHeader
-OspfNeighbor::PopDbdQueue() {
-  LsaHeader lsa = m_dbdQueue.front();
-  m_dbdQueue.pop();
+OspfNeighbor::PopDbdQueue ()
+{
+  LsaHeader lsa = m_dbdQueue.front ();
+  m_dbdQueue.pop ();
   return lsa;
 }
 
 bool
-OspfNeighbor::IsDbdQueueEmpty() {
-  return m_dbdQueue.empty();
+OspfNeighbor::IsDbdQueueEmpty ()
+{
+  return m_dbdQueue.empty ();
 }
 
 std::vector<LsaHeader>
-OspfNeighbor::PopMaxMtuFromDbdQueue(uint32_t mtu) {
-  mtu =  mtu - 100; // Just in case of encapsulations
+OspfNeighbor::PopMaxMtuFromDbdQueue (uint32_t mtu)
+{
+  mtu = mtu - 100; // Just in case of encapsulations
   std::vector<LsaHeader> lsaHeaderList;
   uint32_t currentBytes = 0;
   LsaHeader header;
   // Keep popping until the queue runs out or reaching the mtu
-  while (!m_dbdQueue.empty()) {
-    header = m_dbdQueue.front();
-    uint32_t lsaSize = header.GetSerializedSize();
-    if (currentBytes + lsaSize > mtu) {
-      break;
+  while (!m_dbdQueue.empty ())
+    {
+      header = m_dbdQueue.front ();
+      uint32_t lsaSize = header.GetSerializedSize ();
+      if (currentBytes + lsaSize > mtu)
+        {
+          break;
+        }
+      lsaHeaderList.emplace_back (header);
+      m_dbdQueue.pop ();
+      currentBytes += lsaSize;
     }
-    lsaHeaderList.emplace_back(header);
-    m_dbdQueue.pop();
-    currentBytes += lsaSize; 
-  }
   return lsaHeaderList;
 }
 
 Ptr<OspfDbd>
-OspfNeighbor::GetLastDbdSent() {
+OspfNeighbor::GetLastDbdSent ()
+{
   return m_lastDbdSent;
 }
 
 void
-OspfNeighbor::SetLastDbdSent(Ptr<OspfDbd> dbd) {
+OspfNeighbor::SetLastDbdSent (Ptr<OspfDbd> dbd)
+{
   m_lastDbdSent = dbd;
 }
 
 Ptr<LsRequest>
-OspfNeighbor::GetLastLsrSent() {
+OspfNeighbor::GetLastLsrSent ()
+{
   return m_lastLsrSent;
 }
 
 void
-OspfNeighbor::SetLastLsrSent(Ptr<LsRequest> lsr) {
+OspfNeighbor::SetLastLsrSent (Ptr<LsRequest> lsr)
+{
   m_lastLsrSent = lsr;
 }
 
 void
-OspfNeighbor::InsertLsaKey(LsaHeader lsaHeader) {
-  std::cout << " !!! " << Ipv4Address(std::get<1>(lsaHeader.GetKey())) << ", "<< Ipv4Address(std::get<2>(lsaHeader.GetKey())) << std::endl;
-  InsertLsaKey(lsaHeader.GetKey(), lsaHeader.GetSeqNum());
+OspfNeighbor::InsertLsaKey (LsaHeader lsaHeader)
+{
+  std::cout << " !!! " << Ipv4Address (std::get<1> (lsaHeader.GetKey ())) << ", "
+            << Ipv4Address (std::get<2> (lsaHeader.GetKey ())) << std::endl;
+  InsertLsaKey (lsaHeader.GetKey (), lsaHeader.GetSeqNum ());
 }
 
 void
-OspfNeighbor::InsertLsaKey(LsaHeader::LsaKey lsaKey, uint32_t seqNum) {
+OspfNeighbor::InsertLsaKey (LsaHeader::LsaKey lsaKey, uint32_t seqNum)
+{
   m_lsaSeqNums[lsaKey] = seqNum;
 }
 uint32_t
-OspfNeighbor::GetLsaKeySeqNum(LsaHeader::LsaKey lsaKey) {
-  if (m_lsaSeqNums.find(lsaKey) == m_lsaSeqNums.end()) {
-    return 0;
-  }
+OspfNeighbor::GetLsaKeySeqNum (LsaHeader::LsaKey lsaKey)
+{
+  if (m_lsaSeqNums.find (lsaKey) == m_lsaSeqNums.end ())
+    {
+      return 0;
+    }
   return m_lsaSeqNums[lsaKey];
 }
 void
-OspfNeighbor::ClearLsaKey() {
-  m_lsaSeqNums.clear();
+OspfNeighbor::ClearLsaKey ()
+{
+  m_lsaSeqNums.clear ();
 }
 bool
-OspfNeighbor::IsLsaKeyOutdated(LsaHeader lsaHeader) {
-  return IsLsaKeyOutdated(lsaHeader.GetKey(), lsaHeader.GetSeqNum());
+OspfNeighbor::IsLsaKeyOutdated (LsaHeader lsaHeader)
+{
+  return IsLsaKeyOutdated (lsaHeader.GetKey (), lsaHeader.GetSeqNum ());
 }
 
 // Check if a single LsaKey is outdated
 bool
-OspfNeighbor::IsLsaKeyOutdated(LsaHeader::LsaKey lsaKey, uint32_t ddSeqNum) {
-  if (m_lsaSeqNums.find(lsaKey) == m_lsaSeqNums.end()) {
-    return false;
-  }
+OspfNeighbor::IsLsaKeyOutdated (LsaHeader::LsaKey lsaKey, uint32_t ddSeqNum)
+{
+  if (m_lsaSeqNums.find (lsaKey) == m_lsaSeqNums.end ())
+    {
+      return false;
+    }
   return ddSeqNum < m_lsaSeqNums[lsaKey];
 }
 
 // Not used for now.
 std::vector<LsaHeader::LsaKey>
-OspfNeighbor::GetOutdatedLsaKeys(std::vector<LsaHeader> localLsaHeaders) {
+OspfNeighbor::GetOutdatedLsaKeys (std::vector<LsaHeader> localLsaHeaders)
+{
   std::vector<LsaHeader::LsaKey> lsaKeys;
   std::map<LsaHeader::LsaKey, uint32_t> localLsaSeqNum;
   // Map the given keys
-  for (auto lsaHeader : localLsaHeaders) {
-    localLsaSeqNum[lsaHeader.GetKey()] = lsaHeader.GetSeqNum();
-  }
-  for (auto& [lsaKey, seqNum] : m_lsaSeqNums) {
-    if (localLsaSeqNum.find(lsaKey) == localLsaSeqNum.end()) {
-      // Get missing keys
-      lsaKeys.emplace_back(lsaKey);
-    } else {
-      // Get outdated keys
-      if (localLsaSeqNum[lsaKey] < seqNum) {
-        lsaKeys.emplace_back(lsaKey);
-      }
+  for (auto lsaHeader : localLsaHeaders)
+    {
+      localLsaSeqNum[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
     }
-  }
-  NS_LOG_INFO("Number of outdated keys: " << lsaKeys.size());
+  for (auto &[lsaKey, seqNum] : m_lsaSeqNums)
+    {
+      if (localLsaSeqNum.find (lsaKey) == localLsaSeqNum.end ())
+        {
+          // Get missing keys
+          lsaKeys.emplace_back (lsaKey);
+        }
+      else
+        {
+          // Get outdated keys
+          if (localLsaSeqNum[lsaKey] < seqNum)
+            {
+              lsaKeys.emplace_back (lsaKey);
+            }
+        }
+    }
+  NS_LOG_INFO ("Number of outdated keys: " << lsaKeys.size ());
   return lsaKeys;
 }
 
 // Check localLsaHeaders to see which one is outdated or missing
-// Then add to LSR queue 
+// Then add to LSR queue
 void
-OspfNeighbor::AddOutdatedLsaKeysToQueue(std::vector<LsaHeader> localLsaHeaders) {
+OspfNeighbor::AddOutdatedLsaKeysToQueue (std::vector<LsaHeader> localLsaHeaders)
+{
   // Reset the queue
-  while (!m_lsrQueue.empty()) {
-    m_lsrQueue.pop();
-  }
+  while (!m_lsrQueue.empty ())
+    {
+      m_lsrQueue.pop ();
+    }
   std::map<LsaHeader::LsaKey, uint32_t> localLsaSeqNum;
   // Map the given keys
-  for (auto lsaHeader : localLsaHeaders) {
-    localLsaSeqNum[lsaHeader.GetKey()] = lsaHeader.GetSeqNum();
-  }
-  for (auto& [lsaKey, seqNum] : m_lsaSeqNums) {
-    if (localLsaSeqNum.find(lsaKey) == localLsaSeqNum.end()) {
-      // Get missing keys
-      m_lsrQueue.emplace(lsaKey);
-    } else {
-      // Get outdated keys
-      if (localLsaSeqNum[lsaKey] < seqNum) {
-        m_lsrQueue.emplace(lsaKey);
-      }
+  for (auto lsaHeader : localLsaHeaders)
+    {
+      localLsaSeqNum[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
     }
-  }
-  NS_LOG_INFO("Number of outdated keys: " << m_lsrQueue.size());
+  for (auto &[lsaKey, seqNum] : m_lsaSeqNums)
+    {
+      if (localLsaSeqNum.find (lsaKey) == localLsaSeqNum.end ())
+        {
+          // Get missing keys
+          m_lsrQueue.emplace (lsaKey);
+        }
+      else
+        {
+          // Get outdated keys
+          if (localLsaSeqNum[lsaKey] < seqNum)
+            {
+              m_lsrQueue.emplace (lsaKey);
+            }
+        }
+    }
+  NS_LOG_INFO ("Number of outdated keys: " << m_lsrQueue.size ());
 }
 uint32_t
-OspfNeighbor::GetLsrQueueSize() {
-  return m_lsrQueue.size();
+OspfNeighbor::GetLsrQueueSize ()
+{
+  return m_lsrQueue.size ();
 }
 bool
-OspfNeighbor::IsLsrQueueEmpty() {
-  return m_lsrQueue.empty();
+OspfNeighbor::IsLsrQueueEmpty ()
+{
+  return m_lsrQueue.empty ();
 }
 
 std::vector<LsaHeader::LsaKey>
-OspfNeighbor::PopMaxMtuFromLsrQueue(uint32_t mtu) {
-  mtu =  mtu - 100; // Just in case of encapsulations
+OspfNeighbor::PopMaxMtuFromLsrQueue (uint32_t mtu)
+{
+  mtu = mtu - 100; // Just in case of encapsulations
   std::vector<LsaHeader::LsaKey> lsaKeyList;
   uint32_t currentBytes = 0;
   LsaHeader::LsaKey key;
   // Keep popping until the queue runs out or reaching the mtu
   uint32_t lsaKeySize = 12;
-  while (!m_lsrQueue.empty()) {
-    if (currentBytes + lsaKeySize > mtu) {
-      break;
+  while (!m_lsrQueue.empty ())
+    {
+      if (currentBytes + lsaKeySize > mtu)
+        {
+          break;
+        }
+      key = m_lsrQueue.front ();
+      lsaKeyList.emplace_back (key);
+      m_lsrQueue.pop ();
+      currentBytes += lsaKeySize;
     }
-    key = m_lsrQueue.front();
-    lsaKeyList.emplace_back(key);
-    m_lsrQueue.pop();
-    currentBytes += lsaKeySize; 
-  }
   return lsaKeyList;
 }
 
 // LS Update / Acknowledge
 void
-OspfNeighbor::BindLsuTimeout(LsaHeader::LsaKey lsaKey, EventId event) {
-  if (m_lsuTimeouts[lsaKey].IsRunning()) {
-    m_lsuTimeouts[lsaKey].Remove();
-  }
+OspfNeighbor::BindLsuTimeout (LsaHeader::LsaKey lsaKey, EventId event)
+{
+  if (m_lsuTimeouts[lsaKey].IsRunning ())
+    {
+      m_lsuTimeouts[lsaKey].Remove ();
+    }
   m_lsuTimeouts[lsaKey] = event;
 }
 EventId
-OspfNeighbor::GetLsuTimeout(LsaHeader::LsaKey lsaKey) {
+OspfNeighbor::GetLsuTimeout (LsaHeader::LsaKey lsaKey)
+{
   return m_lsuTimeouts[lsaKey];
 }
 bool
-OspfNeighbor::RemoveLsuTimeout(LsaHeader::LsaKey lsaKey) {
-  auto it = m_lsuTimeouts.find(lsaKey);
-  if (it != m_lsuTimeouts.end()) {
-    it->second.Remove();
-    m_lsuTimeouts.erase(it);
-    return true;
-  }
+OspfNeighbor::RemoveLsuTimeout (LsaHeader::LsaKey lsaKey)
+{
+  auto it = m_lsuTimeouts.find (lsaKey);
+  if (it != m_lsuTimeouts.end ())
+    {
+      it->second.Remove ();
+      m_lsuTimeouts.erase (it);
+      return true;
+    }
   return false;
 }
 void
-OspfNeighbor::ClearLsuTimeouts(void) {
-  for (auto pair : m_lsuTimeouts) {
-    pair.second.Remove();
-  }
+OspfNeighbor::ClearLsuTimeouts (void)
+{
+  for (auto pair : m_lsuTimeouts)
+    {
+      pair.second.Remove ();
+    }
 }
 
 // Sequential Event
 void
-OspfNeighbor::RemoveTimeout() {
-  if (m_event.IsRunning()) {
-    m_event.Remove();
-  }
+OspfNeighbor::RemoveTimeout ()
+{
+  if (m_event.IsRunning ())
+    {
+      m_event.Remove ();
+    }
 }
 
 void
-OspfNeighbor::BindTimeout(EventId event) {
-  if (m_event.IsRunning()) {
-    m_event.Remove();
-  }
+OspfNeighbor::BindTimeout (EventId event)
+{
+  if (m_event.IsRunning ())
+    {
+      m_event.Remove ();
+    }
   m_event = event;
 }
 
 void
-OspfNeighbor::RefreshLastHelloReceived () {
-  m_lastHelloReceived = Simulator::Now();
+OspfNeighbor::RefreshLastHelloReceived ()
+{
+  m_lastHelloReceived = Simulator::Now ();
 }
 
 std::string
-OspfNeighbor::GetNeighborString() {
+OspfNeighbor::GetNeighborString ()
+{
   std::stringstream ss;
   ss << "(" << m_routerId << "," << m_ipAddress << ")";
-  return ss.str();
+  return ss.str ();
 }
-}
+} // namespace ns3

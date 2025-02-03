@@ -31,17 +31,17 @@ NS_LOG_COMPONENT_DEFINE ("LsaHeader");
 NS_OBJECT_ENSURE_REGISTERED (LsaHeader);
 
 LsaHeader::LsaHeader ()
-  : m_calcChecksum (false),
-    m_lsAge(0),
-    m_options(0),
-    m_type(0),
-    m_length (0),
-    m_lsId (0),
-    m_advertisingRouter (0),
-    m_seqNum (0),
-    m_checksum (0),
-    m_goodChecksum (true),
-    m_headerSize(20)
+    : m_calcChecksum (false),
+      m_lsAge (0),
+      m_options (0),
+      m_type (0),
+      m_length (0),
+      m_lsId (0),
+      m_advertisingRouter (0),
+      m_seqNum (0),
+      m_checksum (0),
+      m_goodChecksum (true),
+      m_headerSize (20)
 {
 }
 
@@ -59,7 +59,7 @@ LsaHeader::SetType (LsType type)
   m_type = type;
 }
 
-LsaHeader::LsType 
+LsaHeader::LsType
 LsaHeader::GetType (void) const
 {
   NS_LOG_FUNCTION (this);
@@ -120,9 +120,9 @@ LsaHeader::GetAdvertisingRouter (void) const
 
 // Get the unique key <LS Type, Link-State ID, Advertising Router>
 LsaHeader::LsaKey
-LsaHeader::GetKey()
+LsaHeader::GetKey ()
 {
-  return std::make_tuple(m_type, m_lsId, m_advertisingRouter);
+  return std::make_tuple (m_type, m_lsId, m_advertisingRouter);
 }
 
 bool
@@ -132,61 +132,59 @@ LsaHeader::IsChecksumOk (void) const
   return m_goodChecksum;
 }
 
-std::string 
+std::string
 LsaHeader::LsTypeToString (LsType type) const
 {
   NS_LOG_FUNCTION (this << type);
   switch (type)
     {
-      case RouterLSAs:
-        return "Router-LSAs";
-      case NetworkLSAs:
-        return "Network-LSAs";
-      case SummaryLSAsIP:
-        return "Summary-LSAs (IP network)";
-      case SummaryLSAsASBR:
-        return "Summary-LSAs (ASBR)";
-      case ASExternalLSAs:
-        return "AS-external-LSAs";
-      default:
-        return "Unrecognized LSA Type";
+    case RouterLSAs:
+      return "Router-LSAs";
+    case NetworkLSAs:
+      return "Network-LSAs";
+    case SummaryLSAsIP:
+      return "Summary-LSAs (IP network)";
+    case SummaryLSAsASBR:
+      return "Summary-LSAs (ASBR)";
+    case ASExternalLSAs:
+      return "AS-external-LSAs";
+    default:
+      return "Unrecognized LSA Type";
     };
 }
 
-TypeId 
+TypeId
 LsaHeader::GetTypeId (void)
 {
   static TypeId tid = TypeId ("ns3::LsaHeader")
-    .SetParent<Header> ()
-    .SetGroupName ("Ospf")
-    .AddConstructor<LsaHeader> ()
-  ;
+                          .SetParent<Header> ()
+                          .SetGroupName ("Ospf")
+                          .AddConstructor<LsaHeader> ();
   return tid;
 }
-TypeId 
+TypeId
 LsaHeader::GetInstanceTypeId (void) const
 {
   NS_LOG_FUNCTION (this);
   return GetTypeId ();
 }
-void 
+void
 LsaHeader::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
   os << "age " << m_lsAge << " "
      << "options " << m_options << " "
-     << "type " << LsTypeToString(LsType(m_type)) << " "
+     << "type " << LsTypeToString (LsType (m_type)) << " "
      << "link state id: " << m_lsId << " "
      << "advertising router: " << m_advertisingRouter << " "
      << "sequence number: " << m_seqNum << " "
-     << "lsa length: " << m_length << " "
-  ;
+     << "lsa length: " << m_length << " ";
 }
-uint32_t 
+uint32_t
 LsaHeader::GetSerializedSize (void) const
 {
   NS_LOG_FUNCTION (this);
-	return m_headerSize;
+  return m_headerSize;
 }
 
 void
@@ -219,7 +217,7 @@ LsaHeader::Deserialize (Buffer::Iterator start)
   m_seqNum = i.ReadNtohU32 ();
   m_checksum = i.ReadNtohU16 (); // checksum is disabled for now
   m_length = i.ReadNtohU16 ();
-  
+
   return GetSerializedSize ();
 }
 

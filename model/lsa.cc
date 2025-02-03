@@ -31,22 +31,19 @@ NS_LOG_COMPONENT_DEFINE ("Lsa");
 
 NS_OBJECT_ENSURE_REGISTERED (Lsa);
 
-uint32_t 
+uint32_t
 Lsa::GetSerializedSize (void) const
 {
-	return 0;
+  return 0;
 }
 
-TypeId 
+TypeId
 Lsa::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::Lsa")
-    .SetGroupName ("Ospf")
-    .AddConstructor<Lsa> ()
-  ;
+  static TypeId tid = TypeId ("ns3::Lsa").SetGroupName ("Ospf").AddConstructor<Lsa> ();
   return tid;
 }
-TypeId 
+TypeId
 Lsa::GetInstanceTypeId (void) const
 {
   NS_LOG_FUNCTION (this);
@@ -57,7 +54,7 @@ uint32_t
 Lsa::Serialize (Buffer::Iterator start) const
 {
   NS_LOG_FUNCTION (this << &start);
-  return GetSerializedSize();
+  return GetSerializedSize ();
 }
 
 uint32_t
@@ -72,6 +69,5 @@ Lsa::Deserialize (Ptr<Packet> packet)
 {
   return GetSerializedSize ();
 }
-
 
 } // namespace ns3

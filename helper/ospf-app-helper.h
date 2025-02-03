@@ -66,10 +66,12 @@ public:
    */
   ApplicationContainer Install (Ptr<Node> n) const;
   ApplicationContainer Install (Ptr<Node> n, std::vector<uint32_t> areas) const;
-  ApplicationContainer Install (Ptr<Node> n, std::vector<uint32_t> areas, std::vector<uint32_t> metrices) const;
+  ApplicationContainer Install (Ptr<Node> n, std::vector<uint32_t> areas,
+                                std::vector<uint32_t> metrices) const;
   ApplicationContainer Install (NodeContainer c) const;
   ApplicationContainer Install (NodeContainer c, std::vector<uint32_t> areas) const;
-  ApplicationContainer Install (NodeContainer c, std::vector<uint32_t> areas, std::vector<uint32_t> metrices) const;
+  ApplicationContainer Install (NodeContainer c, std::vector<uint32_t> areas,
+                                std::vector<uint32_t> metrices) const;
 
 private:
   /**
@@ -79,11 +81,15 @@ private:
    * \param node The node on which an UdpEchoServer will be installed.
    * \returns Ptr to the application installed.
    */
-  Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs) const;
+  Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing,
+                                NetDeviceContainer devs) const;
 
-  Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs, std::vector<uint32_t> areas) const;
+  Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing,
+                                NetDeviceContainer devs, std::vector<uint32_t> areas) const;
 
-  Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs, std::vector<uint32_t> areas, std::vector<uint32_t> metrices) const;
+  Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing,
+                                NetDeviceContainer devs, std::vector<uint32_t> areas,
+                                std::vector<uint32_t> metrices) const;
 
   ObjectFactory m_factory; //!< Object factory.
 };

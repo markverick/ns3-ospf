@@ -30,7 +30,7 @@ namespace ns3 {
  *
  * \brief Packet header for OSPF
  */
-class OspfHeader : public Header 
+class OspfHeader : public Header
 {
 public:
   /**
@@ -47,14 +47,13 @@ public:
    *
    * The values correspond to the OSPF packet header's type in \RFC{2328}.
    */
-  enum OspfType
-    {
-      OspfHello = 0x1,
-      OspfDBD = 0x2,
-      OspfLSRequest = 0x3,
-      OspfLSUpdate = 0x4,
-      OspfLSAck = 0x5
-    };
+  enum OspfType {
+    OspfHello = 0x1,
+    OspfDBD = 0x2,
+    OspfLSRequest = 0x3,
+    OspfLSUpdate = 0x4,
+    OspfLSAck = 0x5
+  };
 
   /**
    * \brief Set Ospf Type Field
@@ -64,7 +63,7 @@ public:
   /**
    * \returns the type of OSPF
    */
-  OspfType GetType(void) const;
+  OspfType GetType (void) const;
 
   /**
    * \param size the size of the payload in bytes
@@ -73,7 +72,7 @@ public:
   /**
    * \returns the size of the payload in bytes
    */
-  uint16_t GetPayloadSize(void) const;
+  uint16_t GetPayloadSize (void) const;
 
   /**
    * \param routerId the router ID of the packet's source
@@ -82,7 +81,7 @@ public:
   /**
    * \returns the router ID
    */
-  uint32_t GetRouterId(void) const;
+  uint32_t GetRouterId (void) const;
 
   /**
    * \param area the area ID
@@ -91,7 +90,7 @@ public:
   /**
    * \returns the area ID
    */
-  uint32_t GetArea(void) const;
+  uint32_t GetArea (void) const;
 
   /**
    * \returns true if the ipv4 checksum is correct, false otherwise.
@@ -113,8 +112,8 @@ public:
   virtual uint32_t GetSerializedSize (void) const;
   virtual void Serialize (Buffer::Iterator start) const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
-private:
 
+private:
   bool m_calcChecksum; //!< true if the checksum must be calculated
 
   uint8_t m_version; //!< OSPF version number
@@ -130,6 +129,5 @@ private:
 };
 
 } // namespace ns3
-
 
 #endif /* OSPF_HEADER_H */

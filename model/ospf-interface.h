@@ -41,66 +41,65 @@
 
 namespace ns3 {
 
-class OspfInterface: public Object
+class OspfInterface : public Object
 {
 public:
-  OspfInterface();
-  OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval,
-                uint32_t routerDeadInterval, uint32_t area, uint32_t metric, uint32_t mtu);
+  OspfInterface ();
+  OspfInterface (Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval,
+                 uint32_t routerDeadInterval, uint32_t area, uint32_t metric, uint32_t mtu);
 
-  ~OspfInterface();
+  ~OspfInterface ();
 
-  Ipv4Address GetAddress();
-  void SetAddress(Ipv4Address ipAddress);
+  Ipv4Address GetAddress ();
+  void SetAddress (Ipv4Address ipAddress);
 
-  Ipv4Mask GetMask();
-  void SetMask(Ipv4Mask ipMask);
+  Ipv4Mask GetMask ();
+  void SetMask (Ipv4Mask ipMask);
 
-  uint32_t GetMetric();
-  void SetMetric(uint32_t metric);
+  uint32_t GetMetric ();
+  void SetMetric (uint32_t metric);
 
-  uint32_t GetArea();
-  void SetArea(uint32_t area);
+  uint32_t GetArea ();
+  void SetArea (uint32_t area);
 
-  uint32_t GetMtu();
-  void SetMtu(uint32_t mtu);
+  uint32_t GetMtu ();
+  void SetMtu (uint32_t mtu);
 
-  uint16_t GetHelloInterval();
-  void SetHelloInterval(uint16_t helloInterval);
+  uint16_t GetHelloInterval ();
+  void SetHelloInterval (uint16_t helloInterval);
 
-  uint32_t GetRouterDeadInterval();
-  void SetRouterDeadInterval(uint32_t routerDeadInterval);
+  uint32_t GetRouterDeadInterval ();
+  void SetRouterDeadInterval (uint32_t routerDeadInterval);
 
-  Ptr<OspfNeighbor> GetNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  Ptr<OspfNeighbor> GetNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
-  std::vector<Ptr<OspfNeighbor> > GetNeighbors();
+  std::vector<Ptr<OspfNeighbor>> GetNeighbors ();
 
-  Ptr<OspfNeighbor> AddNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  Ptr<OspfNeighbor> AddNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
-  Ptr<OspfNeighbor> AddNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId, OspfNeighbor::NeighborState state);
-  
+  Ptr<OspfNeighbor> AddNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp,
+                                 uint32_t remoteAreaId, OspfNeighbor::NeighborState state);
 
-  bool RemoveNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  bool RemoveNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
-  bool IsNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  bool IsNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   //  Vector of <neighbor's routerIds, its own interface ipAddress>
-  std::vector<std::pair<uint32_t, uint32_t> > GetNeighborLinks();
-  std::vector<std::pair<uint32_t, uint32_t> > GetNeighborLinks(uint32_t areaId);
-  std::vector<std::pair<uint32_t, uint32_t> > GetActiveNeighborLinks();
-  std::vector<std::pair<uint32_t, uint32_t> > GetActiveNeighborLinks(uint32_t areaId);
+  std::vector<std::pair<uint32_t, uint32_t>> GetNeighborLinks ();
+  std::vector<std::pair<uint32_t, uint32_t>> GetNeighborLinks (uint32_t areaId);
+  std::vector<std::pair<uint32_t, uint32_t>> GetActiveNeighborLinks ();
+  std::vector<std::pair<uint32_t, uint32_t>> GetActiveNeighborLinks (uint32_t areaId);
 
-
-  private:
-    Ipv4Address m_ipAddress;
-    Ipv4Mask m_ipMask;
-    uint16_t m_helloInterval;
-    uint32_t m_routerDeadInterval;
-    uint32_t m_area;
-    uint32_t m_metric;
-    uint32_t m_mtu;
-    std::vector<Ptr<OspfNeighbor> > m_neighbors;
+private:
+  Ipv4Address m_ipAddress;
+  Ipv4Mask m_ipMask;
+  uint16_t m_helloInterval;
+  uint32_t m_routerDeadInterval;
+  uint32_t m_area;
+  uint32_t m_metric;
+  uint32_t m_mtu;
+  std::vector<Ptr<OspfNeighbor>> m_neighbors;
 };
-}
+} // namespace ns3
 
 #endif /* OSPF_INTERFACE_H */

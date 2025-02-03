@@ -40,199 +40,238 @@ namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("OspfInterface");
 
-OspfInterface::OspfInterface()
+OspfInterface::OspfInterface ()
 {
-  m_ipAddress = Ipv4Address::GetAny();
-  m_ipMask = Ipv4Mask(0xffffffff); // default to /32
+  m_ipAddress = Ipv4Address::GetAny ();
+  m_ipMask = Ipv4Mask (0xffffffff); // default to /32
   m_helloInterval = 0;
   m_area = 0;
   m_metric = 0;
 }
-OspfInterface::~OspfInterface()
+OspfInterface::~OspfInterface ()
 {
 }
 
-OspfInterface::OspfInterface(Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval, uint32_t routerDeadInterval,
-                             uint32_t area, uint32_t metric, uint32_t mtu)
-  : m_ipAddress(ipAddress),
-    m_ipMask(ipMask),
-    m_helloInterval(helloInterval),
-    m_routerDeadInterval(routerDeadInterval),
-    m_area(area),
-    m_metric(metric),
-    m_mtu(mtu)
+OspfInterface::OspfInterface (Ipv4Address ipAddress, Ipv4Mask ipMask, uint16_t helloInterval,
+                              uint32_t routerDeadInterval, uint32_t area, uint32_t metric,
+                              uint32_t mtu)
+    : m_ipAddress (ipAddress),
+      m_ipMask (ipMask),
+      m_helloInterval (helloInterval),
+      m_routerDeadInterval (routerDeadInterval),
+      m_area (area),
+      m_metric (metric),
+      m_mtu (mtu)
 {
 }
 
 Ipv4Address
-OspfInterface::GetAddress() {
+OspfInterface::GetAddress ()
+{
   return m_ipAddress;
 }
 
 void
-OspfInterface::SetAddress(Ipv4Address ipAddress) {
+OspfInterface::SetAddress (Ipv4Address ipAddress)
+{
   m_ipAddress = ipAddress;
 }
 
 Ipv4Mask
-OspfInterface::GetMask() {
+OspfInterface::GetMask ()
+{
   return m_ipMask;
 }
 
 void
-OspfInterface::SetMask(Ipv4Mask ipMask) {
+OspfInterface::SetMask (Ipv4Mask ipMask)
+{
   m_ipMask = ipMask;
 }
 
 uint32_t
-OspfInterface::GetMetric() {
+OspfInterface::GetMetric ()
+{
   return m_metric;
 }
 
 void
-OspfInterface::SetMetric(uint32_t metric) {
+OspfInterface::SetMetric (uint32_t metric)
+{
   m_metric = metric;
 }
 
 uint32_t
-OspfInterface::GetArea() {
+OspfInterface::GetArea ()
+{
   return m_area;
 }
 
 void
-OspfInterface::SetArea(uint32_t area) {
+OspfInterface::SetArea (uint32_t area)
+{
   m_area = area;
 }
 
 uint32_t
-OspfInterface::GetMtu() {
+OspfInterface::GetMtu ()
+{
   return m_mtu;
 }
 
 void
-OspfInterface::SetMtu(uint32_t mtu) {
+OspfInterface::SetMtu (uint32_t mtu)
+{
   m_mtu = mtu;
 }
 
 uint16_t
-OspfInterface::GetHelloInterval() {
+OspfInterface::GetHelloInterval ()
+{
   return m_helloInterval;
 }
 
 void
-OspfInterface::SetHelloInterval(uint16_t helloInterval) {
+OspfInterface::SetHelloInterval (uint16_t helloInterval)
+{
   m_helloInterval = helloInterval;
 }
 
 uint32_t
-OspfInterface::GetRouterDeadInterval() {
+OspfInterface::GetRouterDeadInterval ()
+{
   return m_routerDeadInterval;
 }
 
 void
-OspfInterface::SetRouterDeadInterval(uint32_t routerDeadInterval) {
+OspfInterface::SetRouterDeadInterval (uint32_t routerDeadInterval)
+{
   m_routerDeadInterval = routerDeadInterval;
 }
 
 Ptr<OspfNeighbor>
-OspfInterface::GetNeighbor(Ipv4Address routerId, Ipv4Address remoteIp) {
-  for (auto n : m_neighbors) {
-    if (n->GetRouterId() == routerId && n->GetIpAddress() == remoteIp) {
-      return n;
+OspfInterface::GetNeighbor (Ipv4Address routerId, Ipv4Address remoteIp)
+{
+  for (auto n : m_neighbors)
+    {
+      if (n->GetRouterId () == routerId && n->GetIpAddress () == remoteIp)
+        {
+          return n;
+        }
     }
-  }
   return nullptr;
 }
-std::vector<Ptr<OspfNeighbor> >
-OspfInterface::GetNeighbors() {
+std::vector<Ptr<OspfNeighbor>>
+OspfInterface::GetNeighbors ()
+{
   return m_neighbors;
 }
 
 Ptr<OspfNeighbor>
-OspfInterface::AddNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId, OspfNeighbor::NeighborState state) {
-  NS_LOG_FUNCTION(this << remoteRouterId << remoteIp << remoteAreaId << state);
-  Ptr<OspfNeighbor> neighbor = Create<OspfNeighbor>(remoteRouterId, remoteIp, remoteAreaId, state);
-  m_neighbors.emplace_back(neighbor);
+OspfInterface::AddNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId,
+                            OspfNeighbor::NeighborState state)
+{
+  NS_LOG_FUNCTION (this << remoteRouterId << remoteIp << remoteAreaId << state);
+  Ptr<OspfNeighbor> neighbor = Create<OspfNeighbor> (remoteRouterId, remoteIp, remoteAreaId, state);
+  m_neighbors.emplace_back (neighbor);
   return neighbor;
 }
 
 bool
-OspfInterface::RemoveNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp) {
-  for (auto it = m_neighbors.begin(); it != m_neighbors.end(); it++) {
-    auto n = *it;
-    if (n->GetRouterId() == remoteRouterId && n->GetIpAddress() == remoteIp) {
-      m_neighbors.erase(it);
-      return true;
+OspfInterface::RemoveNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp)
+{
+  for (auto it = m_neighbors.begin (); it != m_neighbors.end (); it++)
+    {
+      auto n = *it;
+      if (n->GetRouterId () == remoteRouterId && n->GetIpAddress () == remoteIp)
+        {
+          m_neighbors.erase (it);
+          return true;
+        }
     }
-  }
   return false;
 }
 
 bool
-OspfInterface::IsNeighbor(Ipv4Address remoteRouterId, Ipv4Address remoteIp) {
-  for (auto n : m_neighbors) {
-    NS_LOG_FUNCTION(this << n->GetRouterId() << remoteRouterId << n->GetIpAddress() << remoteIp);
-    if (n->GetRouterId() == remoteRouterId && n->GetIpAddress() == remoteIp) {
-      return true;
+OspfInterface::IsNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp)
+{
+  for (auto n : m_neighbors)
+    {
+      NS_LOG_FUNCTION (this << n->GetRouterId () << remoteRouterId << n->GetIpAddress ()
+                            << remoteIp);
+      if (n->GetRouterId () == remoteRouterId && n->GetIpAddress () == remoteIp)
+        {
+          return true;
+        }
     }
-  }
   return false;
 }
 
 // Get a list of <neighbor's router ID, router's IP address> as a vector
-std::vector<std::pair<uint32_t, uint32_t> >
-OspfInterface::GetNeighborLinks() {
-  std::vector<std::pair<uint32_t, uint32_t> > links;
-  auto neighbors = GetNeighbors();
-  for (auto n : neighbors) {
-    links.emplace_back(n->GetRouterId().Get(), m_ipAddress.Get());
-  }
+std::vector<std::pair<uint32_t, uint32_t>>
+OspfInterface::GetNeighborLinks ()
+{
+  std::vector<std::pair<uint32_t, uint32_t>> links;
+  auto neighbors = GetNeighbors ();
+  for (auto n : neighbors)
+    {
+      links.emplace_back (n->GetRouterId ().Get (), m_ipAddress.Get ());
+    }
   return links;
 }
 
 // Get a list of <neighbor's router ID, router's IP address> that matches parameter's area
-std::vector<std::pair<uint32_t, uint32_t> >
-OspfInterface::GetNeighborLinks(uint32_t areaId) {
-  std::vector<std::pair<uint32_t, uint32_t> > links;
-  auto neighbors = GetNeighbors();
-  for (auto n : neighbors) {
-    if (n->GetArea() == areaId) {
-      links.emplace_back(n->GetRouterId().Get(), m_ipAddress.Get());
+std::vector<std::pair<uint32_t, uint32_t>>
+OspfInterface::GetNeighborLinks (uint32_t areaId)
+{
+  std::vector<std::pair<uint32_t, uint32_t>> links;
+  auto neighbors = GetNeighbors ();
+  for (auto n : neighbors)
+    {
+      if (n->GetArea () == areaId)
+        {
+          links.emplace_back (n->GetRouterId ().Get (), m_ipAddress.Get ());
+        }
     }
-  }
   return links;
 }
 
 // Get a list of <neighbor's router ID, router's IP address>
-std::vector<std::pair<uint32_t, uint32_t> >
-OspfInterface::GetActiveNeighborLinks() {
-  std::vector<std::pair<uint32_t, uint32_t> > links;
-  auto neighbors = GetNeighbors();
+std::vector<std::pair<uint32_t, uint32_t>>
+OspfInterface::GetActiveNeighborLinks ()
+{
+  std::vector<std::pair<uint32_t, uint32_t>> links;
+  auto neighbors = GetNeighbors ();
   // NS_LOG_INFO("# neighbors: " << neighbors.size());
-  for (auto n : neighbors) {
-    // Only aggregate neighbors that is at least in ExStart
-    // NS_LOG_INFO("  (" << n->GetRouterId().Get() << ", " << m_ipAddress.Get() << ")");
-    if (n->GetState() == OspfNeighbor::Full) {
-      links.emplace_back(n->GetRouterId().Get(), m_ipAddress.Get());
+  for (auto n : neighbors)
+    {
+      // Only aggregate neighbors that is at least in ExStart
+      // NS_LOG_INFO("  (" << n->GetRouterId().Get() << ", " << m_ipAddress.Get() << ")");
+      if (n->GetState () == OspfNeighbor::Full)
+        {
+          links.emplace_back (n->GetRouterId ().Get (), m_ipAddress.Get ());
+        }
     }
-  }
   return links;
 }
 
 // Get a list of <neighbor's router ID, router's IP address> that matches parameter's area
-std::vector<std::pair<uint32_t, uint32_t> >
-OspfInterface::GetActiveNeighborLinks(uint32_t areaId) {
-  std::vector<std::pair<uint32_t, uint32_t> > links;
-  auto neighbors = GetNeighbors();
+std::vector<std::pair<uint32_t, uint32_t>>
+OspfInterface::GetActiveNeighborLinks (uint32_t areaId)
+{
+  std::vector<std::pair<uint32_t, uint32_t>> links;
+  auto neighbors = GetNeighbors ();
   // NS_LOG_INFO("# neighbors: " << neighbors.size());
-  for (auto n : neighbors) {
-    // Only aggregate neighbors that is at least in ExStart
-    // NS_LOG_INFO("  (" << n->GetRouterId().Get() << ", " << m_ipAddress.Get() << ")");
-    if (n->GetArea() == areaId && n->GetState() >= OspfNeighbor::ExStart) {
-      links.emplace_back(n->GetRouterId().Get(), m_ipAddress.Get());
+  for (auto n : neighbors)
+    {
+      // Only aggregate neighbors that is at least in ExStart
+      // NS_LOG_INFO("  (" << n->GetRouterId().Get() << ", " << m_ipAddress.Get() << ")");
+      if (n->GetArea () == areaId && n->GetState () >= OspfNeighbor::ExStart)
+        {
+          links.emplace_back (n->GetRouterId ().Get (), m_ipAddress.Get ());
+        }
     }
-  }
   return links;
 }
 
-}
+} // namespace ns3

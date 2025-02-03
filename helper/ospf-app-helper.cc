@@ -31,10 +31,8 @@ OspfAppHelper::OspfAppHelper (uint16_t port)
   SetAttribute ("Port", UintegerValue (port));
 }
 
-void 
-OspfAppHelper::SetAttribute (
-  std::string name, 
-  const AttributeValue &value)
+void
+OspfAppHelper::SetAttribute (std::string name, const AttributeValue &value)
 {
   m_factory.Set (name, value);
 }
@@ -45,9 +43,9 @@ OspfAppHelper::Install (NodeContainer c) const
   ApplicationContainer apps;
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
   for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
-  {
-    apps.Add (Install(*i));
-  }
+    {
+      apps.Add (Install (*i));
+    }
   return apps;
 }
 
@@ -58,9 +56,10 @@ OspfAppHelper::Install (Ptr<Node> n) const
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
   Ptr<Ipv4StaticRouting> routing = ipv4RoutingHelper.GetStaticRouting (ipv4);
   NetDeviceContainer devs;
-  for (uint32_t j = 0; j < n->GetNDevices(); j++) {
-    devs.Add(n->GetDevice(j));
-  }
+  for (uint32_t j = 0; j < n->GetNDevices (); j++)
+    {
+      devs.Add (n->GetDevice (j));
+    }
   return InstallPriv (n, routing, devs);
 }
 
@@ -71,22 +70,25 @@ OspfAppHelper::Install (Ptr<Node> n, std::vector<uint32_t> areas) const
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
   Ptr<Ipv4StaticRouting> routing = ipv4RoutingHelper.GetStaticRouting (ipv4);
   NetDeviceContainer devs;
-  for (uint32_t j = 0; j < n->GetNDevices(); j++) {
-    devs.Add(n->GetDevice(j));
-  }
+  for (uint32_t j = 0; j < n->GetNDevices (); j++)
+    {
+      devs.Add (n->GetDevice (j));
+    }
   return InstallPriv (n, routing, devs, areas);
 }
 
 ApplicationContainer
-OspfAppHelper::Install (Ptr<Node> n, std::vector<uint32_t> areas, std::vector<uint32_t> metrices) const
+OspfAppHelper::Install (Ptr<Node> n, std::vector<uint32_t> areas,
+                        std::vector<uint32_t> metrices) const
 {
   Ptr<Ipv4> ipv4 = n->GetObject<Ipv4> ();
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
   Ptr<Ipv4StaticRouting> routing = ipv4RoutingHelper.GetStaticRouting (ipv4);
   NetDeviceContainer devs;
-  for (uint32_t j = 0; j < n->GetNDevices(); j++) {
-    devs.Add(n->GetDevice(j));
-  }
+  for (uint32_t j = 0; j < n->GetNDevices (); j++)
+    {
+      devs.Add (n->GetDevice (j));
+    }
   return InstallPriv (n, routing, devs, areas, metrices);
 }
 
@@ -97,68 +99,72 @@ OspfAppHelper::Install (NodeContainer c, std::vector<uint32_t> areas) const
   ApplicationContainer apps;
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
   for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
-  {
-    apps.Add (Install(*i, areas));
-  }
+    {
+      apps.Add (Install (*i, areas));
+    }
   return apps;
 }
 
 // Set all nodes' metrices and areas with the same values
 // (only useful in something uniform like a grid topology)
 ApplicationContainer
-OspfAppHelper::Install (NodeContainer c, std::vector<uint32_t> areas, std::vector<uint32_t> metrices) const
+OspfAppHelper::Install (NodeContainer c, std::vector<uint32_t> areas,
+                        std::vector<uint32_t> metrices) const
 {
-  // 
+  //
   ApplicationContainer apps;
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
   for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
-  {
-    apps.Add (Install(*i, areas, metrices));
-  }
+    {
+      apps.Add (Install (*i, areas, metrices));
+    }
   return apps;
 }
 
 Ptr<Application>
-OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs) const
+OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing,
+                            NetDeviceContainer devs) const
 {
   Ptr<OspfApp> app = m_factory.Create<OspfApp> ();
-  app->SetRouting(routing);
+  app->SetRouting (routing);
   Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-  app->SetRouterId(ipv4->GetAddress(1, 0).GetAddress()); //eth0
+  app->SetRouterId (ipv4->GetAddress (1, 0).GetAddress ()); //eth0
   node->AddApplication (app);
-  app->SetBoundNetDevices(devs);
+  app->SetBoundNetDevices (devs);
 
   return app;
 }
 
 Ptr<Application>
-OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing,
-                            NetDeviceContainer devs, std::vector<uint32_t> areas) const
+OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs,
+                            std::vector<uint32_t> areas) const
 {
   Ptr<OspfApp> app = m_factory.Create<OspfApp> ();
-  app->SetRouting(routing);
+  app->SetRouting (routing);
   Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-  app->SetRouterId(ipv4->GetAddress(1, 0).GetAddress()); //eth0
+  app->SetRouterId (ipv4->GetAddress (1, 0).GetAddress ()); //eth0
   node->AddApplication (app);
-  app->SetBoundNetDevices(devs);
-  if (!areas.empty())  app->SetAreas(areas);
+  app->SetBoundNetDevices (devs);
+  if (!areas.empty ())
+    app->SetAreas (areas);
 
   return app;
 }
 
 Ptr<Application>
-OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing,
-                            NetDeviceContainer devs, std::vector<uint32_t> areas,
-                            std::vector<uint32_t> metrices) const
+OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs,
+                            std::vector<uint32_t> areas, std::vector<uint32_t> metrices) const
 {
   Ptr<OspfApp> app = m_factory.Create<OspfApp> ();
-  app->SetRouting(routing);
+  app->SetRouting (routing);
   Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-  app->SetRouterId(ipv4->GetAddress(1, 0).GetAddress()); //eth0
+  app->SetRouterId (ipv4->GetAddress (1, 0).GetAddress ()); //eth0
   node->AddApplication (app);
-  app->SetBoundNetDevices(devs);
-  if (!areas.empty())  app->SetAreas(areas);
-  if (!metrices.empty()) app->SetMetrices(metrices);
+  app->SetBoundNetDevices (devs);
+  if (!areas.empty ())
+    app->SetAreas (areas);
+  if (!metrices.empty ())
+    app->SetMetrices (metrices);
 
   return app;
 }

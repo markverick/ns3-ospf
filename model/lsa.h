@@ -46,5 +46,4 @@ public:
 
 } // namespace ns3
 
-
 #endif /* LSA_H */

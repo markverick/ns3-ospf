@@ -30,7 +30,7 @@ namespace ns3 {
  *
  * \brief Packet header for LSA
  */
-class LsaHeader : public Header 
+class LsaHeader : public Header
 {
 public:
   /**
@@ -43,7 +43,7 @@ public:
   void EnableChecksum (void);
 
   void SetLsAge (uint16_t lsAge);
-  uint16_t GetLsAge(void) const;
+  uint16_t GetLsAge (void) const;
 
   /**
    * \enum LsType
@@ -51,14 +51,13 @@ public:
    *
    * The values correspond to the LSA packet header's type in \RFC{2328}.
    */
-  enum LsType
-    {
-      RouterLSAs = 0x1,
-      NetworkLSAs = 0x2,
-      SummaryLSAsIP = 0x3,
-      SummaryLSAsASBR = 0x4,
-      ASExternalLSAs = 0x5
-    };
+  enum LsType {
+    RouterLSAs = 0x1,
+    NetworkLSAs = 0x2,
+    SummaryLSAsIP = 0x3,
+    SummaryLSAsASBR = 0x4,
+    ASExternalLSAs = 0x5
+  };
 
   typedef std::tuple<uint8_t, uint32_t, uint32_t> LsaKey;
 
@@ -70,7 +69,7 @@ public:
   /**
    * \returns the type of LSA
    */
-  LsType GetType(void) const;
+  LsType GetType (void) const;
 
   /**
    * \param length the number of LSAs
@@ -80,7 +79,7 @@ public:
   /**
    * \returns the number of LSAs
    */
-  uint16_t GetLength(void) const;
+  uint16_t GetLength (void) const;
 
   /**
    * \param lsId Link State ID
@@ -90,15 +89,15 @@ public:
   /**
    * \returns Link State ID
    */
-  uint32_t GetLsId(void) const;
+  uint32_t GetLsId (void) const;
 
   void SetAdvertisingRouter (uint32_t advertisingRouter);
-  uint32_t GetAdvertisingRouter(void) const;
+  uint32_t GetAdvertisingRouter (void) const;
 
-  LsaKey GetKey();
+  LsaKey GetKey ();
 
   void SetSeqNum (uint32_t seqNum);
-  uint32_t GetSeqNum(void) const;
+  uint32_t GetSeqNum (void) const;
 
   /**
    * \returns true if the ipv4 checksum is correct, false otherwise.
@@ -120,8 +119,8 @@ public:
   virtual uint32_t GetSerializedSize (void) const;
   virtual void Serialize (Buffer::Iterator start) const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
-private:
 
+private:
   bool m_calcChecksum; //!< true if the checksum must be calculated
 
   uint16_t m_lsAge; //!< time in seconds since the LSA was originated
@@ -137,6 +136,5 @@ private:
 };
 
 } // namespace ns3
-
 
 #endif /* LSA_HEADER_H */

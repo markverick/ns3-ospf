@@ -61,11 +61,11 @@ public:
   virtual Ptr<Packet> ConstructPacket () const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
+
 private:
   std::vector<LsaHeader> m_lsaHeaders; //storing neighbor's router ID
 };
 
 } // namespace ns3
-
 
 #endif /* LS_ACK_H */

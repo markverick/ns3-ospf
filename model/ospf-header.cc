@@ -31,14 +31,14 @@ NS_LOG_COMPONENT_DEFINE ("OspfHeader");
 NS_OBJECT_ENSURE_REGISTERED (OspfHeader);
 
 OspfHeader::OspfHeader ()
-  : m_calcChecksum (false),
-    m_type(0),
-    m_payloadSize (0),
-    m_routerId (0),
-    m_area (0),
-    m_checksum (0),
-    m_goodChecksum (true),
-    m_headerSize(24)
+    : m_calcChecksum (false),
+      m_type (0),
+      m_payloadSize (0),
+      m_routerId (0),
+      m_area (0),
+      m_checksum (0),
+      m_goodChecksum (true),
+      m_headerSize (24)
 {
 }
 
@@ -56,7 +56,7 @@ OspfHeader::SetType (OspfType type)
   m_type = type;
 }
 
-OspfHeader::OspfType 
+OspfHeader::OspfType
 OspfHeader::GetType (void) const
 {
   NS_LOG_FUNCTION (this);
@@ -109,59 +109,58 @@ OspfHeader::IsChecksumOk (void) const
   return m_goodChecksum;
 }
 
-std::string 
+std::string
 OspfHeader::OspfTypeToString (OspfType type) const
 {
   NS_LOG_FUNCTION (this << type);
   switch (type)
     {
-      case OspfHello:
-        return "Hello";
-      case OspfDBD:
-        return "Database Description";
-      case OspfLSRequest:
-        return "Link State Request";
-      case OspfLSUpdate:
-        return "Link State Update";
-      case OspfLSAck:
-        return "Link State Acknowledgment";
-      default:
-        return "Unrecognized OSPF Type";
+    case OspfHello:
+      return "Hello";
+    case OspfDBD:
+      return "Database Description";
+    case OspfLSRequest:
+      return "Link State Request";
+    case OspfLSUpdate:
+      return "Link State Update";
+    case OspfLSAck:
+      return "Link State Acknowledgment";
+    default:
+      return "Unrecognized OSPF Type";
     };
 }
 
-TypeId 
+TypeId
 OspfHeader::GetTypeId (void)
 {
   static TypeId tid = TypeId ("ns3::OspfHeader")
-    .SetParent<Header> ()
-    .SetGroupName ("Ospf")
-    .AddConstructor<OspfHeader> ()
-  ;
+                          .SetParent<Header> ()
+                          .SetGroupName ("Ospf")
+                          .AddConstructor<OspfHeader> ();
   return tid;
 }
-TypeId 
+TypeId
 OspfHeader::GetInstanceTypeId (void) const
 {
   NS_LOG_FUNCTION (this);
   return GetTypeId ();
 }
-void 
+void
 OspfHeader::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
-  os << "version 2" << " "
-     << "type " << OspfTypeToString(OspfType(m_type)) << " "
+  os << "version 2"
+     << " "
+     << "type " << OspfTypeToString (OspfType (m_type)) << " "
      << "length: " << m_payloadSize + m_headerSize << " "
      << "router id: " << m_routerId << " "
-     << "area id: " << m_area << " "
-  ;
+     << "area id: " << m_area << " ";
 }
-uint32_t 
+uint32_t
 OspfHeader::GetSerializedSize (void) const
 {
   NS_LOG_FUNCTION (this);
-	return m_headerSize;
+  return m_headerSize;
 }
 
 void
@@ -176,11 +175,11 @@ OspfHeader::Serialize (Buffer::Iterator start) const
   i.WriteHtonU32 (m_routerId);
   i.WriteHtonU32 (m_area);
 
-  if (m_calcChecksum) 
+  if (m_calcChecksum)
     {
       i = start;
       uint16_t checksum = i.CalculateIpChecksum (12);
-      NS_LOG_LOGIC ("checksum=" <<checksum);
+      NS_LOG_LOGIC ("checksum=" << checksum);
       i = start;
       i.Next (12);
       i.WriteHtonU16 (checksum);
@@ -209,11 +208,11 @@ OspfHeader::Deserialize (Buffer::Iterator start)
   m_area = i.ReadNtohU32 ();
   m_checksum = i.ReadNtohU16 ();
 
-  if (m_calcChecksum) 
+  if (m_calcChecksum)
     {
       i = start;
       uint16_t checksum = i.CalculateIpChecksum (m_headerSize);
-      NS_LOG_LOGIC ("checksum=" <<checksum);
+      NS_LOG_LOGIC ("checksum=" << checksum);
 
       m_goodChecksum = (checksum == 0);
     }

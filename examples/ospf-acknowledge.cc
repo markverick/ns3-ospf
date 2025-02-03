@@ -48,143 +48,147 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE("OspfAck");
+NS_LOG_COMPONENT_DEFINE ("OspfAck");
 
-Ipv4Address ospfHelloAddress("224.0.0.5");
+Ipv4Address ospfHelloAddress ("224.0.0.5");
 const uint32_t SIM_SECONDS = 300;
 
-void SetLinkDown(Ptr<NetDevice> nd) {
-    Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-    pem->SetRate(1.0);
-    nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
+void
+SetLinkDown (Ptr<NetDevice> nd)
+{
+  Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
+  pem->SetRate (1.0);
+  nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
 }
 
-void SetLinkError(Ptr<NetDevice> nd) {
-    Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-    pem->SetRate(0.005);
-    nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
+void
+SetLinkError (Ptr<NetDevice> nd)
+{
+  Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
+  pem->SetRate (0.005);
+  nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
 }
 
-void SetLinkUp(Ptr<NetDevice> nd) {
-    Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-    pem->SetRate(0.0);
-    nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
+void
+SetLinkUp (Ptr<NetDevice> nd)
+{
+  Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
+  pem->SetRate (0.0);
+  nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
 }
 
 int
-main(int argc, char* argv[])
+main (int argc, char *argv[])
 {
-    // Users may find it convenient to turn on explicit debugging
-    // for selected modules; the below lines suggest how to do this
-    LogComponentEnable ("OspfAck", LOG_LEVEL_INFO);
-    // Set up some default values for the simulation.  Use the
+  // Users may find it convenient to turn on explicit debugging
+  // for selected modules; the below lines suggest how to do this
+  LogComponentEnable ("OspfAck", LOG_LEVEL_INFO);
+  // Set up some default values for the simulation.  Use the
 
-    // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
+  // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
 
-    // Allow the user to override any of the defaults and the above
-    // DefaultValue::Bind ()s at run-time, via command-line arguments
-    CommandLine cmd(__FILE__);
-    bool enableFlowMonitor = false;
-    cmd.AddValue("EnableMonitor", "Enable Flow Monitor", enableFlowMonitor);
-    cmd.Parse(argc, argv);
+  // Allow the user to override any of the defaults and the above
+  // DefaultValue::Bind ()s at run-time, via command-line arguments
+  CommandLine cmd (__FILE__);
+  bool enableFlowMonitor = false;
+  cmd.AddValue ("EnableMonitor", "Enable Flow Monitor", enableFlowMonitor);
+  cmd.Parse (argc, argv);
 
-    // Create results folder
-    std::filesystem::path dirName = "results/ospf-acknowledge";
-  
-    try {
-        std::filesystem::create_directories(dirName);
-    } catch (const std::filesystem::filesystem_error& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
+  // Create results folder
+  std::filesystem::path dirName = "results/ospf-acknowledge";
+
+  try
+    {
+      std::filesystem::create_directories (dirName);
+    }
+  catch (const std::filesystem::filesystem_error &e)
+    {
+      std::cerr << "Error: " << e.what () << std::endl;
     }
 
-    // Here, we will explicitly create four nodes.  In more sophisticated
-    // topologies, we could configure a node factory.
-    NS_LOG_INFO("Create nodes.");
-    NodeContainer c;
-    c.Create(3);
-    NodeContainer n0n1 = NodeContainer(c.Get(0), c.Get(1));
-    NodeContainer n1n2 = NodeContainer(c.Get(1), c.Get(2));
+  // Here, we will explicitly create four nodes.  In more sophisticated
+  // topologies, we could configure a node factory.
+  NS_LOG_INFO ("Create nodes.");
+  NodeContainer c;
+  c.Create (3);
+  NodeContainer n0n1 = NodeContainer (c.Get (0), c.Get (1));
+  NodeContainer n1n2 = NodeContainer (c.Get (1), c.Get (2));
 
-    InternetStackHelper internet;
-    internet.Install(c);
+  InternetStackHelper internet;
+  internet.Install (c);
 
-    // We create the channels first without any IP addressing information
-    NS_LOG_INFO("Create channels.");
-    PointToPointHelper p2p;
-    p2p.SetDeviceAttribute("DataRate", StringValue("5Mbps"));
-    p2p.SetChannelAttribute("Delay", StringValue("0.02s"));
-    
-    NetDeviceContainer d0d1 = p2p.Install(n0n1);
-    NetDeviceContainer d1d2 = p2p.Install(n1n2);
+  // We create the channels first without any IP addressing information
+  NS_LOG_INFO ("Create channels.");
+  PointToPointHelper p2p;
+  p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+  p2p.SetChannelAttribute ("Delay", StringValue ("0.02s"));
 
-    // Later, we add IP addresses.
+  NetDeviceContainer d0d1 = p2p.Install (n0n1);
+  NetDeviceContainer d1d2 = p2p.Install (n1n2);
 
+  // Later, we add IP addresses.
 
-    NS_LOG_INFO("Assign IP Addresses.");
-    Ipv4AddressHelper ipv4("10.1.1.0", "255.255.255.252");
-    ipv4.Assign(d0d1);
-    ipv4.NewNetwork();
-    ipv4.Assign(d1d2);
-  
-    // Create router nodes, initialize routing database and set up the routing
-    // tables in the nodes.
-    NS_LOG_INFO("Configuring default routes.");
-    Ipv4StaticRoutingHelper ipv4RoutingHelper;
+  NS_LOG_INFO ("Assign IP Addresses.");
+  Ipv4AddressHelper ipv4 ("10.1.1.0", "255.255.255.252");
+  ipv4.Assign (d0d1);
+  ipv4.NewNetwork ();
+  ipv4.Assign (d1d2);
 
-    // Populate Routes
-    // Ipv4GlobalRoutingHelper::PopulateRoutingTables();
-    // populateBroadcastPointToPointRoute(c, ospfHelloAddress);
-    // Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
-    // staticRouting0->AddHostRouteTo (Ipv4Address ("10.1.3.1"), Ipv4Address ("10.1.1.2"), d0d1.Get(0)->GetIfIndex());
-    // staticRouting3->AddHostRouteTo (Ipv4Address ("10.1.1.1"), Ipv4Address ("10.1.3.2"), d3d2.Get(0)->GetIfIndex());
+  // Create router nodes, initialize routing database and set up the routing
+  // tables in the nodes.
+  NS_LOG_INFO ("Configuring default routes.");
+  Ipv4StaticRoutingHelper ipv4RoutingHelper;
 
-    OspfAppHelper ospfAppHelper(9);
-    ospfAppHelper.SetAttribute("HelloInterval", TimeValue(Seconds(10)));
-    ospfAppHelper.SetAttribute("HelloAddress", Ipv4AddressValue(ospfHelloAddress));
-    ospfAppHelper.SetAttribute("RouterDeadInterval", TimeValue(Seconds(30)));
-    ospfAppHelper.SetAttribute("LSUInterval", TimeValue(Seconds(5)));
- 
-    ApplicationContainer ospfApp = ospfAppHelper.Install(c);
-    ospfApp.Start(Seconds(10.0));
-    ospfApp.Stop(Seconds(SIM_SECONDS));
+  // Populate Routes
+  // Ipv4GlobalRoutingHelper::PopulateRoutingTables();
+  // populateBroadcastPointToPointRoute(c, ospfHelloAddress);
+  // Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+  // staticRouting0->AddHostRouteTo (Ipv4Address ("10.1.3.1"), Ipv4Address ("10.1.1.2"), d0d1.Get(0)->GetIfIndex());
+  // staticRouting3->AddHostRouteTo (Ipv4Address ("10.1.1.1"), Ipv4Address ("10.1.3.2"), d3d2.Get(0)->GetIfIndex());
 
+  OspfAppHelper ospfAppHelper (9);
+  ospfAppHelper.SetAttribute ("HelloInterval", TimeValue (Seconds (10)));
+  ospfAppHelper.SetAttribute ("HelloAddress", Ipv4AddressValue (ospfHelloAddress));
+  ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (30)));
+  ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
 
-    // Test Error
-    Simulator::Schedule(Seconds(5), &SetLinkError, d0d1.Get(0));
-    // Simulator::Schedule(Seconds(5), &SetLinkError, d0d1.Get(1));
-    // Simulator::Schedule(Seconds(5), &SetLinkError, d1d2.Get(0));
-    // Simulator::Schedule(Seconds(5), &SetLinkError, d1d2.Get(1));
+  ApplicationContainer ospfApp = ospfAppHelper.Install (c);
+  ospfApp.Start (Seconds (10.0));
+  ospfApp.Stop (Seconds (SIM_SECONDS));
 
-    // Print LSDB
-    Ptr<OspfApp> app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
-    Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLsdb, app);
-    // app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
-    // Simulator::Schedule(Seconds(146), &OspfApp::PrintLsdb, app);
-    // app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
-    // Simulator::Schedule(Seconds(147), &OspfApp::PrintLsdb, app);
-    // app  = DynamicCast<OspfApp>(c.Get(3)->GetApplication(0));
-    // Simulator::Schedule(Seconds(148), &OspfApp::PrintLsdb, app);
+  // Test Error
+  Simulator::Schedule (Seconds (5), &SetLinkError, d0d1.Get (0));
+  // Simulator::Schedule(Seconds(5), &SetLinkError, d0d1.Get(1));
+  // Simulator::Schedule(Seconds(5), &SetLinkError, d1d2.Get(0));
+  // Simulator::Schedule(Seconds(5), &SetLinkError, d1d2.Get(1));
 
+  // Print LSDB
+  Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (2)->GetApplication (0));
+  Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::PrintLsdb, app);
+  // app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
+  // Simulator::Schedule(Seconds(146), &OspfApp::PrintLsdb, app);
+  // app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));
+  // Simulator::Schedule(Seconds(147), &OspfApp::PrintLsdb, app);
+  // app  = DynamicCast<OspfApp>(c.Get(3)->GetApplication(0));
+  // Simulator::Schedule(Seconds(148), &OspfApp::PrintLsdb, app);
 
+  // Enable Pcap
+  AsciiTraceHelper ascii;
+  p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));
+  p2p.EnablePcapAll (dirName / "pcap");
 
-    // Enable Pcap
-    AsciiTraceHelper ascii;
-    p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));
-    p2p.EnablePcapAll (dirName / "pcap");
-
-    // Flow Monitor
-    FlowMonitorHelper flowmonHelper;
-    if (enableFlowMonitor)
+  // Flow Monitor
+  FlowMonitorHelper flowmonHelper;
+  if (enableFlowMonitor)
     {
       flowmonHelper.InstallAll ();
     }
-    if (enableFlowMonitor)
+  if (enableFlowMonitor)
     {
       flowmonHelper.SerializeToXmlFile (dirName / "flow.flowmon", false, false);
     }
-    
- 
-    Simulator::Run();
-    Simulator::Destroy();
-    return 0;
+
+  Simulator::Run ();
+  Simulator::Destroy ();
+  return 0;
 }

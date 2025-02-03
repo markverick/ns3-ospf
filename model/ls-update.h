@@ -46,8 +46,8 @@ public:
   LsUpdate (Ptr<Packet> packet);
 
   void AddLsa (LsaHeader header, Ptr<Lsa> lsa);
-  void AddLsa (std::pair<LsaHeader, Ptr<Lsa> > lsa);
-  std::vector<std::pair<LsaHeader, Ptr<Lsa> > > GetLsaList();
+  void AddLsa (std::pair<LsaHeader, Ptr<Lsa>> lsa);
+  std::vector<std::pair<LsaHeader, Ptr<Lsa>>> GetLsaList ();
   uint32_t GetNLsa ();
 
   static TypeId GetTypeId (void);
@@ -58,12 +58,12 @@ public:
   virtual Ptr<Packet> ConstructPacket () const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
+
 private:
-  std::vector<std::pair<LsaHeader, Ptr<Lsa> > > m_lsaList; // storing headers
+  std::vector<std::pair<LsaHeader, Ptr<Lsa>>> m_lsaList; // storing headers
   uint32_t m_serializedSize;
 };
 
 } // namespace ns3
-
 
 #endif /* LS_UPDATE */
