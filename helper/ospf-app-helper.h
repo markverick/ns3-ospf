@@ -31,7 +31,7 @@
 namespace ns3 {
 
 /**
- * \ingroup udpecho
+ * \ingroup ospfapp
  * \brief Create a server application which waits for input UDP packets
  *        and sends them back to the original sender.
  */
@@ -41,10 +41,8 @@ public:
   /**
    * Create OspfAppHelper which will make life easier for people trying
    * to set up simulations with echos.
-   *
-   * \param port The port the server will wait on for incoming packets
    */
-  OspfAppHelper (uint16_t port);
+  OspfAppHelper ();
 
   /**
    * Record an attribute to be set in each Application after it is is created.

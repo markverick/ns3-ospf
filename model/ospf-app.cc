@@ -55,8 +55,6 @@ OspfApp::GetTypeId (void)
           .SetParent<Application> ()
           .SetGroupName ("Applications")
           .AddConstructor<OspfApp> ()
-          .AddAttribute ("Port", "Port on which we listen for incoming packets.", UintegerValue (9),
-                         MakeUintegerAccessor (&OspfApp::m_port), MakeUintegerChecker<uint16_t> ())
           .AddAttribute ("HelloInterval", "OSPF Hello Interval", TimeValue (Seconds (10)),
                          MakeTimeAccessor (&OspfApp::m_helloInterval), MakeTimeChecker ())
           .AddAttribute ("HelloAddress", "Multicast address of Hello",

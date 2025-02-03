@@ -146,7 +146,7 @@ main (int argc, char *argv[])
   NS_LOG_INFO ("Configuring default routes.");
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
 
-  OspfAppHelper ospfAppHelper (9);
+  OspfAppHelper ospfAppHelper;
   ospfAppHelper.SetAttribute ("HelloInterval", TimeValue (Seconds (10)));
   ospfAppHelper.SetAttribute ("HelloAddress", Ipv4AddressValue (ospfHelloAddress));
   ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (30)));

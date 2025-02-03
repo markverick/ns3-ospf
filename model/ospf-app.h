@@ -41,20 +41,15 @@
 #include "filesystem"
 
 namespace ns3 {
-
-class Socket;
-class Packet;
-
 /**
  * \ingroup applications 
- * \defgroup udpecho UdpEcho
+ * \defgroup ospfapp OspfApp
  */
 
 /**
- * \ingroup udpecho
- * \brief A Udp Echo server
+ * \ingroup ospfapp
  *
- * Every packet received is sent back.
+ * \brief An OSPF app, creates IP sockets and fills up routing table
  */
 class OspfApp : public Application
 {
@@ -65,6 +60,7 @@ public:
    */
   static TypeId GetTypeId (void);
   OspfApp ();
+  virtual ~OspfApp ();
 
   // Accessor for Static Routing
   void SetRouting (Ptr<Ipv4StaticRouting>);
@@ -96,8 +92,6 @@ public:
   // Get LSDB hash (Lazy)
   uint32_t GetLsdbHash ();
   void PrintLsdbHash ();
-
-  virtual ~OspfApp ();
 
 protected:
   virtual void DoDispose (void);
@@ -178,7 +172,6 @@ private:
   // Full
   void AdvanceToFull (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
-  uint16_t m_port; //!< Port on which we listen for incoming packets.
   std::vector<Ptr<Socket>> m_sockets; //!< Unicast socket
   std::vector<Ptr<Socket>> m_helloSockets; //!< Hello multicast socket
   std::vector<Ptr<Socket>> m_lsaSockets; //!< LSA multicast socket

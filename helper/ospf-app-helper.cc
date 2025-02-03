@@ -25,10 +25,9 @@
 
 namespace ns3 {
 
-OspfAppHelper::OspfAppHelper (uint16_t port)
+OspfAppHelper::OspfAppHelper ()
 {
   m_factory.SetTypeId (OspfApp::GetTypeId ());
-  SetAttribute ("Port", UintegerValue (port));
 }
 
 void

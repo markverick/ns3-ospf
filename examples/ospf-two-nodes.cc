@@ -119,7 +119,7 @@ main (int argc, char *argv[])
   // staticRouting0->AddHostRouteTo (Ipv4Address ("10.1.3.1"), Ipv4Address ("10.1.1.2"), d0d2.Get(0)->GetIfIndex());
   // staticRouting3->AddHostRouteTo (Ipv4Address ("10.1.1.1"), Ipv4Address ("10.1.3.2"), d3d2.Get(0)->GetIfIndex());
 
-  OspfAppHelper ospfAppHelper (9);
+  OspfAppHelper ospfAppHelper;
   ospfAppHelper.SetAttribute ("HelloInterval", TimeValue (Seconds (10)));
   ospfAppHelper.SetAttribute ("HelloAddress", Ipv4AddressValue (ospfHelloAddress));
   ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (30)));
