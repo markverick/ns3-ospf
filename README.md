@@ -11,7 +11,7 @@ See the LICENSE file for more details.
 
 1) [Overview](#overview)
 2) [Instruction](#instruction)
-3) [Reporting Issue](#reporting-issue)
+3) [Reporting Issues](#reporting-issues)
 
 
 ## Overview
