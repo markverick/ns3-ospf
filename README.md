@@ -11,6 +11,7 @@ See the LICENSE file for more details.
 
 1) [Overview](#overview)
 2) [Instruction](#instruction)
+3) [Reporting Issue](#reporting-issue)
 
 
 ## Overview
@@ -33,6 +34,7 @@ See the LICENSE file for more details.
 ## Instruction
 ### Installing ns-3
 Ensure you have ns-3 version 3.35 installed. You can follow this [installation guide](https://www.nsnam.org/docs/release/3.35/tutorial/singlehtml/index.html) to set up prerequisites.
+
 Clone and checkout ns-3 version 3.35:
 ```
 git clone https://gitlab.com/nsnam/ns-3-dev.git
@@ -56,3 +58,5 @@ For debugging with gdb:
 ```
 NS_LOG="OspfInterface:OspfNeighbor" ./waf --run=ospf-metric --gdb
 ```
+### Reporting Issues
+If you would like to report an issue, you can open a new issue in the GitLab issue tracker. Before creating a new issue, please check if the problem that you are facing was already reported and contribute to the discussion, if necessary.
