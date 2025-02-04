@@ -43,11 +43,11 @@
 namespace ns3 {
 /**
  * \ingroup applications 
- * \defgroup ospfapp OspfApp
+ * \defgroup ospf Ospf
  */
 
 /**
- * \ingroup ospfapp
+ * \ingroup ospf
  *
  * \brief An OSPF app, creates IP sockets and fills up routing table.
  */
