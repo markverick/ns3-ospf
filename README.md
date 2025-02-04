@@ -32,7 +32,7 @@ See the LICENSE file for more details.
 
 ## Instruction
 ### Installing ns-3
-Ensure you have ns-3 version 3.35 installed. You can follow this [installation guide](https://github.com/nsnam/ns-3-dev-git/tree/ns-3.35) to set up prerequisites.
+Ensure you have ns-3 version 3.35 installed. You can follow this [installation guide](https://www.nsnam.org/docs/release/3.35/tutorial/singlehtml/index.html) to set up prerequisites.
 Clone and checkout ns-3 version 3.35:
 ```
 git clone https://gitlab.com/nsnam/ns-3-dev.git
