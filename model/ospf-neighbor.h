@@ -125,10 +125,10 @@ public:
 
   // LS Update Acks
   // Lsa-key specific timeout
-  void BindLsuTimeout (LsaHeader::LsaKey lsaKey, EventId event);
-  EventId GetLsuTimeout (LsaHeader::LsaKey lsaKey);
-  bool RemoveLsuTimeout (LsaHeader::LsaKey lsaKey);
-  void ClearLsuTimeouts ();
+  void BindKeyedTimeout (LsaHeader::LsaKey lsaKey, EventId event);
+  EventId GetKeyedTimeout (LsaHeader::LsaKey lsaKey);
+  bool RemoveKeyedTimeout (LsaHeader::LsaKey lsaKey);
+  void ClearKeyedTimeouts ();
 
   // Neighbor-specific timeout
   void RemoveTimeout ();
@@ -153,7 +153,7 @@ public:
 
   // LS Update
   // Pending ack, value is <LsaHeader, LSA>
-  std::map<LsaHeader::LsaKey, EventId> m_lsuTimeouts; // timeout events for LS Update
+  std::map<LsaHeader::LsaKey, EventId> m_keyedTimeouts; // timeout events for LS Update
 };
 
 } // namespace ns3

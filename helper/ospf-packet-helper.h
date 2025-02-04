@@ -77,7 +77,10 @@ ConstructHelloPacket (Ipv4Address routerId, uint32_t areaId, Ipv4Mask mask, uint
   Ptr<OspfHello> helloPayload = Create<OspfHello> (mask.Get (), helloInterval, routerDeadInterval);
   for (auto neighbor : neighbors)
     {
-      helloPayload->AddNeighbor (neighbor->GetRouterId ().Get ());
+      if (neighbor->GetState () >= OspfNeighbor::Init)
+        {
+          helloPayload->AddNeighbor (neighbor->GetRouterId ().Get ());
+        }
     }
 
   // Create the OSPF header

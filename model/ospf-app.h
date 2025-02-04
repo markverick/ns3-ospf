@@ -49,7 +49,7 @@ namespace ns3 {
 /**
  * \ingroup ospfapp
  *
- * \brief An OSPF app, creates IP sockets and fills up routing table
+ * \brief An OSPF app, creates IP sockets and fills up routing table.
  */
 class OspfApp : public Application
 {
@@ -62,35 +62,65 @@ public:
   OspfApp ();
   virtual ~OspfApp ();
 
-  // Accessor for Static Routing
-  void SetRouting (Ptr<Ipv4StaticRouting>);
+  /**
+   * \brief Set a pointer to a routing table.
+   * \param ipv4Routing Ipv4 routing table
+   */
+  void SetRouting (Ptr<Ipv4StaticRouting> ipv4Routing);
 
-  // Set net device to be bound for multicast address
+  /**
+   * \brief Register network devices as OSPF interfaces.Abs
+   * 
+   * 0th index must be loopback TODO: make this more elegant #14
+   * 
+   * \param devs Net device container to beregisted
+   */
   void SetBoundNetDevices (NetDeviceContainer devs);
 
-  // Set interface area
+  /**
+   * \brief Set inteface areas.
+   * \param areas Net device container to be registed
+   */
   void SetAreas (std::vector<uint32_t> areas);
 
-  // Set interface metrices
+  /**
+   * \brief Set inteface metrices.
+   * \param metrices Routing metrices to be registed
+   */
   void SetMetrices (std::vector<uint32_t> metrices);
 
-  // Add neighbor to an existing interface (for multiaccess networks)
-  void AddInterfaceNeighbor (uint32_t ifIndex, Ipv4Address destIp, Ipv4Address nextHopIp);
-
-  // Set router id
+  /**
+   * \brief Set router ID.
+   * \param routerId Router ID of this router
+   */
   void SetRouterId (Ipv4Address routerId);
 
-  // Print LSDB
+  /**
+   * \brief Print LSDB
+   */
   void PrintLsdb ();
 
-  // Print Routing Table
+  /**
+   * \brief Print LSDB.
+   * \param dirName directory name
+   * \param dirName file name
+   */
   void PrintRouting (std::filesystem::path dirName, std::string filename);
 
-  // Print Interface Areas
+  /**
+   * \brief Print interface areas.
+   */
   void PrintAreas ();
 
-  // Get LSDB hash (Lazy)
+  /**
+   * \brief Get LSDB hash for comparison.
+   * \return LSDB hash
+   */
   uint32_t GetLsdbHash ();
+
+  /**
+   * \brief Print LSDB hash.
+   */
   void PrintLsdbHash ();
 
 protected:
@@ -100,25 +130,69 @@ private:
   virtual void StartApplication (void);
   virtual void StopApplication (void);
 
+  /**
+   * \brief Helper to schedule hello transmission.
+   * \param dt time to transmit
+   */
   void ScheduleTransmitHello (Time dt);
 
   // Packet Helpers
+  /**
+   * \brief Send Hello message containing router IDs of where it has received Hello
+   */
   void SendHello ();
+
+  /**
+   * \brief Send ACK.
+   * \param ifIndex interface index
+   * \param ackPacket Acknowledgement packet
+   * \param remoteIp Destination IP address
+   */
   void SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteIp);
+
+  /**
+   * \brief Send packet to neighbor via interface ifIndex.
+   * \param ifIndex Interface index
+   * \param packet Packet to sent
+   * \param neighbor Neighbor to sent
+   */
   void SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor);
+
+  /**
+   * \brief Send packet to neighbor via interface ifIndex, retx enabled.
+   * 
+   * Only allow one timeout per neighbor
+   * 
+   * \param interval Retransmission interval
+   * \param ifIndex Interface index
+   * \param packet Packet to sent
+   * \param neighbor Neighbor to sent
+   */
   void SendToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet,
                                Ptr<OspfNeighbor> neighbor);
-  void SendLsuToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet,
-                                  Ptr<OspfNeighbor> neighbor, LsaHeader::LsaKey lsaKey);
+
+  /**
+   * \brief Send packet to neighbor via interface ifIndex, retx enabled.
+   * 
+   * Only allow one timeout per LSA key
+   * 
+   * \param interval Retransmission interval
+   * \param ifIndex Interface index
+   * \param packet Packet to sent
+   * \param neighbor Neighbor to sent
+   * \param lsaKey LSA unique identifier
+   */
+  void SendToNeighborKeyedInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet,
+                                    Ptr<OspfNeighbor> neighbor, LsaHeader::LsaKey lsaKey);
+
+  /**
+   * \brief Flood LSUs to every interface except the incoming interface.
+   * \param inputIfIndex Input interface ID
+   * \param lsu LS Update packet
+   */
   void FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu);
 
-  // Timeouts
-  void LsuTimeout (uint32_t ifIndex, Ptr<Packet> lsuPacket, uint32_t flags,
-                   std::tuple<uint8_t, uint32_t, uint32_t> lsaKey, Ipv4Address toAddress);
-  void HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId,
-                     Ipv4Address remoteIp);
-
-  // Packet Handlers
+  // Packet Handler
   /**
    * \brief Handle a packet reception.
    *
@@ -127,49 +201,172 @@ private:
    * \param socket the socket the packet was received to.
    */
   void HandleRead (Ptr<Socket> socket);
-
+  /**
+   * \brief Handle a Hello packet.
+   * \param ifIndex Interface index
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param hello Hello payload
+   */
   void HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                     Ptr<OspfHello> hello);
-
+  /**
+   * \brief Handle Database Description.
+   * \param ifIndex Interface index
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param dbd Database Description Payload
+   */
   void HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<OspfDbd> dbd);
+  /**
+   * \brief Handle Negotiate DBD during ExStart.
+   * \param ifIndex Interface index
+   * \param neighbor OSPF Neighbor
+   * \param dbd Database Description Payload
+   */
   void HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd);
+  /**
+   * \brief Handle DBD from Master during Exchange.
+   * \param ifIndex Interface index
+   * \param neighbor OSPF Neighbor
+   * \param dbd Database Description Payload
+   */
   void HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd);
+  /**
+   * \brief Handle DBD from Slave during Exchange.
+   * \param ifIndex Interface index
+   * \param neighbor OSPF Neighbor
+   * \param dbd Database Description Payload
+   */
   void HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd);
-
+  /**
+   * \brief Handle LS Request during Loading.
+   * \param ifIndex Interface index
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param lsr LS Request Payload
+   */
   void HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsRequest> lsr);
-
+  /**
+   * \brief Handle LS Update during Loading and Full.
+   * \param ifIndex Interface index
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param lsu LS Update Payload
+   */
   void HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsUpdate> lsu);
-
+  /**
+   * \brief Handle LS Update containing one Router-LSA during Full.
+   * \param ifIndex Interface index
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param lsaHeader LSA Header
+   * \param routerLsa Router LSA Payload
+   */
   void HandleRouterLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                         LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
-
+  /**
+   * \brief Handle LS Acknowledge as a response for LS Update during Full.
+   * \param ifIndex Interface index
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param lsAck LS Acknowledge Payload
+   */
   void HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsAck> lsAck);
 
-  // LSA
-  Ptr<RouterLsa> GetRouterLsa (); // Generate local Router-LSA based on adjacencies
+  // Link State Advertisement
+  /**
+   * \brief Generate local Router-LSA based on adjacencies (Full)
+   * \return Router-LSA for this router
+   */
+  Ptr<RouterLsa> GetRouterLsa ();
+  /**
+   * \brief Generate local Router-LSA based on adjacencies (Full), filtered by areaId
+   * \param areaId Area ID to filter
+   * \return Router-LSA for this router
+   */
   Ptr<RouterLsa> GetRouterLsa (uint32_t areaId);
-  void RecomputeRouterLsa (); // Recompute local Router-LSA and inject to LSDB
+  /**
+   * \brief Recompute local Router-LSA, increment its Sequence Number, and inject to LSDB
+   */
+  void RecomputeRouterLsa ();
+  /**
+   * \brief Update routing table based on LSDB
+   */
+  void UpdateRouting ();
 
-  void UpdateRouting (); // Update routing table based on LSDB
-
-  // Hello
+  // Hello Protocol
+  /**
+   * \brief A timeout event for Hello, triggered after not receiving Hello for RouterDeadInterval
+   * \param ospfInterface OSPF Interface
+   * \param remoteRouterId Destination router ID
+   * \param remoteIp Destination IP address
+   */
+  void HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId,
+                     Ipv4Address remoteIp);
+  /**
+   * \brief Refresh the Hello timeout, triggered after receiving Hello.
+   * \param ifIndex Interface index
+   * \param ospfInterface OSPF Interface TODO: Redundant
+   * \param remoteRouterId Destination router ID
+   * \param remoteIp Destination IP address
+   */
   void RefreshHelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
                             Ipv4Address remoteRouterId, Ipv4Address remoteIp);
-
   // ExStart
+  /**
+   * \brief Negotiate for Master/Slave, sending DBDs with no LSA header.
+   * \param ifIndex Interface index
+   * \param neighbor OSPF neighbor
+   * \param bitMS true if it wants to be Master
+   */
   void NegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, bool bitMS);
 
   // Exchange
-  void SendMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  /**
+   * \brief Master sends its DBD to Slave, retx enabled.
+   * 
+   * Only one outstanding DBD is allowed. The next DBD is sent
+   * upon receiving DBD from slave as implicit acknowledgement.
+   * 
+   * \param ifIndex Interface index
+   * \param neighbor OSPF neighbor
+   */
   void PollMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
   // Loading
+  /**
+   * \brief Move the neighbor state to Loading.
+   * 
+   * Move the neighbor state to Loading, sending LS Request
+   * for any outdated or missing LSAs.
+   * 
+   * \param ifIndex Interface index
+   * \param neighbor OSPF neighbor
+   */
   void AdvanceToLoading (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  /**
+   * \brief Compare and start sending LS Requests.
+   * 
+   * Compare the LSDB with its neighbor, and send the first LS Request.
+   * 
+   * \param ifIndex Interface index
+   * \param neighbor OSPF neighbor
+   */
   void CompareAndSendLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  /**
+   * \brief Send the next LSR or advance to Full if the queue is empty.
+   * \param ifIndex Interface index
+   * \param neighbor OSPF neighbor
+   */
   void SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
-  void SatisfyLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
   // Full
+  /**
+   * \brief LSDBs are synchronized, advancing to Full.
+   * \param ifIndex Interface index
+   * \param neighbor OSPF neighbor
+   */
   void AdvanceToFull (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
   std::vector<Ptr<Socket>> m_sockets; //!< Unicast socket
@@ -184,15 +381,17 @@ private:
   uint32_t m_areaId; // Only used for default value and for alt area and
 
   // Randomization
+  // For a small time jitter
   Ptr<UniformRandomVariable> m_randomVariable = CreateObject<UniformRandomVariable> ();
+  // For DD Sequence Number
   Ptr<UniformRandomVariable> m_randomVariableSeq = CreateObject<UniformRandomVariable> ();
 
   // Hello
   Time m_helloInterval; //!< Hello Interval
   Ipv4Address m_helloAddress; //!< Address of multicast hello message
-  std::vector<Time> m_lastHelloReceived;
-  std::vector<EventId> m_helloTimeouts;
-  Time m_routerDeadInterval;
+  std::vector<Time> m_lastHelloReceived; //!< Times of last hello received
+  std::vector<EventId> m_helloTimeouts; //!< Timeout Events of not receiving Hello
+  Time m_routerDeadInterval; //!< Router Dead Interval for Hello to become Down
   EventId m_helloEvent; //!< Event to send the next hello packet
 
   // Interface

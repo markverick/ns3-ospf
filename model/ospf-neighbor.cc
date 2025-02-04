@@ -208,8 +208,6 @@ OspfNeighbor::SetLastLsrSent (Ptr<LsRequest> lsr)
 void
 OspfNeighbor::InsertLsaKey (LsaHeader lsaHeader)
 {
-  std::cout << " !!! " << Ipv4Address (std::get<1> (lsaHeader.GetKey ())) << ", "
-            << Ipv4Address (std::get<2> (lsaHeader.GetKey ())) << std::endl;
   InsertLsaKey (lsaHeader.GetKey (), lsaHeader.GetSeqNum ());
 }
 
@@ -350,35 +348,35 @@ OspfNeighbor::PopMaxMtuFromLsrQueue (uint32_t mtu)
 
 // LS Update / Acknowledge
 void
-OspfNeighbor::BindLsuTimeout (LsaHeader::LsaKey lsaKey, EventId event)
+OspfNeighbor::BindKeyedTimeout (LsaHeader::LsaKey lsaKey, EventId event)
 {
-  if (m_lsuTimeouts[lsaKey].IsRunning ())
+  if (m_keyedTimeouts[lsaKey].IsRunning ())
     {
-      m_lsuTimeouts[lsaKey].Remove ();
+      m_keyedTimeouts[lsaKey].Remove ();
     }
-  m_lsuTimeouts[lsaKey] = event;
+  m_keyedTimeouts[lsaKey] = event;
 }
 EventId
-OspfNeighbor::GetLsuTimeout (LsaHeader::LsaKey lsaKey)
+OspfNeighbor::GetKeyedTimeout (LsaHeader::LsaKey lsaKey)
 {
-  return m_lsuTimeouts[lsaKey];
+  return m_keyedTimeouts[lsaKey];
 }
 bool
-OspfNeighbor::RemoveLsuTimeout (LsaHeader::LsaKey lsaKey)
+OspfNeighbor::RemoveKeyedTimeout (LsaHeader::LsaKey lsaKey)
 {
-  auto it = m_lsuTimeouts.find (lsaKey);
-  if (it != m_lsuTimeouts.end ())
+  auto it = m_keyedTimeouts.find (lsaKey);
+  if (it != m_keyedTimeouts.end ())
     {
       it->second.Remove ();
-      m_lsuTimeouts.erase (it);
+      m_keyedTimeouts.erase (it);
       return true;
     }
   return false;
 }
 void
-OspfNeighbor::ClearLsuTimeouts (void)
+OspfNeighbor::ClearKeyedTimeouts (void)
 {
-  for (auto pair : m_lsuTimeouts)
+  for (auto pair : m_keyedTimeouts)
     {
       pair.second.Remove ();
     }
