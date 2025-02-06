@@ -302,7 +302,7 @@ private:
    * \param remoteRouterId Destination router ID
    * \param remoteIp Destination IP address
    */
-  void HelloTimeout (Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId,
+  void HelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId,
                      Ipv4Address remoteIp);
   /**
    * \brief Refresh the Hello timeout, triggered after receiving Hello.
@@ -313,6 +313,19 @@ private:
    */
   void RefreshHelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
                             Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+
+  // Down
+  /**
+   * \brief Move the neighbor state to Down.
+   * 
+   * Move the neighbor state to Down, flooding LSAs to update
+   * its neighbors
+   * 
+   * \param ifIndex Interface index
+   * \param neighbor OSPF neighbor
+   */
+  void AdvanceToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+
   // ExStart
   /**
    * \brief Negotiate for Master/Slave, sending DBDs with no LSA header.
@@ -362,6 +375,7 @@ private:
   void SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
   // Full
+  // void OspfApp::SendPendingLsu (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
   /**
    * \brief LSDBs are synchronized, advancing to Full.
    * \param ifIndex Interface index
