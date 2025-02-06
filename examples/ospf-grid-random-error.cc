@@ -20,6 +20,7 @@
 
 //
 // Network topology: Grid
+//
 
 #include "ns3/applications-module.h"
 #include "ns3/core-module.h"
@@ -30,6 +31,7 @@
 #include "ns3/point-to-point-module.h"
 #include "ns3/ospf-app-helper.h"
 #include "ns3/ospf-app.h"
+#include "ns3/random-variable-stream.h"
 
 #include <cassert>
 #include <fstream>
@@ -39,12 +41,13 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE ("OspfGrid");
+NS_LOG_COMPONENT_DEFINE ("OspfGridPartition");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
-const uint32_t GRID_WIDTH = 5;
-const uint32_t GRID_HEIGHT = 5;
-const uint32_t SIM_SECONDS = 100;
+const uint32_t GRID_WIDTH = 4;
+const uint32_t GRID_HEIGHT = 4;
+const uint32_t SIM_SECONDS = 1000;
+Ptr<UniformRandomVariable> rv = CreateObject<UniformRandomVariable> ();
 
 // Fill static routes with
 void
@@ -71,12 +74,33 @@ SetLinkUp (Ptr<NetDevice> nd)
   nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
 }
 
+void
+CompareLsdb (NodeContainer nodes)
+{
+  NS_ASSERT (nodes.GetN () > 0);
+  Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
+  uint32_t hash = app->GetLsdbHash ();
+
+  for (uint32_t i = 1; i < nodes.GetN (); i++)
+    {
+      app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
+      if (hash != app->GetLsdbHash ())
+        {
+          std::cout << "[" << Simulator::Now () << "] LSDBs mismatched" << std::endl;
+          return;
+        }
+    }
+  std::cout << "[" << Simulator::Now () << "] LSDBs matched" << std::endl;
+  ;
+  return;
+}
+
 int
 main (int argc, char *argv[])
 {
   // Users may find it convenient to turn on explicit debugging
   // for selected modules; the below lines suggest how to do this
-  LogComponentEnable ("OspfGrid", LOG_LEVEL_INFO);
+  LogComponentEnable ("OspfGridPartition", LOG_LEVEL_INFO);
   // Set up some default values for the simulation.  Use the
 
   // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
@@ -89,7 +113,7 @@ main (int argc, char *argv[])
   cmd.Parse (argc, argv);
 
   // Create results folder
-  std::filesystem::path dirName = "results/ospf-grid";
+  std::filesystem::path dirName = "results/ospf-grid-random-error";
 
   try
     {
@@ -99,6 +123,10 @@ main (int argc, char *argv[])
     {
       std::cerr << "Error: " << e.what () << std::endl;
     }
+
+  // Set up random variables
+  rv->SetAttribute ("Min", DoubleValue (0.0));
+  rv->SetAttribute ("Max", DoubleValue (1.0));
 
   // Create nodes
   NS_LOG_INFO ("Create nodes.");
@@ -114,7 +142,7 @@ main (int argc, char *argv[])
   PointToPointHelper p2p;
   p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
   p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
-  NetDeviceContainer ndc;
+  NetDeviceContainer ndc, ndcSeam;
   for (uint32_t i = 0; i < GRID_HEIGHT; i++)
     {
       for (uint32_t j = 0; j < GRID_WIDTH; j++)
@@ -154,51 +182,39 @@ main (int argc, char *argv[])
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
-  // User Traffic
-  // uint16_t port = 9;  // well-known echo port number
-  // UdpEchoServerHelper server (port);
-  // ApplicationContainer apps = server.Install (c.Get (3));
-  // apps.Start (Seconds (1.0));
-  // apps.Stop (Seconds (SIM_SECONDS));
-
-  // uint32_t tSize = 1024;
-  // uint32_t maxPacketCount = 200;
-  // Time interPacketInterval = Seconds (1.);
-  // UdpEchoClientHelper client (Ipv4Address("10.1.3.1"), port);
-  // client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
-  // client.SetAttribute ("Interval", TimeValue (interPacketInterval));
-  // client.SetAttribute ("PacketSize", UintegerValue (tSize));
-  // apps = client.Install (c.Get (1));
-  // apps.Start (Seconds (2.0));
-  // apps.Stop (Seconds (SIM_SECONDS));
-
   // Test Error
-  // for (uint32_t i = 0; i < ndc.GetN(); i++) {
-  //     Simulator::Schedule(Seconds(5), &SetLinkError, ndc.Get(i));
-  // }
-  // Simulator::Schedule(Seconds(35), &SetLinkDown, ndc.Get(0));
-  // Simulator::Schedule(Seconds(35), &SetLinkDown, ndc.Get(1));
-  // Simulator::Schedule(Seconds(85), &SetLinkUp, ndc.Get(0));
-  // Simulator::Schedule(Seconds(85), &SetLinkUp, ndc.Get(1));
+  for (uint32_t i = 5; i < SIM_SECONDS; i += 50)
+    {
+      for (uint32_t j = 0; j < ndc.GetN (); j++)
+        {
+          if (rv->GetValue () <= 0.2)
+            {
+              Simulator::Schedule (Seconds (i), &SetLinkDown, ndc.Get (j));
+              Simulator::Schedule (Seconds (i + 50), &SetLinkUp, ndc.Get (j));
+            }
+        }
+      Simulator::Schedule (Seconds (i + 49), &CompareLsdb, c);
+    }
 
   // Print LSDB
   Ptr<OspfApp> app;
-  for (uint32_t i = 0; i < c.GetN (); i++)
-    {
-      app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
-      // Simulator::Schedule(Seconds(1.001), &OspfApp::PrintLsdbHash, app);
-      // Simulator::Schedule(Seconds(30), &OspfApp::PrintLsdbHash, app);
-      // Simulator::Schedule(Seconds(80), &OspfApp::PrintLsdbHash, app);
-      // Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLsdbHash, app);
-    }
+  // for (uint32_t i = 0; i < c.GetN (); i++)
+  //   {
+  //     app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
+  //     Simulator::Schedule(Seconds(30), &OspfApp::PrintLsdb, app);
+  //     // Simulator::Schedule(Seconds(80), &OspfApp::PrintLsdbHash, app);
+  //     // Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLsdbHash, app);
+  //   }
   app = DynamicCast<OspfApp> (c.Get (0)->GetApplication (0));
-  Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::PrintLsdb, app);
-  Simulator::Schedule (Seconds (100), &OspfApp::PrintRouting, app, dirName, "route.routes");
+  // Simulator::Schedule (Seconds (30), &OspfApp::PrintLsdb, app);
+  Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::PrintRouting, app, dirName, "route.routes");
 
   // Print progress
   for (uint32_t i = 0; i < SIM_SECONDS; i += 10)
     {
-      Simulator::Schedule (Seconds (i), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (i), &OspfApp::PrintRouting, app, dirName,
+                           std::to_string (i) + ".routes");
+      // Simulator::Schedule (Seconds (i), &OspfApp::PrintLsdb, app);
     }
 
   // Enable Pcap

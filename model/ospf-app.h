@@ -375,7 +375,6 @@ private:
   void SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
   // Full
-  // void OspfApp::SendPendingLsu (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
   /**
    * \brief LSDBs are synchronized, advancing to Full.
    * \param ifIndex Interface index

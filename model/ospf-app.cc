@@ -860,19 +860,22 @@ OspfApp::HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
       for (auto &[lsaHeader, lsa] : receivedLsa)
         {
           if (lsaHeader.GetType () == LsaHeader::RouterLSAs)
-          {
-            if (lastLsr->HasLsaKey(lsaHeader.GetKey())) {
-              // If LSU is an implicit ACK to LSR
-              lastLsr->RemoveLsaKey (lsaHeader.GetKey ());
-                m_routerLsdb[lsaHeader.GetAdvertisingRouter ()] =
-                    std::make_pair (lsaHeader, DynamicCast<RouterLsa> (lsa));
-                m_seqNumbers[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
-            } else {
-              // Handle LSA normally
-              HandleRouterLsu (ifIndex, ipHeader, ospfHeader, lsaHeader,
-                        DynamicCast<RouterLsa> (lsa));
+            {
+              if (lastLsr->HasLsaKey (lsaHeader.GetKey ()))
+                {
+                  // If LSU is an implicit ACK to LSR
+                  lastLsr->RemoveLsaKey (lsaHeader.GetKey ());
+                  m_routerLsdb[lsaHeader.GetAdvertisingRouter ()] =
+                      std::make_pair (lsaHeader, DynamicCast<RouterLsa> (lsa));
+                  m_seqNumbers[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
+                }
+              else
+                {
+                  // Handle LSA normally
+                  HandleRouterLsu (ifIndex, ipHeader, ospfHeader, lsaHeader,
+                                   DynamicCast<RouterLsa> (lsa));
+                }
             }
-          }
         }
       // Get the next LSR or advance to FULL if no more is left
       if (lastLsr->IsLsaKeyEmpty ())
@@ -1149,7 +1152,7 @@ OspfApp::UpdateRouting ()
       for (uint32_t i = 0; i < routerLsa.second->GetNLink (); i++)
         {
           // NS_LOG_DEBUG ("Add route: " << Ipv4Address (routerLsa.second->GetLink (i).m_linkData)
-                                      // << ", " << ifIndex << ", " << distanceTo[remoteRouterId]);
+          // << ", " << ifIndex << ", " << distanceTo[remoteRouterId]);
           m_routing->AddHostRouteTo (Ipv4Address (routerLsa.second->GetLink (i).m_linkData),
                                      ifIndex, distanceTo[remoteRouterId]);
         }
@@ -1158,13 +1161,13 @@ OspfApp::UpdateRouting ()
 
 // Hello Protocol
 void
-OspfApp::HelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId,
-                       Ipv4Address remoteIp)
+OspfApp::HelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
+                       Ipv4Address remoteRouterId, Ipv4Address remoteIp)
 {
   auto neighbor = ospfInterface->GetNeighbor (remoteRouterId, remoteIp);
   NS_ASSERT (neighbor != nullptr);
   // Set the interface to down, which keeps hello going
-  AdvanceToDown(ifIndex, neighbor);
+  AdvanceToDown (ifIndex, neighbor);
   NS_LOG_DEBUG ("Interface " << ospfInterface->GetAddress () << " has removed routerId: "
                              << remoteRouterId << ", remoteIp" << remoteIp << " neighbors");
 }
@@ -1193,8 +1196,8 @@ OspfApp::AdvanceToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
   lsUpdate->AddLsa (m_routerLsdb[m_routerId.Get ()]);
   neighbor->RemoveTimeout ();
-  neighbor->ClearKeyedTimeouts();
-  FloodLsu(0, lsUpdate);
+  neighbor->ClearKeyedTimeouts ();
+  FloodLsu (0, lsUpdate);
 }
 
 // ExStart
@@ -1298,10 +1301,6 @@ OspfApp::SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 }
 
 // Full
-// void
-// OspfApp::SendPendingLsu (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor) {
-//   for (auto n : )
-// }
 void
 OspfApp::AdvanceToFull (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
@@ -1318,7 +1317,7 @@ OspfApp::AdvanceToFull (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
   lsUpdate->AddLsa (m_routerLsdb[m_routerId.Get ()]);
 
   // Flood its Router-LSA to all neighbors
-  
+
   FloodLsu (0, lsUpdate);
 }
 

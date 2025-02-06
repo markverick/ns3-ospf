@@ -19,15 +19,7 @@
  */
 
 //
-// Network topology
-//
-//  n0
-//     \ 5 Mb/s, 2ms
-//      \          1.5Mb/s, 10ms
-//       n2 -------------------------n3
-//      /
-//     / 5 Mb/s, 2ms
-//   n1
+// Network topology: Grid
 //
 
 #include "ns3/applications-module.h"
@@ -83,21 +75,23 @@ SetLinkUp (Ptr<NetDevice> nd)
 void
 CompareLsdb (NodeContainer nodes)
 {
-  NS_ASSERT(nodes.GetN() > 0);
+  NS_ASSERT (nodes.GetN () > 0);
   Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
-  uint32_t hash = app->GetLsdbHash();
+  uint32_t hash = app->GetLsdbHash ();
 
-  for (uint32_t i = 1; i < nodes.GetN(); i++) {
-    app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
-    if (hash != app->GetLsdbHash()) {
-      std::cout << "[" << Simulator::Now() << "] LSDBs mismatched" << std::endl;
-      return;
+  for (uint32_t i = 1; i < nodes.GetN (); i++)
+    {
+      app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
+      if (hash != app->GetLsdbHash ())
+        {
+          std::cout << "[" << Simulator::Now () << "] LSDBs mismatched" << std::endl;
+          return;
+        }
     }
-  }
-  std::cout << "[" << Simulator::Now() << "] LSDBs matched" << std::endl;;
+  std::cout << "[" << Simulator::Now () << "] LSDBs matched" << std::endl;
+  ;
   return;
 }
-
 
 int
 main (int argc, char *argv[])
@@ -150,10 +144,11 @@ main (int argc, char *argv[])
           // Horizontal
           ndc.Add (p2p.Install (c.Get (i * GRID_WIDTH + j),
                                 c.Get (i * GRID_WIDTH + ((j + 1) % GRID_WIDTH))));
-          if (j == 0) {
-            ndcSeam.Add(ndc.Get(ndc.GetN() - 2));
-            ndcSeam.Add(ndc.Get(ndc.GetN() - 1));
-          }
+          if (j == 0)
+            {
+              ndcSeam.Add (ndc.Get (ndc.GetN () - 2));
+              ndcSeam.Add (ndc.Get (ndc.GetN () - 1));
+            }
           // Vertical
           ndc.Add (p2p.Install (c.Get (i * GRID_WIDTH + j),
                                 c.Get (((i + 1) % GRID_HEIGHT) * GRID_WIDTH + j)));
@@ -187,17 +182,18 @@ main (int argc, char *argv[])
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
   // Test Error
-  for (uint32_t i = 0; i < ndcSeam.GetN(); i++) {
-    Simulator::Schedule(Seconds(35), &SetLinkDown, ndcSeam.Get(i));
-    Simulator::Schedule(Seconds(85), &SetLinkUp, ndcSeam.Get(i));
-  }
+  for (uint32_t i = 0; i < ndcSeam.GetN (); i++)
+    {
+      Simulator::Schedule (Seconds (35), &SetLinkDown, ndcSeam.Get (i));
+      Simulator::Schedule (Seconds (85), &SetLinkUp, ndcSeam.Get (i));
+    }
 
   // Print LSDB
   Ptr<OspfApp> app;
-  Simulator::Schedule(Seconds(30), &CompareLsdb, c);
-  Simulator::Schedule(Seconds(40), &CompareLsdb, c);
-  Simulator::Schedule(Seconds(80), &CompareLsdb, c);
-  Simulator::Schedule(Seconds(SIM_SECONDS), &CompareLsdb, c);
+  Simulator::Schedule (Seconds (30), &CompareLsdb, c);
+  Simulator::Schedule (Seconds (40), &CompareLsdb, c);
+  Simulator::Schedule (Seconds (80), &CompareLsdb, c);
+  Simulator::Schedule (Seconds (SIM_SECONDS), &CompareLsdb, c);
   // for (uint32_t i = 0; i < c.GetN (); i++)
   //   {
   //     app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
@@ -212,7 +208,8 @@ main (int argc, char *argv[])
   // Print progress
   for (uint32_t i = 0; i < SIM_SECONDS; i += 10)
     {
-      Simulator::Schedule (Seconds (i), &OspfApp::PrintRouting, app, dirName, std::to_string(i) + ".routes");
+      Simulator::Schedule (Seconds (i), &OspfApp::PrintRouting, app, dirName,
+                           std::to_string (i) + ".routes");
       // Simulator::Schedule (Seconds (i), &OspfApp::PrintLsdb, app);
     }
 
