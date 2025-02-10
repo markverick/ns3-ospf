@@ -44,8 +44,8 @@ using namespace ns3;
 NS_LOG_COMPONENT_DEFINE ("OspfGridPartition");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
-const uint32_t GRID_WIDTH = 4;
-const uint32_t GRID_HEIGHT = 4;
+const uint32_t GRID_WIDTH = 6;
+const uint32_t GRID_HEIGHT = 6;
 const uint32_t SIM_SECONDS = 1000;
 Ptr<UniformRandomVariable> rv = CreateObject<UniformRandomVariable> ();
 

@@ -96,6 +96,10 @@ public:
   void SetRouterId (Ipv4Address routerId);
 
   /**
+   * \brief Get LSDB; only use for testing/debugging
+   */
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>> GetLsdb ();
+  /**
    * \brief Print LSDB
    */
   void PrintLsdb ();

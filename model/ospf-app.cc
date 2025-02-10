@@ -166,6 +166,12 @@ OspfApp::SetRouterId (Ipv4Address routerId)
   m_routerId = routerId;
 }
 
+std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>
+OspfApp::GetLsdb ()
+{
+  return m_routerLsdb;
+}
+
 void
 OspfApp::PrintLsdb ()
 {
@@ -805,10 +811,15 @@ OspfApp::HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfD
     {
       neighbor->InsertLsaKey (header);
     }
+  // No more LSAs
   if (!dbd->GetBitM () && neighbor->IsDbdQueueEmpty ())
     {
       AdvanceToLoading (ifIndex, neighbor);
+      return;
     }
+  // Increment neighbor's seq num and poll more LSAs
+  neighbor->IncrementDDSeqNum ();
+  PollMasterDbd (ifIndex, neighbor);
 }
 
 void
@@ -1222,6 +1233,8 @@ OspfApp::NegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, bool bitMS)
     }
   else
     {
+      // Remove timeout
+      neighbor->RemoveTimeout ();
       // Implicit ACK, replying with being slave
       NS_LOG_INFO ("Router responds as slave");
       SendToNeighbor (ifIndex, packet, neighbor);

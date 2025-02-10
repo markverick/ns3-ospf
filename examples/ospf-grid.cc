@@ -42,8 +42,9 @@ using namespace ns3;
 NS_LOG_COMPONENT_DEFINE ("OspfGrid");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
-const uint32_t GRID_WIDTH = 5;
-const uint32_t GRID_HEIGHT = 5;
+
+const uint32_t GRID_WIDTH = 10;
+const uint32_t GRID_HEIGHT = 10;
 const uint32_t SIM_SECONDS = 100;
 
 // Fill static routes with
@@ -69,6 +70,59 @@ SetLinkUp (Ptr<NetDevice> nd)
   Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
   pem->SetRate (0.0);
   nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
+}
+
+void
+CompareLsdb (NodeContainer nodes)
+{
+  NS_ASSERT (nodes.GetN () > 0);
+  Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
+  uint32_t hash = app->GetLsdbHash ();
+
+  for (uint32_t i = 1; i < nodes.GetN (); i++)
+    {
+      app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
+      if (hash != app->GetLsdbHash ())
+        {
+          std::cout << "[" << Simulator::Now () << "] LSDBs mismatched" << std::endl;
+          return;
+        }
+    }
+  std::cout << "[" << Simulator::Now () << "] LSDBs matched" << std::endl;
+  ;
+  return;
+}
+
+void
+VerifyNeighbor (NodeContainer nodes)
+{
+  NS_ASSERT (nodes.GetN () > 0);
+  bool match = true;
+  for (uint32_t i = 0; i < nodes.GetN (); i++)
+    {
+      Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
+      for (auto &pair : app->GetLsdb ())
+        {
+          if (pair.second.second->GetNLink () !=
+              nodes.Get (app->GetNode ()->GetId ())->GetNDevices () - 1)
+            {
+              std::cout << "[" << Simulator::Now () << "] LSDB entry [" << Ipv4Address (pair.first)
+                        << "] of node [" << i << "] is incorrect ("
+                        << pair.second.second->GetNLink ()
+                        << " != " << nodes.Get (app->GetNode ()->GetId ())->GetNDevices () - 1
+                        << ")" << std::endl;
+              match = false;
+              for (uint32_t j = 0; j < pair.second.second->GetNLink (); j++)
+                {
+                  std::cout << "  " << Ipv4Address (pair.second.second->GetLink (j).m_linkId);
+                }
+              std::cout << std::endl;
+            }
+        }
+    }
+  if (match)
+    std::cout << "[" << Simulator::Now () << "] LSDB entries correct" << std::endl;
+  return;
 }
 
 int
@@ -131,7 +185,7 @@ main (int argc, char *argv[])
 
   // Add IP addresses.
   NS_LOG_INFO ("Assign IP Addresses.");
-  Ipv4AddressHelper ipv4 ("10.1.1.0", "255.255.255.252");
+  Ipv4AddressHelper ipv4 ("10.1.1.0", "255.255.255.0");
   for (uint32_t i = 0; i < ndc.GetN (); i += 2)
     {
       ipv4.Assign (ndc.Get (i));
@@ -200,7 +254,8 @@ main (int argc, char *argv[])
     {
       Simulator::Schedule (Seconds (i), &OspfApp::PrintLsdb, app);
     }
-
+  Simulator::Schedule (Seconds (SIM_SECONDS), CompareLsdb, c);
+  Simulator::Schedule (Seconds (SIM_SECONDS), VerifyNeighbor, c);
   // Enable Pcap
   AsciiTraceHelper ascii;
   p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));
