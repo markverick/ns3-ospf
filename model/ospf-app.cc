@@ -177,7 +177,7 @@ OspfApp::PrintLsdb ()
 {
   if (m_routerLsdb.empty ())
     return;
-  std::cout << "===== Router ID: " << m_routerId << " =====" << std::endl;
+  std::cout << "===== Router ID: " << m_routerId << " Area ID: " << m_areaId << " =====" << std::endl;
   for (auto &pair : m_routerLsdb)
     {
       std::cout << "At t=" << Simulator::Now ().GetSeconds ()
@@ -486,7 +486,10 @@ OspfApp::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
       auto neighbors = m_ospfInterfaces[i]->GetNeighbors ();
       for (auto neighbor : neighbors)
         {
-          // Flood all neighbors, period.
+          // Flood L1 LSAs to neighbors within the same area
+          if (neighbor->GetArea() != this->m_areaId) {
+            continue;
+          }
           Ptr<Packet> packet = lsu->ConstructPacket ();
           EncapsulateOspfPacket (packet, m_routerId, interface->GetArea (),
                                  OspfHeader::OspfType::OspfLSUpdate);
@@ -719,7 +722,10 @@ OspfApp::HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<O
       // Snapshot LSDB headers during Exchange for consistency
       for (const auto &pair : m_routerLsdb)
         {
-          neighbor->AddDbdQueue (pair.second.first);
+          // L1 LSAs must not cross the area
+          if (neighbor->GetArea() == this->m_areaId) {
+            neighbor->AddDbdQueue (pair.second.first);
+          }
         }
       NegotiateDbd (ifIndex, neighbor, false);
       neighbor->SetState (OspfNeighbor::Exchange);
@@ -731,7 +737,9 @@ OspfApp::HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<O
       // Snapshot LSDB headers during Exchange for consistency
       for (const auto &pair : m_routerLsdb)
         {
-          neighbor->AddDbdQueue (pair.second.first);
+          if (neighbor->GetArea() == this->m_areaId) {
+            neighbor->AddDbdQueue (pair.second.first);
+          }
         }
       neighbor->SetState (OspfNeighbor::Exchange);
       PollMasterDbd (ifIndex, neighbor);

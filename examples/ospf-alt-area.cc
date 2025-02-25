@@ -55,6 +55,28 @@ Ipv4Address ospfHelloAddress ("224.0.0.5");
 // Link Up at t=85
 const uint32_t SIM_SECONDS = 105;
 
+
+void
+CompareLsdb (NodeContainer nodes)
+{
+  NS_ASSERT (nodes.GetN () > 0);
+  Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
+  uint32_t hash = app->GetLsdbHash ();
+
+  for (uint32_t i = 1; i < nodes.GetN (); i++)
+    {
+      app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
+      if (hash != app->GetLsdbHash ())
+        {
+          std::cout << "[" << Simulator::Now () << "] LSDBs mismatched" << std::endl;
+          return;
+        }
+    }
+  std::cout << "[" << Simulator::Now () << "] LSDBs matched" << std::endl;
+  ;
+  return;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -87,8 +109,12 @@ main (int argc, char *argv[])
   // Here, we will explicitly create four nodes.  In more sophisticated
   // topologies, we could configure a node factory.
   NS_LOG_INFO ("Create nodes.");
-  NodeContainer c;
+  NodeContainer c, c0, c1;
   c.Create (8);
+  for (uint32_t i = 0; i < 4;i++) {
+    c0.Add(c.Get(i));
+    c1.Add(c.Get(4 + i));
+  }
   std::vector<NodeContainer> allNodes;
   allNodes.emplace_back (NodeContainer (c.Get (0), c.Get (1)));
   allNodes.emplace_back (NodeContainer (c.Get (1), c.Get (2)));
@@ -99,14 +125,14 @@ main (int argc, char *argv[])
   allNodes.emplace_back (NodeContainer (c.Get (5), c.Get (6)));
   allNodes.emplace_back (NodeContainer (c.Get (6), c.Get (7)));
 
-  // Prepare interface areas
+  // Prepare interface areas. Same subnets can be in different areas for alt-area
   std::vector<std::vector<uint32_t>> areas;
   areas.emplace_back (std::vector<uint32_t> ({0, 0}));
   areas.emplace_back (std::vector<uint32_t> ({0, 0, 0, 0}));
-  areas.emplace_back (std::vector<uint32_t> ({0, 0, 1}));
-  areas.emplace_back (std::vector<uint32_t> ({0, 0, 1}));
-  areas.emplace_back (std::vector<uint32_t> ({1, 0, 1}));
-  areas.emplace_back (std::vector<uint32_t> ({1, 0, 1}));
+  areas.emplace_back (std::vector<uint32_t> ({0, 0, 0}));
+  areas.emplace_back (std::vector<uint32_t> ({0, 0, 0}));
+  areas.emplace_back (std::vector<uint32_t> ({1, 1, 1}));
+  areas.emplace_back (std::vector<uint32_t> ({1, 1, 1}));
   areas.emplace_back (std::vector<uint32_t> ({1, 1, 1, 1}));
   areas.emplace_back (std::vector<uint32_t> ({1, 1}));
 
@@ -188,7 +214,9 @@ main (int argc, char *argv[])
   Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (7)->GetApplication (0));
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                        "route.routes");
-  for (int i = 0; i < 6; i++)
+  Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c0);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c1);
+  for (int i = 0; i < 8; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
