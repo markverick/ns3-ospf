@@ -32,5 +32,5 @@ RUN cd ns-3 && \
     ./waf configure --enable-examples --enable-tests && \
     ./waf build
 
-COPY ../../entrypoint.sh ./entrypoint.sh
+COPY entrypoint.sh ./entrypoint.sh
 ENTRYPOINT ["./entrypoint.sh"]
