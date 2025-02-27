@@ -3,7 +3,8 @@ name: Build with Cached Docker Container
 on:
   push:
     branches:
-      - main
+      - "*"
+  pull_request:
 
 jobs:
   build:
