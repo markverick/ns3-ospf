@@ -1,6 +1,6 @@
 Simplified OSPF module for ns-3
 ===============================
-This project is an external module for the [ns-3 network simulator](https://www.nsnam.org/), implementing basic functionality of the Open Shortest Path First Version 2 (OSPFv2) routing protocol as defined in [RFC 2328](https://datatracker.ietf.org/doc/rfc2328/). This module is targetted for ns-3 version 3.35.
+This project is an external module for the [ns-3 network simulator](https://www.nsnam.org/), implementing basic functionality of the Open Shortest Path First Version 2 (OSPFv2) routing protocol as defined in [RFC 2328](https://datatracker.ietf.org/doc/rfc2328/). This module is targetted for ns-3 version 3.35. **Area Routing will be based on IS-IS abstraction.**
 
 ## License
 
