@@ -24,11 +24,11 @@ RUN update-ca-certificates && \
     cd ns-3 && \
     git checkout ns-3.35
 
-COPY ospf ./contrib/ospf
+COPY ospf ./ns-3/contrib/ospf
 
 RUN cd ns-3 && \
     ./waf configure --enable-examples --enable-tests && \
     ./waf build
 
-ENTRYPOINT ["/entrypoint.sh"]
-COPY entrypoint.sh /ns3/entrypoint.sh
+COPY entrypoint.sh ./entrypoint.sh
+ENTRYPOINT ["./entrypoint.sh"]
