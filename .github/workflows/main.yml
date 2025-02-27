@@ -1,0 +1,24 @@
+name: build
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+  permissions:
+    contents: read
+
+jobs:
+  run_examples:
+    runs-on: ubuntu-latest
+    name: Run examples
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Run entrypoint.sh in docker action
+        uses: ./ # Uses an action in the root directory
+        id: docker
+
+      # Use the output from the `hello` step
+      - name: Get the log
+        run: echo "${{ steps.hello.outputs.time }}"
+
