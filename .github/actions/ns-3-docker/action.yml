@@ -1,0 +1,9 @@
+# action.yml
+name: 'ns-3 Docker'
+description: 'Docker with ns-3.35 and this OSPF module'
+outputs:
+  logs:
+    description: 'Output logs'
+runs:
+  using: 'docker'
+  image: 'Dockerfile'

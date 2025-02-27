@@ -1,0 +1,46 @@
+name: Build with Cached Docker Container
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Cache Docker Image
+        uses: actions/cache@v4
+        with:
+          path: /tmp/docker-cache
+          key: docker-${{ runner.os }}-${{ hashFiles('.github/actions/ns-3-docker/Dockerfile') }}
+          restore-keys: |
+            docker-${{ runner.os }}-
+
+      - name: Load Cached Docker Image
+        run: |
+          if [ -f "/tmp/docker-cache/docker-image.tar" ]; then
+            docker load -i /tmp/docker-cache/docker-image.tar
+          fi
+
+      - name: Build Docker Image (If Not Cached)
+        run: |
+          if ! docker image inspect ns3-contrib-container > /dev/null 2>&1; then
+            docker build -t ns3-contrib-container -f .github/actions/ns-3-docker/Dockerfile .
+            mkdir -p /tmp/docker-cache
+            docker save ns3-contrib-container -o /tmp/docker-cache/docker-image.tar
+          fi
+
+      - name: Run Docker Container with Mounted Volume
+        run: |
+          echo "output_path=/tmp/ospf_output.txt" >> $GITHUB_ENV
+          docker run --rm \
+            -v /home/runner/work/ns3-ospf/ns3-ospf/ospf:/usr/local/app/ns-3/contrib/ospf \
+            -e GITHUB_OUTPUT="/tmp/ospf_output.txt" \
+            ns3-contrib-container
