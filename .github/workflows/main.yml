@@ -39,4 +39,8 @@ jobs:
 
       - name: Run Docker Container with Mounted Volume
         run: |
-          docker run --rm -v ${{ github.workspace }}/ospf:/usr/local/app/ns-3/contrib/ospf ns3-contrib-container
+          echo "output_path=/tmp/ospf_output.txt" >> $GITHUB_ENV
+          docker run --rm \
+            -v /home/runner/work/ns3-ospf/ns3-ospf/ospf:/usr/local/app/ns-3/contrib/ospf \
+            -e GITHUB_OUTPUT="/tmp/ospf_output.txt" \
+            ns3-contrib-container
