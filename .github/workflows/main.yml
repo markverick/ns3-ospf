@@ -39,4 +39,4 @@ jobs:
 
       - name: Run Docker Container with Mounted Volume
         run: |
-          docker run --rm -v ${{ github.workspace }}/ospf:/ns-3/contrib ns3-contrib-container
+          docker run --rm -v ${{ github.workspace }}/ospf:/usr/local/app/ns-3/contrib/ospf ns3-contrib-container
