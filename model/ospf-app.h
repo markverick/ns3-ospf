@@ -79,9 +79,15 @@ public:
 
   /**
    * \brief Set inteface areas.
-   * \param areas Net device container to be registed
+   * \param areas a list of areas for each interface
    */
   void SetAreas (std::vector<uint32_t> areas);
+
+  /**
+   * \brief Set all inteface areas to be area.
+   * \param area the area to be set on all interfaces
+   */
+  void SetAreas (uint32_t area);
 
   /**
    * \brief Set inteface metrices.

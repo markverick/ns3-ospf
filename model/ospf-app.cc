@@ -137,6 +137,16 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
 }
 
 void
+OspfApp::SetAreas (uint32_t area)
+{
+  for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
+    {
+      m_ospfInterfaces[i]->SetArea (area);
+    }
+  m_areaId = area;
+}
+
+void
 OspfApp::SetAreas (std::vector<uint32_t> areas)
 {
   NS_ASSERT_MSG (areas.size () == m_ospfInterfaces.size (),
@@ -620,20 +630,11 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
       NS_LOG_INFO ("Interface " << ifIndex << " is stuck at init");
       if (hello->IsNeighbor (m_routerId.Get ()))
         {
-          if (neighbor->GetArea () == ospfInterface->GetArea ())
-            {
-              NS_LOG_INFO ("Interface " << ifIndex << " is now bi-directional");
-              neighbor->SetState (OspfNeighbor::ExStart);
-              // Send DBD to negotiate master/slave and DD seq num, starting with self as a Master
-              neighbor->SetDDSeqNum (m_randomVariableSeq->GetInteger ());
-              NegotiateDbd (ifIndex, neighbor, true);
-            }
-          else
-            {
-              // Never go here unless its alt-area. TODO:
-              NS_LOG_INFO ("Interface " << ifIndex << " is across the area");
-              neighbor->SetState (OspfNeighbor::TwoWay);
-            }
+          NS_LOG_INFO ("Interface " << ifIndex << " is now bi-directional");
+          neighbor->SetState (OspfNeighbor::ExStart);
+          // Send DBD to negotiate master/slave and DD seq num, starting with self as a Master
+          neighbor->SetDDSeqNum (m_randomVariableSeq->GetInteger ());
+          NegotiateDbd (ifIndex, neighbor, true);
         }
     }
 }
