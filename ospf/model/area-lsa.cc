@@ -31,8 +31,8 @@ NS_LOG_COMPONENT_DEFINE ("AreaLsa");
 
 NS_OBJECT_ENSURE_REGISTERED (AreaLsa);
 
-AreaLink::AreaLink (uint32_t areaId, uint32_t originRouter, uint8_t type, uint16_t metric)
-    : m_areaId (areaId), m_originRouter (originRouter), m_type (type), m_metric (metric)
+AreaLink::AreaLink (uint32_t areaId, uint32_t ipAddress, uint8_t type, uint16_t metric)
+    : m_areaId (areaId), m_ipAddress (ipAddress), m_type (type), m_metric (metric)
 {
 }
 AreaLsa::AreaLsa () : m_bitV (0), m_bitE (0), m_bitB (0)
@@ -151,7 +151,7 @@ AreaLsa::Serialize (Buffer::Iterator start) const
   for (uint16_t j = 0; j < m_links.size (); j++)
     {
       i.WriteHtonU32 (m_links[j].m_areaId);
-      i.WriteHtonU32 (m_links[j].m_originRouter);
+      i.WriteHtonU32 (m_links[j].m_ipAddress);
       i.WriteU8 (m_links[j].m_type);
       i.WriteU8 (0);
       i.WriteHtonU16 (m_links[j].m_metric);
@@ -173,12 +173,12 @@ AreaLsa::Deserialize (Buffer::Iterator start)
   for (uint16_t j = 0; j < linkNum; j++)
     {
       uint32_t areaId = i.ReadNtohU32 ();
-      uint32_t originRouter = i.ReadNtohU32 ();
+      uint32_t ipAddress = i.ReadNtohU32 ();
       uint8_t type = i.ReadU8 ();
       i.Next (1); // Skip TOS
       // uint8_t tos = i.ReadU8 ();
       uint16_t metric = i.ReadNtohU16 ();
-      m_links.emplace_back (AreaLink (areaId, originRouter, type, metric));
+      m_links.emplace_back (AreaLink (areaId, ipAddress, type, metric));
     }
   return GetSerializedSize ();
 }

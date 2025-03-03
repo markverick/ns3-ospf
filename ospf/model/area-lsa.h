@@ -36,9 +36,9 @@ class AreaLink
 {
 public:
   AreaLink ();
-  AreaLink (uint32_t areaId, uint32_t originRouter, uint8_t type, uint16_t metric);
+  AreaLink (uint32_t areaId, uint32_t ipAddress, uint8_t type, uint16_t metric);
   uint32_t m_areaId;
-  uint8_t m_originRouter;
+  uint8_t m_ipAddress;
   uint8_t m_type;
   uint16_t m_metric;
 };
