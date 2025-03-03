@@ -18,8 +18,8 @@
  * Author: Sirapop Theeranantachaoi <stheera@g.ucla.edu>
  */
 
-#ifndef AREA_LSA_H
-#define AREA_LSA_H
+#ifndef AREA_SUMMARY_LSA_H
+#define AREA_SUMMARY_LSA_H
 
 #include "ns3/object.h"
 #include "ns3/header.h"
@@ -30,28 +30,26 @@ namespace ns3 {
 /**
  * \ingroup ospf
  *
- * \brief Area LSA
+ * \brief Summary LSA
  */
-class AreaLink
+class Prefix
 {
 public:
-  AreaLink ();
-  AreaLink (uint32_t areaId, uint32_t ipAddress, uint8_t type, uint16_t metric);
-  uint32_t m_areaId;
-  uint8_t m_ipAddress;
-  uint8_t m_type;
-  uint16_t m_metric;
+  Prefix ();
+  Prefix (uint32_t mask, uint32_t metric);
+  uint32_t m_mask;
+  uint32_t m_metric;
 };
 
-class AreaLsa : public Lsa
+class SummaryLsa : public Lsa
 {
 public:
   /**
-   * \brief Construct a Area LSA
+   * \brief Construct a Summary LSA
    */
-  AreaLsa ();
-  AreaLsa (bool bitV, bool bitE, bool bitB);
-  AreaLsa (Ptr<Packet> packet);
+  SummaryLsa ();
+  SummaryLsa (bool bitV, bool bitE, bool bitB);
+  SummaryLsa (Ptr<Packet> packet);
 
   void SetBitV (bool size);
   bool GetBitV (void) const;
@@ -62,10 +60,10 @@ public:
   void SetBitB (bool size);
   bool GetBitB (void) const;
 
-  void AddLink (AreaLink AreaLink);
-  AreaLink GetLink (uint32_t index);
-  uint16_t GetNLink ();
-  void ClearLinks ();
+  void AddPrefix (Prefix Prefix);
+  Prefix GetPrefix (uint32_t index);
+  uint16_t GetNPrefixes ();
+  void ClearPrefixes ();
 
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
@@ -80,9 +78,9 @@ private:
   bool m_bitV;
   bool m_bitE;
   bool m_bitB;
-  std::vector<AreaLink> m_links;
+  std::vector<Prefix> m_prefixes;
 };
 
 } // namespace ns3
 
-#endif /* AREA_LSA_H */
+#endif /* AREA_SUMMARY_LSA_H */
