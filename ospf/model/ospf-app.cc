@@ -77,8 +77,8 @@ OspfApp::GetTypeId (void)
                          MakeUintegerAccessor (&OspfApp::m_areaId),
                          MakeUintegerChecker<uint32_t> ())
           .AddAttribute ("EnableAreaProxy", "Enable area proxy for area routing", BooleanValue (true),
-                         MakeUintegerAccessor (&OspfApp::m_enableAreaProxy),
-                         MakeUintegerChecker<uint32_t> ())
+                         MakeBooleanAccessor (&OspfApp::m_enableAreaProxy),
+                         MakeBooleanChecker ())
           .AddTraceSource ("Tx", "A new packet is created and is sent",
                            MakeTraceSourceAccessor (&OspfApp::m_txTrace),
                            "ns3::Packet::TracedCallback")
@@ -330,7 +330,15 @@ OspfApp::StartApplication (void)
       unicastSocket->SetRecvCallback (MakeCallback (&OspfApp::HandleRead, this));
       m_sockets.emplace_back (unicastSocket);
     }
+  // Start sending Hello
   ScheduleTransmitHello (Seconds (0.));
+
+  // Will begin as an area leader if noone will
+  if (m_enableAreaProxy) {
+    m_areaLeaderBeginTimer = Simulator::Schedule (
+      m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
+      &OspfApp::AreaLeaderBegin, this);
+  }
 }
 
 void
@@ -977,9 +985,9 @@ OspfApp::HandleRouterLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospf
     if (m_areaLeaderBeginTimer.IsRunning()) {
       m_areaLeaderBeginTimer.Remove();
     }
-    if (m_routerLsdb.begin ()->first == m_areaId) {
+    if (m_routerLsdb.begin ()->first == m_routerId.Get()) {
       m_areaLeaderBeginTimer = Simulator::Schedule (
-        Seconds (interface->GetRouterDeadInterval ()) + Seconds (m_randomVariable->GetValue ()),
+        m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
         &OspfApp::AreaLeaderBegin, this);
     } else {
       AreaLeaderEnd ();
