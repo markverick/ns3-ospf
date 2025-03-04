@@ -37,6 +37,7 @@
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
 #include "ospf-neighbor.h"
+#include "router-lsa.h"
 #include "algorithm"
 
 namespace ns3 {
@@ -85,10 +86,7 @@ public:
   bool IsNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   //  Vector of <neighbor's routerIds, its own interface ipAddress>
-  std::vector<std::pair<uint32_t, uint32_t>> GetNeighborLinks ();
-  std::vector<std::pair<uint32_t, uint32_t>> GetNeighborLinks (uint32_t areaId);
-  std::vector<std::pair<uint32_t, uint32_t>> GetActiveNeighborLinks ();
-  std::vector<std::pair<uint32_t, uint32_t>> GetActiveNeighborLinks (uint32_t areaId);
+  std::vector<RouterLink> GetActiveRouterLinks ();
 
 private:
   Ipv4Address m_ipAddress;

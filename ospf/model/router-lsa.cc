@@ -24,6 +24,7 @@
 #include "ns3/header.h"
 #include "ns3/packet.h"
 #include "router-lsa.h"
+#include "set"
 
 namespace ns3 {
 
@@ -72,6 +73,19 @@ RouterLsa::GetNLink ()
 {
   NS_LOG_FUNCTION (this);
   return m_links.size ();
+}
+
+std::vector<uint32_t>
+RouterLsa::GetCrossAreaLinks ()
+{
+  NS_LOG_FUNCTION (this);
+  std::vector<uint32_t> crossAreaLinks;
+  for (auto link : m_links) {
+    if (link.m_type == 5) {
+      crossAreaLinks.emplace_back(link.m_linkId);
+    }
+  }
+  return crossAreaLinks;
 }
 
 TypeId

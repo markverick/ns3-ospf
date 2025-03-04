@@ -56,7 +56,9 @@ public:
     NetworkLSAs = 0x2,
     SummaryLSAsIP = 0x3,
     SummaryLSAsASBR = 0x4,
-    ASExternalLSAs = 0x5
+    ASExternalLSAs = 0x5,
+    AreaLSAs = 0x6,
+    SummaryLSAsArea = 0x7
   };
 
   typedef std::tuple<uint8_t, uint32_t, uint32_t> LsaKey;

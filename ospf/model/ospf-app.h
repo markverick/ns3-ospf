@@ -31,6 +31,7 @@
 #include "ospf-header.h"
 #include "lsa-header.h"
 #include "router-lsa.h"
+#include "area-lsa.h"
 #include "ospf-dbd.h"
 #include "ospf-hello.h"
 #include "ls-ack.h"
@@ -290,6 +291,11 @@ private:
    * \return Router-LSA for this router
    */
   Ptr<RouterLsa> GetRouterLsa ();
+    /**
+   * \brief Generate local Area-LSA based on L2 adjacencies (Full)
+   * \return Router-LSA for this router
+   */
+  Ptr<AreaLsa> GetAreaLsa ();
   /**
    * \brief Generate local Router-LSA based on adjacencies (Full), filtered by areaId
    * \param areaId Area ID to filter
@@ -297,9 +303,13 @@ private:
    */
   Ptr<RouterLsa> GetRouterLsa (uint32_t areaId);
   /**
-   * \brief Recompute local Router-LSA, increment its Sequence Number, and inject to LSDB
+   * \brief Recompute local Router-LSA, increment its Sequence Number, and inject to Router LSDB
    */
   void RecomputeRouterLsa ();
+  /**
+   * \brief Recompute local Area-LSA, increment its Sequence Number, and inject to Area LSDB
+   */
+  void RecomputeAreaLsa ();
   /**
    * \brief Update routing table based on LSDB
    */
@@ -397,6 +407,17 @@ private:
   std::vector<Ptr<Socket>> m_lsaSockets; //!< LSA multicast socket
   Address m_local; //!< local multicast address
 
+  // Area
+  /**
+   * \brief Begin as an area leader
+   */
+  void AreaLeaderBegin ();
+
+  /**
+   * \brief End a role as an area leader
+   */
+  void AreaLeaderEnd ();
+
   // For OSPF
   // Attributes
   Ipv4Address m_routerId; // eth0
@@ -424,11 +445,15 @@ private:
   Ptr<Ipv4StaticRouting> m_routing; // routing table
 
   // LSA
+  bool m_enableAreaProxy; // True if Proxied L2 LSAs are generated
   Time m_rxmtInterval; // retransmission timer
+  EventId m_areaLeaderBeginTimer; // area leadership begin timer
   Ipv4Address m_lsaAddress; //!< multicast address for LSA
   std::map<LsaHeader::LsaKey, uint16_t> m_seqNumbers; // sequence number of stored LSA
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>
       m_routerLsdb; // LSDB for each remote router ID
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>>
+      m_areaLsdb; // LSDB for each remote area ID
 
   /// Callbacks for tracing the packet Tx events
   TracedCallback<Ptr<const Packet>> m_txTrace;

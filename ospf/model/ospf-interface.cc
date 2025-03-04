@@ -35,6 +35,7 @@
 #include "ns3/header.h"
 
 #include "ospf-interface.h"
+#include "router-lsa.h"
 
 namespace ns3 {
 
@@ -207,40 +208,11 @@ OspfInterface::IsNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp)
   return false;
 }
 
-// Get a list of <neighbor's router ID, router's IP address> as a vector
-std::vector<std::pair<uint32_t, uint32_t>>
-OspfInterface::GetNeighborLinks ()
+// Get a list of <neighbor's router ID, router's IP address, neighbor's areaId>
+std::vector<RouterLink>
+OspfInterface::GetActiveRouterLinks ()
 {
-  std::vector<std::pair<uint32_t, uint32_t>> links;
-  auto neighbors = GetNeighbors ();
-  for (auto n : neighbors)
-    {
-      links.emplace_back (n->GetRouterId ().Get (), m_ipAddress.Get ());
-    }
-  return links;
-}
-
-// Get a list of <neighbor's router ID, router's IP address> that matches parameter's area
-std::vector<std::pair<uint32_t, uint32_t>>
-OspfInterface::GetNeighborLinks (uint32_t areaId)
-{
-  std::vector<std::pair<uint32_t, uint32_t>> links;
-  auto neighbors = GetNeighbors ();
-  for (auto n : neighbors)
-    {
-      if (n->GetArea () == areaId)
-        {
-          links.emplace_back (n->GetRouterId ().Get (), m_ipAddress.Get ());
-        }
-    }
-  return links;
-}
-
-// Get a list of <neighbor's router ID, router's IP address>
-std::vector<std::pair<uint32_t, uint32_t>>
-OspfInterface::GetActiveNeighborLinks ()
-{
-  std::vector<std::pair<uint32_t, uint32_t>> links;
+  std::vector<RouterLink> links;
   auto neighbors = GetNeighbors ();
   // NS_LOG_INFO("# neighbors: " << neighbors.size());
   for (auto n : neighbors)
@@ -249,26 +221,13 @@ OspfInterface::GetActiveNeighborLinks ()
       // NS_LOG_INFO("  (" << n->GetRouterId().Get() << ", " << m_ipAddress.Get() << ")");
       if (n->GetState () == OspfNeighbor::Full)
         {
-          links.emplace_back (n->GetRouterId ().Get (), m_ipAddress.Get ());
-        }
-    }
-  return links;
-}
-
-// Get a list of <neighbor's router ID, router's IP address> that matches parameter's area
-std::vector<std::pair<uint32_t, uint32_t>>
-OspfInterface::GetActiveNeighborLinks (uint32_t areaId)
-{
-  std::vector<std::pair<uint32_t, uint32_t>> links;
-  auto neighbors = GetNeighbors ();
-  // NS_LOG_INFO("# neighbors: " << neighbors.size());
-  for (auto n : neighbors)
-    {
-      // Only aggregate neighbors that is at least in ExStart
-      // NS_LOG_INFO("  (" << n->GetRouterId().Get() << ", " << m_ipAddress.Get() << ")");
-      if (n->GetArea () == areaId && n->GetState () >= OspfNeighbor::ExStart)
-        {
-          links.emplace_back (n->GetRouterId ().Get (), m_ipAddress.Get ());
+          if (n->GetArea() == m_area) {
+            // Type 1 link
+            links.emplace_back (RouterLink(n->GetRouterId ().Get (), m_ipAddress.Get (), 1, m_metric));
+          } else {
+            // Type 5 link (Inter-Area)
+            links.emplace_back (RouterLink(n->GetArea (), m_ipAddress.Get (), 5, m_metric));
+          }
         }
     }
   return links;

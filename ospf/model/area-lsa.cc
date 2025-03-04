@@ -24,6 +24,7 @@
 #include "ns3/header.h"
 #include "ns3/packet.h"
 #include "area-lsa.h"
+#include "router-lsa.h"
 
 namespace ns3 {
 
@@ -31,12 +32,15 @@ NS_LOG_COMPONENT_DEFINE ("AreaLsa");
 
 NS_OBJECT_ENSURE_REGISTERED (AreaLsa);
 
-AreaLink::AreaLink (uint32_t areaId, uint32_t ipAddress, uint8_t type, uint16_t metric)
-    : m_areaId (areaId), m_ipAddress (ipAddress), m_type (type), m_metric (metric)
+AreaLsa::AreaLsa ()
 {
 }
-AreaLsa::AreaLsa () : m_bitV (0), m_bitE (0), m_bitB (0)
+
+AreaLsa::AreaLsa (std::vector<uint32_t> links)
 {
+  for (auto link : links) {
+    AddLink(link);
+  }
 }
 
 AreaLsa::AreaLsa (Ptr<Packet> packet)
@@ -44,17 +48,13 @@ AreaLsa::AreaLsa (Ptr<Packet> packet)
   Deserialize (packet);
 }
 
-AreaLsa::AreaLsa (bool bitV, bool bitE, bool bitB) : m_bitV (bitV), m_bitE (bitE), m_bitB (bitB)
-{
-}
-
 void
-AreaLsa::AddLink (AreaLink link)
+AreaLsa::AddLink (uint32_t areaId)
 {
-  m_links.emplace_back (link);
+  m_links.emplace_back (areaId);
 }
 
-AreaLink
+uint32_t
 AreaLsa::GetLink (uint32_t index)
 {
   NS_ASSERT_MSG (index >= 0 && index < m_links.size (), "Invalid link index");
@@ -74,6 +74,12 @@ AreaLsa::GetNLink ()
   return m_links.size ();
 }
 
+std::vector<uint32_t>
+AreaLsa::GetLinks ()
+{
+  return m_links;
+}
+
 TypeId
 AreaLsa::GetTypeId (void)
 {
@@ -90,40 +96,12 @@ void
 AreaLsa::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
-  os << "V: " << m_bitV << " "
-     << "E: " << m_bitE << " "
-     << "B: " << m_bitE << " "
-     << "# links: " << m_links.size () << std::endl;
+  os << "# links: " << m_links.size () << std::endl;
 }
 uint32_t
 AreaLsa::GetSerializedSize (void) const
 {
   return 4 + m_links.size () * 12; // Assumed no TOS
-}
-
-uint16_t
-setFlags (bool V, bool E, bool B)
-{
-  uint16_t field = 0; // Initialize the 16-bit field to 0
-
-  // Set the V, E, B bits at their respective positions (bit 7, 6, and 5)
-  if (V)
-    field |= (1 << 7);
-  if (E)
-    field |= (1 << 6);
-  if (B)
-    field |= (1 << 5);
-
-  return field;
-}
-
-void
-extractFlags (uint16_t field, bool &V, bool &E, bool &B)
-{
-  // Extract the V, E, B bits from their respective positions (bit 7, 6, and 5)
-  V = (field & (1 << 7)) != 0;
-  E = (field & (1 << 6)) != 0;
-  B = (field & (1 << 5)) != 0;
 }
 
 Ptr<Packet>
@@ -145,16 +123,11 @@ AreaLsa::Serialize (Buffer::Iterator start) const
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  uint16_t flags = setFlags (m_bitV, m_bitE, m_bitB);
-  i.WriteHtonU16 (flags);
+  i.WriteHtonU16 (0);
   i.WriteHtonU16 (m_links.size ());
   for (uint16_t j = 0; j < m_links.size (); j++)
     {
-      i.WriteHtonU32 (m_links[j].m_areaId);
-      i.WriteHtonU32 (m_links[j].m_ipAddress);
-      i.WriteU8 (m_links[j].m_type);
-      i.WriteU8 (0);
-      i.WriteHtonU16 (m_links[j].m_metric);
+      i.WriteHtonU32 (m_links[j]);
     }
   return GetSerializedSize ();
 }
@@ -165,20 +138,14 @@ AreaLsa::Deserialize (Buffer::Iterator start)
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  uint16_t flags = i.ReadNtohU16 ();
-  extractFlags (flags, m_bitV, m_bitE, m_bitB);
+  i.Next (2);
   uint16_t linkNum = i.ReadNtohU16 ();
 
   m_links.clear ();
   for (uint16_t j = 0; j < linkNum; j++)
     {
       uint32_t areaId = i.ReadNtohU32 ();
-      uint32_t ipAddress = i.ReadNtohU32 ();
-      uint8_t type = i.ReadU8 ();
-      i.Next (1); // Skip TOS
-      // uint8_t tos = i.ReadU8 ();
-      uint16_t metric = i.ReadNtohU16 ();
-      m_links.emplace_back (AreaLink (areaId, ipAddress, type, metric));
+      m_links.emplace_back (areaId);
     }
   return GetSerializedSize ();
 }

@@ -25,6 +25,7 @@
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
 #include "lsa.h"
+#include "area-lsa.h"
 
 namespace ns3 {
 /**
@@ -35,7 +36,6 @@ namespace ns3 {
 class RouterLink
 {
 public:
-  RouterLink ();
   RouterLink (uint32_t linkId, uint32_t linkData, uint8_t type, uint16_t metric);
   uint32_t m_linkId;
   /*
@@ -49,6 +49,17 @@ public:
   uint32_t m_linkData;
   uint8_t m_type;
   uint16_t m_metric;
+  bool operator==(const RouterLink &other) const
+  {
+    return m_linkId == other.m_linkId &&
+           m_linkData == other.m_linkData &&
+           m_type == other.m_type &&
+           m_metric == other.m_metric;
+  }
+  std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> Get ()
+  {
+    return std::tuple<uint32_t, uint32_t, uint32_t, uint32_t>(m_linkId, m_linkData, m_type, m_metric);
+  }
 };
 
 class RouterLsa : public Lsa
@@ -73,6 +84,7 @@ public:
   void AddLink (RouterLink routerLink);
   RouterLink GetLink (uint32_t index);
   uint16_t GetNLink ();
+  std::vector<uint32_t> GetCrossAreaLinks ();
   void ClearLinks ();
 
   static TypeId GetTypeId (void);
