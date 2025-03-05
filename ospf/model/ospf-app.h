@@ -267,38 +267,57 @@ private:
    * \param lsu LS Update Payload
    */
   void HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsUpdate> lsu);
+
   /**
-   * \brief Handle LS Update containing one Router-LSA during Full.
+   * \brief Handle LSA.
+   * \param ifIndex Interface index
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param lsu LS Update Payload
+   */
+  void HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, LsaHeader lsaHeader,
+                  Ptr<Lsa> lsa);
+  /**
+   * \brief Process LSA.
+   * \param ifIndex Interface index
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param lsa LS Advertisement
+   */
+  void ProcessLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                   LsaHeader lsaHeader, Ptr<Lsa> lsa);
+  /**
+   * \brief Process Router-LSA during Full.
    * \param ifIndex Interface index
    * \param ipHeader IPv4 Header
    * \param ospfHeader OSPF Header
    * \param lsaHeader LSA Header
    * \param routerLsa Router LSA Payload
    */
-  void HandleRouterLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                        LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
+  void ProcessRouterLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                         LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
   /**
-   * \brief Handle LS Update containing one Area-LSA during Full.
+   * \brief Process Area-LSA.
    * \param ifIndex Interface index
    * \param ipHeader IPv4 Header
    * \param ospfHeader OSPF Header
    * \param lsaHeader LSA Header
    * \param areaLsa Area LSA Payload
    */
-  void HandleAreaLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                      LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa);
+  void ProcessAreaLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                       LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa);
   /**
-   * \brief Handle LS Update containing one Summary-LSA (Area) during Full.
+   * \brief Process Summary-LSA (Area).
    * \param ifIndex Interface index
    * \param ipHeader IPv4 Header
    * \param ospfHeader OSPF Header
    * \param lsaHeader LSA Header
    * \param summaryLsa Area Summary LSA Payload
    */
-  void HandleAreaSummaryLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                             LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa);
+  void ProcessAreaSummaryLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                              LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa);
   /**
-   * \brief Handle LS Acknowledge as a response for LS Update during Full.
+   * \brief Process LS Acknowledge as a response for LS Update during Full.
    * \param ifIndex Interface index
    * \param ipHeader IPv4 Header
    * \param ospfHeader OSPF Header
