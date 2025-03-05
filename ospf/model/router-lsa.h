@@ -49,16 +49,17 @@ public:
   uint32_t m_linkData;
   uint8_t m_type;
   uint16_t m_metric;
-  bool operator==(const RouterLink &other) const
+  bool
+  operator== (const RouterLink &other) const
   {
-    return m_linkId == other.m_linkId &&
-           m_linkData == other.m_linkData &&
-           m_type == other.m_type &&
+    return m_linkId == other.m_linkId && m_linkData == other.m_linkData && m_type == other.m_type &&
            m_metric == other.m_metric;
   }
-  std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> Get ()
+  std::tuple<uint32_t, uint32_t, uint32_t, uint32_t>
+  Get ()
   {
-    return std::tuple<uint32_t, uint32_t, uint32_t, uint32_t>(m_linkId, m_linkData, m_type, m_metric);
+    return std::tuple<uint32_t, uint32_t, uint32_t, uint32_t> (m_linkId, m_linkData, m_type,
+                                                               m_metric);
   }
 };
 

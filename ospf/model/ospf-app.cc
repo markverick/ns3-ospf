@@ -76,8 +76,8 @@ OspfApp::GetTypeId (void)
           .AddAttribute ("DefaultArea", "Default area ID for interfaces", UintegerValue (0),
                          MakeUintegerAccessor (&OspfApp::m_areaId),
                          MakeUintegerChecker<uint32_t> ())
-          .AddAttribute ("EnableAreaProxy", "Enable area proxy for area routing", BooleanValue (true),
-                         MakeBooleanAccessor (&OspfApp::m_enableAreaProxy),
+          .AddAttribute ("EnableAreaProxy", "Enable area proxy for area routing",
+                         BooleanValue (true), MakeBooleanAccessor (&OspfApp::m_enableAreaProxy),
                          MakeBooleanChecker ())
           .AddTraceSource ("Tx", "A new packet is created and is sent",
                            MakeTraceSourceAccessor (&OspfApp::m_txTrace),
@@ -191,7 +191,8 @@ OspfApp::PrintLsdb ()
 {
   if (m_routerLsdb.empty ())
     return;
-  std::cout << "===== Router ID: " << m_routerId << " Area ID: " << m_areaId << " =====" << std::endl;
+  std::cout << "===== Router ID: " << m_routerId << " Area ID: " << m_areaId
+            << " =====" << std::endl;
   for (auto &pair : m_routerLsdb)
     {
       std::cout << "At t=" << Simulator::Now ().GetSeconds ()
@@ -334,11 +335,12 @@ OspfApp::StartApplication (void)
   ScheduleTransmitHello (Seconds (0.));
 
   // Will begin as an area leader if noone will
-  if (m_enableAreaProxy) {
-    m_areaLeaderBeginTimer = Simulator::Schedule (
-      m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
-      &OspfApp::AreaLeaderBegin, this);
-  }
+  if (m_enableAreaProxy)
+    {
+      m_areaLeaderBeginTimer =
+          Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
+                               &OspfApp::AreaLeaderBegin, this);
+    }
 }
 
 void
@@ -509,9 +511,10 @@ OspfApp::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
       for (auto neighbor : neighbors)
         {
           // Flood L1 LSAs to neighbors within the same area
-          if (neighbor->GetArea() != this->m_areaId) {
-            continue;
-          }
+          if (neighbor->GetArea () != this->m_areaId)
+            {
+              continue;
+            }
           Ptr<Packet> packet = lsu->ConstructPacket ();
           EncapsulateOspfPacket (packet, m_routerId, interface->GetArea (),
                                  OspfHeader::OspfType::OspfLSUpdate);
@@ -736,9 +739,10 @@ OspfApp::HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<O
       for (const auto &pair : m_routerLsdb)
         {
           // L1 LSAs must not cross the area
-          if (neighbor->GetArea() == this->m_areaId) {
-            neighbor->AddDbdQueue (pair.second.first);
-          }
+          if (neighbor->GetArea () == this->m_areaId)
+            {
+              neighbor->AddDbdQueue (pair.second.first);
+            }
         }
       NegotiateDbd (ifIndex, neighbor, false);
       neighbor->SetState (OspfNeighbor::Exchange);
@@ -750,9 +754,10 @@ OspfApp::HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<O
       // Snapshot LSDB headers during Exchange for consistency
       for (const auto &pair : m_routerLsdb)
         {
-          if (neighbor->GetArea() == this->m_areaId) {
-            neighbor->AddDbdQueue (pair.second.first);
-          }
+          if (neighbor->GetArea () == this->m_areaId)
+            {
+              neighbor->AddDbdQueue (pair.second.first);
+            }
         }
       neighbor->SetState (OspfNeighbor::Exchange);
       PollMasterDbd (ifIndex, neighbor);
@@ -976,23 +981,27 @@ OspfApp::HandleRouterLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospf
   m_routerLsdb[advertisingRouter] = std::make_pair (lsaHeader, routerLsa);
   m_seqNumbers[lsaKey] = seqNum;
 
-  
-  if (m_enableAreaProxy) {
-    // Update local Area LSDB entry if there's a change in area links
-    RecomputeAreaLsa ();
+  if (m_enableAreaProxy)
+    {
+      // Update local Area LSDB entry if there's a change in area links
+      RecomputeAreaLsa ();
 
-    // Reset area leadership begin timer if it's a leader (lowest router ID)
-    if (m_areaLeaderBeginTimer.IsRunning()) {
-      m_areaLeaderBeginTimer.Remove();
+      // Reset area leadership begin timer if it's a leader (lowest router ID)
+      if (m_areaLeaderBeginTimer.IsRunning ())
+        {
+          m_areaLeaderBeginTimer.Remove ();
+        }
+      if (m_routerLsdb.begin ()->first == m_routerId.Get ())
+        {
+          m_areaLeaderBeginTimer =
+              Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
+                                   &OspfApp::AreaLeaderBegin, this);
+        }
+      else
+        {
+          AreaLeaderEnd ();
+        }
     }
-    if (m_routerLsdb.begin ()->first == m_routerId.Get()) {
-      m_areaLeaderBeginTimer = Simulator::Schedule (
-        m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
-        &OspfApp::AreaLeaderBegin, this);
-    } else {
-      AreaLeaderEnd ();
-    }
-  }
 
   // Update routing table
   UpdateRouting ();
@@ -1065,16 +1074,19 @@ OspfApp::GetAreaLsa ()
 {
   // <area neighbor ID, leader's IP address, interface metric>
   std::vector<uint32_t> allAreaLinks;
-  std::unordered_set<uint32_t> areaIdHash; 
+  std::unordered_set<uint32_t> areaIdHash;
   // Read Router LSDB and extract neighbors link
-  for (auto &[remoteRouterId, routerLsa] : m_routerLsdb) {
-    auto crossAreaLinks = routerLsa.second->GetCrossAreaLinks();
-    for (auto l : crossAreaLinks) {
-      if (areaIdHash.insert(l).second) {
-        allAreaLinks.emplace_back(l);
-      }
+  for (auto &[remoteRouterId, routerLsa] : m_routerLsdb)
+    {
+      auto crossAreaLinks = routerLsa.second->GetCrossAreaLinks ();
+      for (auto l : crossAreaLinks)
+        {
+          if (areaIdHash.insert (l).second)
+            {
+              allAreaLinks.emplace_back (l);
+            }
+        }
     }
-  }
   NS_LOG_INFO ("Area-LSA Created with " << allAreaLinks.size () << " active links");
   return ConstructAreaLsa (allAreaLinks);
 }
@@ -1117,17 +1129,17 @@ OspfApp::RecomputeAreaLsa ()
 {
   NS_LOG_FUNCTION (this);
 
-  
   // Construct its area LSA
   Ptr<AreaLsa> areaLsa = GetAreaLsa ();
-  
+
   // Do not update Area LSDB if it still reflects the current cross-border links in Router LSDB
-  if (m_areaLsdb.find(m_areaId) != m_areaLsdb.end() && areaLsa->GetLinks() == m_areaLsdb[m_areaId].second->GetLinks()) {
-    return;
-  }
-  
-  auto lsaKey =
-      std::make_tuple (LsaHeader::LsType::AreaLSAs, m_areaId, m_routerId.Get ());
+  if (m_areaLsdb.find (m_areaId) != m_areaLsdb.end () &&
+      areaLsa->GetLinks () == m_areaLsdb[m_areaId].second->GetLinks ())
+    {
+      return;
+    }
+
+  auto lsaKey = std::make_tuple (LsaHeader::LsType::AreaLSAs, m_areaId, m_routerId.Get ());
 
   // Initialize seq number to zero if new
   if (m_seqNumbers.find (lsaKey) == m_seqNumbers.end ())
@@ -1137,8 +1149,6 @@ OspfApp::RecomputeAreaLsa ()
 
   // Increment a seq number
   m_seqNumbers[lsaKey]++;
-
-
 
   // Assign areaLsa to its area LSDB
   LsaHeader lsaHeader;
@@ -1417,17 +1427,15 @@ OspfApp::AdvanceToFull (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 void
 OspfApp::AreaLeaderBegin ()
 {
-  NS_LOG_FUNCTION(this);
+  NS_LOG_FUNCTION (this);
   // TODO: Area Leader Logic -- start flooding Area-LSA and Summary-LSA-Area
-
 }
 
 void
 OspfApp::AreaLeaderEnd ()
 {
-  NS_LOG_FUNCTION(this);
+  NS_LOG_FUNCTION (this);
   // TODO: Area Leader Logic -- start flooding Area-LSA and Summary-LSA-Area
-
 }
 
 } // Namespace ns3

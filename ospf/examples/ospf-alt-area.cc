@@ -55,7 +55,6 @@ Ipv4Address ospfHelloAddress ("224.0.0.5");
 // Link Up at t=85
 const uint32_t SIM_SECONDS = 105;
 
-
 void
 CompareLsdb (NodeContainer nodes)
 {
@@ -111,10 +110,11 @@ main (int argc, char *argv[])
   NS_LOG_INFO ("Create nodes.");
   NodeContainer c, c0, c1;
   c.Create (8);
-  for (uint32_t i = 0; i < 4;i++) {
-    c0.Add(c.Get(i));
-    c1.Add(c.Get(4 + i));
-  }
+  for (uint32_t i = 0; i < 4; i++)
+    {
+      c0.Add (c.Get (i));
+      c1.Add (c.Get (4 + i));
+    }
   std::vector<NodeContainer> allNodes;
   allNodes.emplace_back (NodeContainer (c.Get (0), c.Get (1)));
   allNodes.emplace_back (NodeContainer (c.Get (1), c.Get (2)));

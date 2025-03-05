@@ -221,13 +221,17 @@ OspfInterface::GetActiveRouterLinks ()
       // NS_LOG_INFO("  (" << n->GetRouterId().Get() << ", " << m_ipAddress.Get() << ")");
       if (n->GetState () == OspfNeighbor::Full)
         {
-          if (n->GetArea() == m_area) {
-            // Type 1 link
-            links.emplace_back (RouterLink(n->GetRouterId ().Get (), m_ipAddress.Get (), 1, m_metric));
-          } else {
-            // Type 5 link (Inter-Area)
-            links.emplace_back (RouterLink(n->GetArea (), m_ipAddress.Get (), 5, m_metric));
-          }
+          if (n->GetArea () == m_area)
+            {
+              // Type 1 link
+              links.emplace_back (
+                  RouterLink (n->GetRouterId ().Get (), m_ipAddress.Get (), 1, m_metric));
+            }
+          else
+            {
+              // Type 5 link (Inter-Area)
+              links.emplace_back (RouterLink (n->GetArea (), m_ipAddress.Get (), 5, m_metric));
+            }
         }
     }
   return links;

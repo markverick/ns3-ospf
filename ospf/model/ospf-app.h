@@ -291,7 +291,7 @@ private:
    * \return Router-LSA for this router
    */
   Ptr<RouterLsa> GetRouterLsa ();
-    /**
+  /**
    * \brief Generate local Area-LSA based on L2 adjacencies (Full)
    * \return Router-LSA for this router
    */
@@ -452,8 +452,7 @@ private:
   std::map<LsaHeader::LsaKey, uint16_t> m_seqNumbers; // sequence number of stored LSA
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>
       m_routerLsdb; // LSDB for each remote router ID
-  std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>>
-      m_areaLsdb; // LSDB for each remote area ID
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> m_areaLsdb; // LSDB for each remote area ID
 
   /// Callbacks for tracing the packet Tx events
   TracedCallback<Ptr<const Packet>> m_txTrace;

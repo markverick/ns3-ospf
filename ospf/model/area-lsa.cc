@@ -38,9 +38,10 @@ AreaLsa::AreaLsa ()
 
 AreaLsa::AreaLsa (std::vector<uint32_t> links)
 {
-  for (auto link : links) {
-    AddLink(link);
-  }
+  for (auto link : links)
+    {
+      AddLink (link);
+    }
 }
 
 AreaLsa::AreaLsa (Ptr<Packet> packet)

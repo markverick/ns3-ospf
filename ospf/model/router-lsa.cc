@@ -80,11 +80,13 @@ RouterLsa::GetCrossAreaLinks ()
 {
   NS_LOG_FUNCTION (this);
   std::vector<uint32_t> crossAreaLinks;
-  for (auto link : m_links) {
-    if (link.m_type == 5) {
-      crossAreaLinks.emplace_back(link.m_linkId);
+  for (auto link : m_links)
+    {
+      if (link.m_type == 5)
+        {
+          crossAreaLinks.emplace_back (link.m_linkId);
+        }
     }
-  }
   return crossAreaLinks;
 }
 

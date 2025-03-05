@@ -104,10 +104,10 @@ VerifyNeighbor (NodeContainer allNodes, NodeContainer nodes)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
       for (auto &pair : app->GetLsdb ())
-      {
+        {
           if (pair.second.second->GetNLink () !=
-          allNodes.Get (app->GetNode ()->GetId ())->GetNDevices () - 1)
-          {
+              allNodes.Get (app->GetNode ()->GetId ())->GetNDevices () - 1)
+            {
               std::cout << "[" << Simulator::Now () << "] LSDB entry [" << Ipv4Address (pair.first)
                         << "] of node [" << i << "] is incorrect ("
                         << pair.second.second->GetNLink ()
@@ -159,7 +159,7 @@ main (int argc, char *argv[])
   // Create nodes
   NS_LOG_INFO ("Create nodes.");
   NodeContainer c;
-  std::vector <NodeContainer> areaNodes(NUM_STRIPES);
+  std::vector<NodeContainer> areaNodes (NUM_STRIPES);
   c.Create (GRID_HEIGHT * GRID_WIDTH);
 
   // Install IP Stack
@@ -184,7 +184,7 @@ main (int argc, char *argv[])
                                 c.Get (((i + 1) % GRID_HEIGHT) * GRID_WIDTH + j)));
 
           // Add to area
-          areaNodes[j / STRIPE_WIDTH].Add(c.Get(i * GRID_WIDTH + j));
+          areaNodes[j / STRIPE_WIDTH].Add (c.Get (i * GRID_WIDTH + j));
         }
     }
   NS_LOG_INFO ("Total Net Devices Installed: " << ndc.GetN ());
@@ -213,13 +213,15 @@ main (int argc, char *argv[])
   ApplicationContainer ospfApp = ospfAppHelper.Install (c);
 
   // Setting areas
-  for (uint32_t area = 0; area < NUM_STRIPES; area++) {
-    for (uint32_t i = 0; i < areaNodes[area].GetN(); i++) {
-      auto node = areaNodes[area].Get(i);
-      auto app = DynamicCast<OspfApp>(node->GetApplication(0));
-      app->SetAreas(area);
+  for (uint32_t area = 0; area < NUM_STRIPES; area++)
+    {
+      for (uint32_t i = 0; i < areaNodes[area].GetN (); i++)
+        {
+          auto node = areaNodes[area].Get (i);
+          auto app = DynamicCast<OspfApp> (node->GetApplication (0));
+          app->SetAreas (area);
+        }
     }
-  }
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
@@ -269,10 +271,11 @@ main (int argc, char *argv[])
     {
       Simulator::Schedule (Seconds (i), &OspfApp::PrintLsdb, app);
     }
-  for (auto nodes : areaNodes) {
-    Simulator::Schedule (Seconds (SIM_SECONDS), CompareLsdb, nodes);
-    Simulator::Schedule (Seconds (SIM_SECONDS), VerifyNeighbor, c, nodes);
-  }
+  for (auto nodes : areaNodes)
+    {
+      Simulator::Schedule (Seconds (SIM_SECONDS), CompareLsdb, nodes);
+      Simulator::Schedule (Seconds (SIM_SECONDS), VerifyNeighbor, c, nodes);
+    }
   // Enable Pcap
   AsciiTraceHelper ascii;
   p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));

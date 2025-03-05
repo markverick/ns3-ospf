@@ -31,8 +31,7 @@ NS_LOG_COMPONENT_DEFINE ("SummaryLsa");
 
 NS_OBJECT_ENSURE_REGISTERED (SummaryLsa);
 
-Prefix::Prefix (uint32_t mask, uint32_t metric)
-    : m_mask (mask), m_metric (metric)
+Prefix::Prefix (uint32_t mask, uint32_t metric) : m_mask (mask), m_metric (metric)
 {
 }
 SummaryLsa::SummaryLsa () : m_bitV (0), m_bitE (0), m_bitB (0)
@@ -44,7 +43,8 @@ SummaryLsa::SummaryLsa (Ptr<Packet> packet)
   Deserialize (packet);
 }
 
-SummaryLsa::SummaryLsa (bool bitV, bool bitE, bool bitB) : m_bitV (bitV), m_bitE (bitE), m_bitB (bitB)
+SummaryLsa::SummaryLsa (bool bitV, bool bitE, bool bitB)
+    : m_bitV (bitV), m_bitE (bitE), m_bitB (bitB)
 {
 }
 
@@ -77,7 +77,8 @@ SummaryLsa::GetNPrefixes ()
 TypeId
 SummaryLsa::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::SummaryLsa").SetGroupName ("Ospf").AddConstructor<SummaryLsa> ();
+  static TypeId tid =
+      TypeId ("ns3::SummaryLsa").SetGroupName ("Ospf").AddConstructor<SummaryLsa> ();
   return tid;
 }
 TypeId
@@ -136,7 +137,7 @@ SummaryLsa::Deserialize (Buffer::Iterator start)
   Buffer::Iterator i = start;
 
   m_prefixes.clear ();
-  for (uint16_t j = 0; j < m_prefixes.size(); j++)
+  for (uint16_t j = 0; j < m_prefixes.size (); j++)
     {
       uint32_t mask = i.ReadNtohU32 ();
       uint32_t metric = i.ReadNtohU32 ();
