@@ -1067,7 +1067,7 @@ OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
 
 void
 OspfApp::HandleAreaLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                        LsaHeader lsaHeader, Ptr<AreaLsa> routerLsa)
+                        LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa)
 {
   NS_LOG_FUNCTION (this);
   // TODO:
@@ -1075,7 +1075,7 @@ OspfApp::HandleAreaLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHe
 
 void
 OspfApp::HandleAreaSummaryLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                               LsaHeader lsaHeader, Ptr<SummaryLsa> routerLsa)
+                               LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa)
 {
   NS_LOG_FUNCTION (this);
   // TODO:
