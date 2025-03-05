@@ -32,6 +32,7 @@
 #include "lsa-header.h"
 #include "router-lsa.h"
 #include "area-lsa.h"
+#include "summary-lsa.h"
 #include "ospf-dbd.h"
 #include "ospf-hello.h"
 #include "ls-ack.h"
@@ -276,6 +277,26 @@ private:
    */
   void HandleRouterLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                         LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
+  /**
+   * \brief Handle LS Update containing one Area-LSA during Full.
+   * \param ifIndex Interface index
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param lsaHeader LSA Header
+   * \param areaLsa Area LSA Payload
+   */
+  void HandleAreaLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                      LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa);
+  /**
+   * \brief Handle LS Update containing one Summary-LSA (Area) during Full.
+   * \param ifIndex Interface index
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param lsaHeader LSA Header
+   * \param summaryLsa Area Summary LSA Payload
+   */
+  void HandleAreaSummaryLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                             LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa);
   /**
    * \brief Handle LS Acknowledge as a response for LS Update during Full.
    * \param ifIndex Interface index

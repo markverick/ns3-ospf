@@ -896,8 +896,9 @@ OspfApp::HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
       // Remove LSA from the current LSR
       for (auto &[lsaHeader, lsa] : receivedLsa)
         {
-          if (lsaHeader.GetType () == LsaHeader::RouterLSAs)
+          switch (lsaHeader.GetType ())
             {
+            case LsaHeader::RouterLSAs:
               if (lastLsr->HasLsaKey (lsaHeader.GetKey ()))
                 {
                   // If LSU is an implicit ACK to LSR
@@ -908,10 +909,23 @@ OspfApp::HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
                 }
               else
                 {
-                  // Handle LSA normally
+                  // Handle Router LSA normally
                   HandleRouterLsu (ifIndex, ipHeader, ospfHeader, lsaHeader,
                                    DynamicCast<RouterLsa> (lsa));
                 }
+              break;
+            case LsaHeader::AreaLSAs:
+              // Handle Area LSA
+              HandleAreaLsu (ifIndex, ipHeader, ospfHeader, lsaHeader, DynamicCast<AreaLsa> (lsa));
+              break;
+            case LsaHeader::SummaryLSAsArea:
+              // Handle Area LSA
+              HandleAreaSummaryLsu (ifIndex, ipHeader, ospfHeader, lsaHeader,
+                                    DynamicCast<SummaryLsa> (lsa));
+              break;
+            default:
+              NS_LOG_WARN ("Received unsupport LSA type in received LS Update");
+              break;
             }
         }
       // Get the next LSR or advance to FULL if no more is left
@@ -1048,6 +1062,22 @@ OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
             }
         }
     }
+}
+
+void
+OspfApp::HandleAreaLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                        LsaHeader lsaHeader, Ptr<AreaLsa> routerLsa)
+{
+  NS_LOG_FUNCTION (this);
+  // TODO:
+}
+
+void
+OspfApp::HandleAreaSummaryLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                               LsaHeader lsaHeader, Ptr<SummaryLsa> routerLsa)
+{
+  NS_LOG_FUNCTION (this);
+  // TODO:
 }
 
 // LSA
