@@ -1429,6 +1429,10 @@ OspfApp::AreaLeaderBegin ()
 {
   NS_LOG_FUNCTION (this);
   // TODO: Area Leader Logic -- start flooding Area-LSA and Summary-LSA-Area
+  // Flood LSU with L2 LSAs to all interfaces
+  Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
+  lsUpdate->AddLsa (m_areaLsdb[m_areaId]);
+  FloodLsu (0, lsUpdate);
 }
 
 void
