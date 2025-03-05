@@ -935,15 +935,20 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
       return;
     }
 
+  // Update seq num
+  m_seqNumbers[lsaKey] = seqNum;
+
   // Process LSA
   ProcessLsa (ifIndex, ipHeader, ospfHeader, lsaHeader, lsa);
 
   // Satisfy LSR
+  bool isLsrSatisfied = false;
   if (neighbor->GetState () == OspfNeighbor::Loading)
     {
       auto lastLsr = neighbor->GetLastLsrSent ();
       if (lastLsr->HasLsaKey (lsaHeader.GetKey ()))
         {
+          isLsrSatisfied = true;
           // If LSU is an implicit ACK to LSR
           lastLsr->RemoveLsaKey (lsaHeader.GetKey ());
           if (lastLsr->IsLsaKeyEmpty ())
@@ -951,6 +956,10 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
               SendNextLsr (ifIndex, neighbor);
             }
         }
+    }
+  if (!isLsrSatisfied)
+    {
+      SendAck (ifIndex, ackPacket, neighbor->GetRouterId ());
     }
 
   // Flood the network
@@ -985,13 +994,10 @@ OspfApp::ProcessRouterLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader osp
                            LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
 {
   uint32_t advertisingRouter = lsaHeader.GetAdvertisingRouter ();
-  uint16_t seqNum = lsaHeader.GetSeqNum ();
-  LsaHeader::LsaKey lsaKey = lsaHeader.GetKey ();
 
   // Filling in Router LSDB
   NS_LOG_INFO ("Update the router lsdb entry");
   m_routerLsdb[advertisingRouter] = std::make_pair (lsaHeader, routerLsa);
-  m_seqNumbers[lsaKey] = seqNum;
 
   if (m_enableAreaProxy)
     {
