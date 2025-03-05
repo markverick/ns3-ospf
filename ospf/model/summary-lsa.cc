@@ -31,10 +31,10 @@ NS_LOG_COMPONENT_DEFINE ("SummaryLsa");
 
 NS_OBJECT_ENSURE_REGISTERED (SummaryLsa);
 
-Prefix::Prefix (uint32_t mask, uint32_t metric) : m_mask (mask), m_metric (metric)
+SummaryPrefix::SummaryPrefix (uint32_t mask, uint32_t metric) : m_mask (mask), m_metric (metric)
 {
 }
-SummaryLsa::SummaryLsa () : m_bitV (0), m_bitE (0), m_bitB (0)
+SummaryLsa::SummaryLsa ()
 {
 }
 
@@ -43,18 +43,13 @@ SummaryLsa::SummaryLsa (Ptr<Packet> packet)
   Deserialize (packet);
 }
 
-SummaryLsa::SummaryLsa (bool bitV, bool bitE, bool bitB)
-    : m_bitV (bitV), m_bitE (bitE), m_bitB (bitB)
-{
-}
-
 void
-SummaryLsa::AddPrefix (Prefix prefix)
+SummaryLsa::AddPrefix (SummaryPrefix prefix)
 {
   m_prefixes.emplace_back (prefix);
 }
 
-Prefix
+SummaryPrefix
 SummaryLsa::GetPrefix (uint32_t index)
 {
   NS_ASSERT_MSG (index >= 0 && index < m_prefixes.size (), "Invalid link index");
@@ -91,10 +86,7 @@ void
 SummaryLsa::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
-  os << "V: " << m_bitV << " "
-     << "E: " << m_bitE << " "
-     << "B: " << m_bitE << " "
-     << "# prefixes: " << m_prefixes.size () << std::endl;
+  os << "# prefixes: " << m_prefixes.size () << std::endl;
 }
 uint32_t
 SummaryLsa::GetSerializedSize (void) const
@@ -141,8 +133,8 @@ SummaryLsa::Deserialize (Buffer::Iterator start)
     {
       uint32_t mask = i.ReadNtohU32 ();
       uint32_t metric = i.ReadNtohU32 ();
-      uint8_t type = i.ReadU8 ();
       i.Next (4); // Skip TOS
+      m_prefixes.emplace_back (SummaryPrefix (mask, metric));
     }
   return GetSerializedSize ();
 }

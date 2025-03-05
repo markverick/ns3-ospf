@@ -18,8 +18,8 @@
  * Author: Sirapop Theeranantachaoi <stheera@g.ucla.edu>
  */
 
-#ifndef AREA_SUMMARY_LSA_H
-#define AREA_SUMMARY_LSA_H
+#ifndef SUMMARY_LSA_H
+#define SUMMARY_LSA_H
 
 #include "ns3/object.h"
 #include "ns3/header.h"
@@ -32,11 +32,11 @@ namespace ns3 {
  *
  * \brief Summary LSA
  */
-class Prefix
+class SummaryPrefix
 {
 public:
-  Prefix ();
-  Prefix (uint32_t mask, uint32_t metric);
+  SummaryPrefix ();
+  SummaryPrefix (uint32_t mask, uint32_t metric);
   uint32_t m_mask;
   uint32_t m_metric;
 };
@@ -48,7 +48,6 @@ public:
    * \brief Construct a Summary LSA
    */
   SummaryLsa ();
-  SummaryLsa (bool bitV, bool bitE, bool bitB);
   SummaryLsa (Ptr<Packet> packet);
 
   void SetBitV (bool size);
@@ -60,8 +59,8 @@ public:
   void SetBitB (bool size);
   bool GetBitB (void) const;
 
-  void AddPrefix (Prefix Prefix);
-  Prefix GetPrefix (uint32_t index);
+  void AddPrefix (SummaryPrefix Prefix);
+  SummaryPrefix GetPrefix (uint32_t index);
   uint16_t GetNPrefixes ();
   void ClearPrefixes ();
 
@@ -78,9 +77,9 @@ private:
   bool m_bitV;
   bool m_bitE;
   bool m_bitB;
-  std::vector<Prefix> m_prefixes;
+  std::vector<SummaryPrefix> m_prefixes;
 };
 
 } // namespace ns3
 
-#endif /* AREA_SUMMARY_LSA_H */
+#endif /* SUMMARY_LSA_H */
