@@ -989,41 +989,6 @@ OspfApp::ProcessLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeade
       break;
     }
 }
-void
-OspfApp::ProcessRouterLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                           LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
-{
-  uint32_t advertisingRouter = lsaHeader.GetAdvertisingRouter ();
-
-  // Filling in Router LSDB
-  NS_LOG_INFO ("Update the router lsdb entry");
-  m_routerLsdb[advertisingRouter] = std::make_pair (lsaHeader, routerLsa);
-
-  if (m_enableAreaProxy)
-    {
-      // Update local Area LSDB entry if there's a change in area links
-      RecomputeAreaLsa ();
-
-      // Reset area leadership begin timer if it's a leader (lowest router ID)
-      if (m_areaLeaderBeginTimer.IsRunning ())
-        {
-          m_areaLeaderBeginTimer.Remove ();
-        }
-      if (m_routerLsdb.begin ()->first == m_routerId.Get ())
-        {
-          m_areaLeaderBeginTimer =
-              Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
-                                   &OspfApp::AreaLeaderBegin, this);
-        }
-      else
-        {
-          AreaLeaderEnd ();
-        }
-    }
-
-  // Update routing table
-  UpdateRouting ();
-}
 
 void
 OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
@@ -1057,11 +1022,53 @@ OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
 }
 
 void
+OspfApp::ProcessRouterLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                           LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
+{
+  uint32_t advertisingRouter = lsaHeader.GetAdvertisingRouter ();
+
+  // Filling in Router LSDB
+  NS_LOG_FUNCTION (this);
+  m_routerLsdb[advertisingRouter] = std::make_pair (lsaHeader, routerLsa);
+
+  if (m_enableAreaProxy)
+    {
+      // Update local Area LSDB entry if there's a change in area links
+      RecomputeAreaLsa ();
+
+      // Reset area leadership begin timer if it's a leader (lowest router ID)
+      if (m_areaLeaderBeginTimer.IsRunning ())
+        {
+          m_areaLeaderBeginTimer.Remove ();
+        }
+      if (m_routerLsdb.begin ()->first == m_routerId.Get ())
+        {
+          m_areaLeaderBeginTimer =
+              Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
+                                   &OspfApp::AreaLeaderBegin, this);
+        }
+      else
+        {
+          AreaLeaderEnd ();
+        }
+    }
+
+  // Update routing table
+  UpdateRouting ();
+}
+
+void
 OspfApp::ProcessAreaLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                          LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa)
 {
+  if (!m_enableAreaProxy) {
+    return;
+  }
   NS_LOG_FUNCTION (this);
-  // TODO:
+  // LS ID ofType 5 LSA is the originating LSA
+  uint32_t areaId = lsaHeader.GetLsId(); 
+
+  m_areaLsdb[areaId] = std::make_pair(lsaHeader, areaLsa);
 }
 
 void
@@ -1069,7 +1076,7 @@ OspfApp::ProcessAreaSummaryLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeade
                                 LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa)
 {
   NS_LOG_FUNCTION (this);
-  // TODO:
+  // TODO: Fill in the prefixes
 }
 
 // LSA
