@@ -1054,21 +1054,22 @@ OspfApp::ProcessRouterLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader osp
     }
 
   // Update routing table
-  UpdateRouting ();
+  UpdateL1ShortestPath ();
 }
 
 void
 OspfApp::ProcessAreaLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                          LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa)
 {
-  if (!m_enableAreaProxy) {
-    return;
-  }
+  if (!m_enableAreaProxy)
+    {
+      return;
+    }
   NS_LOG_FUNCTION (this);
   // LS ID ofType 5 LSA is the originating LSA
-  uint32_t areaId = lsaHeader.GetLsId(); 
+  uint32_t areaId = lsaHeader.GetLsId ();
 
-  m_areaLsdb[areaId] = std::make_pair(lsaHeader, areaLsa);
+  m_areaLsdb[areaId] = std::make_pair (lsaHeader, areaLsa);
 }
 
 void
@@ -1149,7 +1150,7 @@ OspfApp::RecomputeRouterLsa ()
   m_routerLsdb[m_routerId.Get ()] = std::make_pair (lsaHeader, routerLsa);
 
   // Update routing according to the updated LSDB
-  UpdateRouting ();
+  UpdateL1ShortestPath ();
 }
 
 // Recompute Area LSA
@@ -1188,9 +1189,25 @@ OspfApp::RecomputeAreaLsa ()
   lsaHeader.SetAdvertisingRouter (m_routerId.Get ());
   m_areaLsdb[m_areaId] = std::make_pair (lsaHeader, areaLsa);
 }
-
 void
 OspfApp::UpdateRouting ()
+{
+  // Remove old route
+  // std::cout << "Number of Route: " << m_boundDevices.GetN() << std::endl;
+  while (m_routing->GetNRoutes () > m_boundDevices.GetN ())
+    {
+      m_routing->RemoveRoute (m_boundDevices.GetN ());
+    }
+  for (auto &[remoteRouterId, nextHop] : m_l1NextHop)
+    {
+      for (auto addr : m_l1Addresses[remoteRouterId])
+        {
+          m_routing->AddHostRouteTo (addr, nextHop.first, nextHop.second);
+        }
+    }
+}
+void
+OspfApp::UpdateL1ShortestPath ()
 {
   std::unordered_map<uint32_t, uint32_t> distanceTo;
   std::unordered_map<uint32_t, uint32_t> prevHop;
@@ -1200,12 +1217,9 @@ OspfApp::UpdateRouting ()
       pq;
   NS_LOG_FUNCTION (this);
 
-  // Remove old route
-  // std::cout << "Number of Route: " << m_boundDevices.GetN() << std::endl;
-  while (m_routing->GetNRoutes () > m_boundDevices.GetN ())
-    {
-      m_routing->RemoveRoute (m_boundDevices.GetN ());
-    }
+  // Clear existing next-hop data
+  m_l1NextHop.clear ();
+  m_l1Addresses.clear ();
 
   // Dijkstra
   while (!pq.empty ())
@@ -1278,14 +1292,20 @@ OspfApp::UpdateRouting ()
             break;
         }
       NS_ASSERT (ifIndex > 0);
+
+      // Fill in the next hop and prefixes data
       for (uint32_t i = 0; i < routerLsa.second->GetNLink (); i++)
         {
           // NS_LOG_DEBUG ("Add route: " << Ipv4Address (routerLsa.second->GetLink (i).m_linkData)
           // << ", " << ifIndex << ", " << distanceTo[remoteRouterId]);
-          m_routing->AddHostRouteTo (Ipv4Address (routerLsa.second->GetLink (i).m_linkData),
-                                     ifIndex, distanceTo[remoteRouterId]);
+          m_l1NextHop[remoteRouterId] = std::make_pair (ifIndex, distanceTo[remoteRouterId]);
+          m_l1Addresses[remoteRouterId].emplace_back (
+              Ipv4Address (routerLsa.second->GetLink (i).m_linkData));
+          // m_routing->AddHostRouteTo (Ipv4Address (routerLsa.second->GetLink (i).m_linkData),
+          //                            ifIndex, distanceTo[remoteRouterId]);
         }
     }
+  UpdateRouting ();
 }
 
 // Hello Protocol

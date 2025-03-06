@@ -351,9 +351,19 @@ private:
    */
   void RecomputeAreaLsa ();
   /**
-   * \brief Update routing table based on LSDB
+   * \brief Update routing table based on shortest paths and prefixes
    */
   void UpdateRouting ();
+
+  /**
+   * \brief Update shortest paths and prefixes for L1
+   */
+  void UpdateL1ShortestPath ();
+
+  /**
+   * \brief Update shortest paths and prefixes for L2
+   */
+  void UpdateL2ShortestPath ();
 
   // Hello Protocol
   /**
@@ -479,10 +489,18 @@ private:
   EventId m_helloEvent; //!< Event to send the next hello packet
 
   // Interface
-  std::vector<Ptr<OspfInterface>> m_ospfInterfaces; // router interfaces
+  std::vector<Ptr<OspfInterface>> m_ospfInterfaces; // !< Router interfaces
 
   // Routing
-  Ptr<Ipv4StaticRouting> m_routing; // routing table
+  Ptr<Ipv4StaticRouting> m_routing; // !< Routing table
+  std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
+      m_l1NextHop; //!< <distance, nexthop> to routers
+  std::unordered_map<uint32_t, std::vector<Ipv4Address>>
+      m_l1Addresses; //!< Addresses for L1 routers
+  std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
+      m_l2NextHop; //!< <distance, nexthop> to areas
+  std::unordered_map<uint32_t, std::vector<std::pair<Ipv4Address, Ipv4Mask>>>
+      m_l1Prefixes; //!< IP prefixes for areas
 
   // LSA
   bool m_enableAreaProxy; // True if Proxied L2 LSAs are generated
