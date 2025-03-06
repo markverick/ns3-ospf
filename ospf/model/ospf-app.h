@@ -337,6 +337,11 @@ private:
    */
   Ptr<AreaLsa> GetAreaLsa ();
   /**
+   * \brief Generate Summary Area-LSA for its area
+   * \return Summary-LSA containing all prefixes in the areas
+   */
+  Ptr<SummaryLsa> GetSummaryLsa ();
+  /**
    * \brief Generate local Router-LSA based on adjacencies (Full), filtered by areaId
    * \param areaId Area ID to filter
    * \return Router-LSA for this router
@@ -350,6 +355,10 @@ private:
    * \brief Recompute local Area-LSA, increment its Sequence Number, and inject to Area LSDB
    */
   void RecomputeAreaLsa ();
+    /**
+   * \brief Recompute Area Summary-LSA, increment its Sequence Number, and inject to Area LSDB
+   */
+  void RecomputeSummaryLsa ();
   /**
    * \brief Update routing table based on shortest paths and prefixes
    */
@@ -495,12 +504,15 @@ private:
   Ptr<Ipv4StaticRouting> m_routing; // !< Routing table
   std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
       m_l1NextHop; //!< <distance, nexthop> to routers
-  std::unordered_map<uint32_t, std::vector<Ipv4Address>>
+  std::unordered_map<uint32_t, std::vector<uint32_t>>
       m_l1Addresses; //!< Addresses for L1 routers
+
+  // Area
   std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
       m_l2NextHop; //!< <distance, nexthop> to areas
-  std::unordered_map<uint32_t, std::vector<std::pair<Ipv4Address, Ipv4Mask>>>
-      m_l2Prefixes; //!< IP prefixes for areas
+  std::unordered_map<uint32_t, std::vector<SummaryPrefix>>
+      m_l2Prefixes; //!< IP addresses for areas TODO: multi-access support: <addr, mask>
+  bool m_isAreaLeader;  //!< IP addresses for areas TODO: multi-access support: <addr, mask>
 
   // LSA
   bool m_enableAreaProxy; // True if Proxied L2 LSAs are generated
@@ -511,6 +523,7 @@ private:
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>
       m_routerLsdb; // LSDB for each remote router ID
   std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> m_areaLsdb; // LSDB for each remote area ID
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<SummaryLsa>>> m_summaryLsdb; // LSDB for summary prefixes
 
   /// Callbacks for tracing the packet Tx events
   TracedCallback<Ptr<const Packet>> m_txTrace;

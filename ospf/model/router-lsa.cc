@@ -75,6 +75,17 @@ RouterLsa::GetNLink ()
   return m_links.size ();
 }
 
+std::vector<uint32_t>
+RouterLsa::GetRouterLinkData ()
+{
+  NS_LOG_FUNCTION (this);
+  std::vector<uint32_t> linkData;
+  for (auto link : m_links)
+    {
+      linkData.emplace_back (link.m_linkData);
+    }
+  return linkData;
+}
 std::vector<AreaLink>
 RouterLsa::GetCrossAreaLinks ()
 {
@@ -84,7 +95,7 @@ RouterLsa::GetCrossAreaLinks ()
     {
       if (link.m_type == 5)
         {
-          crossAreaLinks.emplace_back (AreaLink (link.m_linkId, link.m_metric));
+          crossAreaLinks.emplace_back (AreaLink (link.m_linkId, link.m_linkData, link.m_metric));
         }
     }
   return crossAreaLinks;

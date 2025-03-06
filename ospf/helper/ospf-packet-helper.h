@@ -41,6 +41,7 @@
 #include "ns3/ospf-neighbor.h"
 #include "ns3/router-lsa.h"
 #include "ns3/area-lsa.h"
+#include "ns3/summary-lsa.h"
 #include "ns3/ospf-hello.h"
 #include "ns3/ospf-dbd.h"
 #include "ns3/ls-ack.h"
@@ -153,6 +154,18 @@ ConstructAreaLsa (std::vector<AreaLink> areaLinks)
       areaLsa->AddLink (link);
     }
   return areaLsa;
+}
+
+Ptr<SummaryLsa>
+ConstructSummaryLsa (std::vector<SummaryPrefix> prefixes)
+{
+  // Create a Summary-LSA
+  Ptr<SummaryLsa> summaryLsa = Create<SummaryLsa> ();
+  for (auto p : prefixes)
+    {
+      summaryLsa->AddPrefix (p);
+    }
+  return summaryLsa;
 }
 
 Ptr<Packet>

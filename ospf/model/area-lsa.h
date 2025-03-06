@@ -35,18 +35,19 @@ namespace ns3 {
 class AreaLink
 {
 public:
-  AreaLink (uint32_t areaId, uint16_t metric);
+  AreaLink (uint32_t areaId, uint32_t ipAddress, uint16_t metric);
   uint32_t m_areaId;
+  uint32_t m_ipAddress;
   uint16_t m_metric;
   bool
   operator== (const AreaLink &other) const
   {
-    return m_areaId == other.m_areaId && m_metric == other.m_metric;
+    return m_areaId == other.m_areaId && m_ipAddress == other.m_ipAddress && m_metric == other.m_metric;
   }
-  std::tuple<uint32_t, uint32_t>
+  std::tuple<uint32_t, uint32_t, uint16_t>
   Get ()
   {
-    return std::tuple<uint32_t, uint32_t> (m_areaId, m_metric);
+    return std::tuple<uint32_t, uint32_t, uint16_t> (m_areaId, m_ipAddress, m_metric);
   }
 };
 

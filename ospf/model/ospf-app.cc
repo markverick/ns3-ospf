@@ -334,6 +334,7 @@ OspfApp::StartApplication (void)
   // Start sending Hello
   ScheduleTransmitHello (Seconds (0.));
 
+  m_isAreaLeader = false;
   // Will begin as an area leader if noone will
   if (m_enableAreaProxy)
     {
@@ -1055,6 +1056,8 @@ OspfApp::ProcessRouterLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader osp
 
   // Update routing table
   UpdateL1ShortestPath ();
+
+  // 
 }
 
 void
@@ -1068,7 +1071,16 @@ OspfApp::ProcessAreaLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfH
   NS_LOG_FUNCTION (this);
   // LS ID ofType 5 LSA is the originating LSA
   uint32_t areaId = lsaHeader.GetLsId ();
-
+  
+  // If the area leader receives LSAs with higher seq num from other nodes
+  if (areaId == m_areaId && m_isAreaLeader && lsaHeader.GetSeqNum() >= m_seqNumbers[lsaHeader.GetKey()]) { 
+    // Recompute and flood with the new seq num
+    RecomputeAreaLsa();
+    Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
+    lsUpdate->AddLsa (m_areaLsdb[m_areaId]);
+    FloodLsu (0, lsUpdate);
+    return;
+  }
   m_areaLsdb[areaId] = std::make_pair (lsaHeader, areaLsa);
 }
 
@@ -1077,7 +1089,25 @@ OspfApp::ProcessAreaSummaryLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeade
                                 LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa)
 {
   NS_LOG_FUNCTION (this);
-  // TODO: Fill in the prefixes
+  if (!m_enableAreaProxy)
+  {
+    return;
+  }
+  // Fill in the prefixes
+  // LS ID of Summary LSA is the originating LSA
+  uint32_t areaId = lsaHeader.GetLsId ();
+  
+  // If the area leader receives LSAs with higher seq num from other nodes
+  if (areaId == m_areaId && m_isAreaLeader && lsaHeader.GetSeqNum() >= m_seqNumbers[lsaHeader.GetKey()]) { 
+    // Recompute and flood with the new seq num
+    RecomputeSummaryLsa();
+    Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
+    lsUpdate->AddLsa (m_summaryLsdb[m_areaId]);
+    FloodLsu (0, lsUpdate);
+    return;
+  }
+  m_summaryLsdb[areaId] = std::make_pair (lsaHeader, summaryLsa);
+
 }
 
 // LSA
@@ -1098,31 +1128,20 @@ OspfApp::GetRouterLsa ()
   return ConstructRouterLsa (allLinks);
 }
 
-// Generate Local Area LSA for the leader OR LSDB is already updating on the fly
+// Generate Local Area LSA for the leader
 Ptr<AreaLsa>
 OspfApp::GetAreaLsa ()
 {
   // <area neighbor ID, leader's IP address, interface metric>
   std::vector<AreaLink> allAreaLinks;
-  std::unordered_map<uint32_t, uint32_t> areaBestLinks;
-  // Read Router LSDB and extract neighbors link
+  // Read Router LSDB and extract cross-area links
   for (auto &[remoteRouterId, routerLsa] : m_routerLsdb)
     {
       auto crossAreaLinks = routerLsa.second->GetCrossAreaLinks ();
       for (auto l : crossAreaLinks)
         {
-          if (areaBestLinks.find (l.m_areaId) != areaBestLinks.end ())
-            {
-              if (l.m_metric < areaBestLinks[l.m_areaId])
-                {
-                  areaBestLinks[l.m_areaId] = l.m_metric;
-                }
-            }
+          allAreaLinks.emplace_back(l);
         }
-    }
-  for (auto &[areaId, metric] : areaBestLinks)
-    {
-      allAreaLinks.emplace_back (areaId, metric);
     }
   NS_LOG_INFO ("Area-LSA Created with " << allAreaLinks.size () << " active links");
   return ConstructAreaLsa (allAreaLinks);
@@ -1196,6 +1215,36 @@ OspfApp::RecomputeAreaLsa ()
   lsaHeader.SetAdvertisingRouter (m_routerId.Get ());
   m_areaLsdb[m_areaId] = std::make_pair (lsaHeader, areaLsa);
 }
+
+void
+OspfApp::RecomputeSummaryLsa ()
+{
+  NS_LOG_FUNCTION (this);
+  
+  // Construct its area LSA
+  Ptr<SummaryLsa> summary = ConstructSummaryLsa (m_l2Prefixes[m_areaId]);
+
+  auto lsaKey = std::make_tuple (LsaHeader::LsType::SummaryLSAsArea, m_areaId, m_routerId.Get ());
+
+  // Initialize seq number to zero if new
+  if (m_seqNumbers.find (lsaKey) == m_seqNumbers.end ())
+    {
+      m_seqNumbers[lsaKey] = 0;
+    }
+
+  // Increment a seq number
+  m_seqNumbers[lsaKey]++;
+
+  // Assign areaLsa to its area LSDB
+  LsaHeader lsaHeader;
+  lsaHeader.SetType (LsaHeader::LsType::SummaryLSAsArea);
+  lsaHeader.SetLength (20 + summary->GetSerializedSize ());
+  lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
+  lsaHeader.SetLsId (m_areaId);
+  lsaHeader.SetAdvertisingRouter (m_routerId.Get ());
+  m_summaryLsdb[m_areaId] = std::make_pair (lsaHeader, summary);
+}
+
 void
 OspfApp::UpdateRouting ()
 {
@@ -1209,7 +1258,14 @@ OspfApp::UpdateRouting ()
     {
       for (auto addr : m_l1Addresses[remoteRouterId])
         {
-          m_routing->AddHostRouteTo (addr, nextHop.first, nextHop.second);
+          m_routing->AddHostRouteTo (Ipv4Address(addr), nextHop.first, nextHop.second);
+        }
+    }
+  for (auto &[remoteRouterId, nextHop] : m_l2NextHop)
+    {
+      for (auto addr : m_l1Addresses[remoteRouterId])
+        {
+          m_routing->AddHostRouteTo (Ipv4Address(addr), nextHop.first, nextHop.second);
         }
     }
 }
@@ -1227,6 +1283,9 @@ OspfApp::UpdateL1ShortestPath ()
   // Clear existing next-hop data
   m_l1NextHop.clear ();
   m_l1Addresses.clear ();
+  if (m_l2Prefixes.find(m_areaId) != m_l2Prefixes.end()) {
+    m_l2Prefixes[m_areaId].clear ();
+  }
 
   // Dijkstra
   while (!pq.empty ())
@@ -1306,8 +1365,9 @@ OspfApp::UpdateL1ShortestPath ()
           // NS_LOG_DEBUG ("Add route: " << Ipv4Address (routerLsa.second->GetLink (i).m_linkData)
           // << ", " << ifIndex << ", " << distanceTo[remoteRouterId]);
           m_l1NextHop[remoteRouterId] = std::make_pair (ifIndex, distanceTo[remoteRouterId]);
-          m_l1Addresses[remoteRouterId].emplace_back (
-              Ipv4Address (routerLsa.second->GetLink (i).m_linkData));
+          m_l1Addresses[remoteRouterId].emplace_back (routerLsa.second->GetLink (i).m_linkData);
+          // Cost of proxied prefixes are always zero
+          m_l2Prefixes[m_areaId].emplace_back(SummaryPrefix(routerLsa.second->GetLink (i).m_linkData, 0));
           // m_routing->AddHostRouteTo (Ipv4Address (routerLsa.second->GetLink (i).m_linkData),
           //                            ifIndex, distanceTo[remoteRouterId]);
         }
@@ -1328,7 +1388,6 @@ OspfApp::UpdateL2ShortestPath ()
 
   // Clear existing next-hop data
   m_l2NextHop.clear ();
-  m_l2Prefixes.clear ();
 
   // Dijkstra
   while (!pq.empty ())
@@ -1360,12 +1419,9 @@ OspfApp::UpdateL2ShortestPath ()
         }
     }
   // std::cout << "node: " << GetNode()->GetId() << std::endl;
-  // Shortest path information for each subnet -- <mask, nextHop, interface, metric>
-  std::map<uint32_t, std::tuple<uint32_t, uint32_t, uint32_t, uint32_t>> routingEntries;
+  // Find the shortest paths and the next hops
   for (auto &[remoteAreaId, areaLsa] : m_areaLsdb)
     {
-      // std::cout << "  destination: " << Ipv4Address(remoteRouterId) << std::endl;
-
       // No reachable path
       if (prevHop.find (remoteAreaId) == prevHop.end ())
         {
@@ -1407,7 +1463,7 @@ OspfApp::UpdateL2ShortestPath ()
         {
           // NS_LOG_DEBUG ("Add route: " << Ipv4Address (routerLsa.second->GetLink (i).m_linkData)
           // << ", " << ifIndex << ", " << distanceTo[areaId]);
-          m_l2NextHop[remoteAreaId] = std::make_pair (ifIndex, distanceTo[remoteAreaId]);
+          m_l2NextHop[remoteAreaId] = std::make_pair (areaLsa.second->GetLink (i).m_ipAddress, distanceTo[remoteAreaId]);
         }
     }
   UpdateRouting ();
@@ -1582,11 +1638,19 @@ void
 OspfApp::AreaLeaderBegin ()
 {
   NS_LOG_FUNCTION (this);
+  m_isAreaLeader = true;
   // TODO: Area Leader Logic -- start flooding Area-LSA and Summary-LSA-Area
-  // Flood LSU with L2 LSAs to all interfaces
-  Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
-  lsUpdate->AddLsa (m_areaLsdb[m_areaId]);
-  FloodLsu (0, lsUpdate);
+  // Flood LSU with Area-LSAs to all interfaces
+  RecomputeAreaLsa();
+  Ptr<LsUpdate> lsUpdateArea = Create<LsUpdate> ();
+  lsUpdateArea->AddLsa (m_areaLsdb[m_areaId]);
+  FloodLsu (0, lsUpdateArea);
+
+  // Flood LSU with area prefix reachability
+  RecomputeSummaryLsa();
+  Ptr<LsUpdate> lsUpdateSummary = Create<LsUpdate> ();
+  lsUpdateSummary->AddLsa (m_areaLsdb[m_areaId]);
+  FloodLsu (0, lsUpdateSummary);
 }
 
 void
