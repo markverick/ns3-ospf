@@ -32,11 +32,17 @@ NS_LOG_COMPONENT_DEFINE ("AreaLsa");
 
 NS_OBJECT_ENSURE_REGISTERED (AreaLsa);
 
+
+AreaLink::AreaLink (uint32_t areaId, uint16_t metric)
+    : m_areaId (areaId), m_metric (metric)
+{
+}
+
 AreaLsa::AreaLsa ()
 {
 }
 
-AreaLsa::AreaLsa (std::vector<uint32_t> links)
+AreaLsa::AreaLsa (std::vector<AreaLink> links)
 {
   for (auto link : links)
     {
@@ -50,12 +56,12 @@ AreaLsa::AreaLsa (Ptr<Packet> packet)
 }
 
 void
-AreaLsa::AddLink (uint32_t areaId)
+AreaLsa::AddLink (AreaLink link)
 {
-  m_links.emplace_back (areaId);
+  m_links.emplace_back (link);
 }
 
-uint32_t
+AreaLink
 AreaLsa::GetLink (uint32_t index)
 {
   NS_ASSERT_MSG (index >= 0 && index < m_links.size (), "Invalid link index");
@@ -75,7 +81,7 @@ AreaLsa::GetNLink ()
   return m_links.size ();
 }
 
-std::vector<uint32_t>
+std::vector<AreaLink>
 AreaLsa::GetLinks ()
 {
   return m_links;
@@ -128,7 +134,9 @@ AreaLsa::Serialize (Buffer::Iterator start) const
   i.WriteHtonU16 (m_links.size ());
   for (uint16_t j = 0; j < m_links.size (); j++)
     {
-      i.WriteHtonU32 (m_links[j]);
+      i.WriteHtonU32 (m_links[j].m_areaId);
+      i.Next(2);
+      i.WriteHtonU16 (m_links[j].m_metric);
     }
   return GetSerializedSize ();
 }
@@ -146,7 +154,9 @@ AreaLsa::Deserialize (Buffer::Iterator start)
   for (uint16_t j = 0; j < linkNum; j++)
     {
       uint32_t areaId = i.ReadNtohU32 ();
-      m_links.emplace_back (areaId);
+      i.Next(2);
+      uint16_t metric = i.ReadNtohU16 ();
+      m_links.emplace_back (areaId, metric);
     }
   return GetSerializedSize ();
 }

@@ -144,13 +144,13 @@ ConstructRouterLsa (std::vector<RouterLink> neighborLinks)
 }
 
 Ptr<AreaLsa>
-ConstructAreaLsa (std::vector<uint32_t> areaNeighbors)
+ConstructAreaLsa (std::vector<AreaLink> areaLinks)
 {
   // Create a Area-LSA
   Ptr<AreaLsa> areaLsa = Create<AreaLsa> ();
-  for (auto areaId : areaNeighbors)
+  for (auto link : areaLinks)
     {
-      areaLsa->AddLink (areaId);
+      areaLsa->AddLink (link);
     }
   return areaLsa;
 }

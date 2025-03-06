@@ -32,16 +32,23 @@ namespace ns3 {
  *
  * \brief Area LSA
  */
-// class AreaLink
-// {
-// public:
-//   AreaLink ();
-//   AreaLink (uint32_t areaId, uint32_t ipAddress, uint8_t type, uint16_t metric);
-//   uint32_t m_areaId;
-//   uint8_t m_ipAddress;
-//   uint8_t m_type;
-//   uint16_t m_metric;
-// };
+class AreaLink
+{
+public:
+  AreaLink (uint32_t areaId, uint16_t metric);
+  uint32_t m_areaId;
+  uint16_t m_metric;
+  bool
+  operator== (const AreaLink &other) const
+  {
+    return m_areaId == other.m_areaId && m_metric == other.m_metric;
+  }
+  std::tuple<uint32_t, uint32_t>
+  Get ()
+  {
+    return std::tuple<uint32_t, uint32_t> (m_areaId, m_metric);
+  }
+};
 
 class AreaLsa : public Lsa
 {
@@ -50,12 +57,12 @@ public:
    * \brief Construct a Area LSA
    */
   AreaLsa ();
-  AreaLsa (std::vector<uint32_t>);
+  AreaLsa (std::vector<AreaLink>);
   AreaLsa (Ptr<Packet> packet);
 
-  void AddLink (uint32_t areaId);
-  uint32_t GetLink (uint32_t index);
-  std::vector<uint32_t> GetLinks ();
+  void AddLink (AreaLink link);
+  AreaLink GetLink (uint32_t index);
+  std::vector<AreaLink> GetLinks ();
   uint16_t GetNLink ();
   void ClearLinks ();
 
@@ -69,7 +76,7 @@ public:
   virtual uint32_t Deserialize (Ptr<Packet> packet);
 
 private:
-  std::vector<uint32_t> m_links;
+  std::vector<AreaLink> m_links;
 };
 
 } // namespace ns3

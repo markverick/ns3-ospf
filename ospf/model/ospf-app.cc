@@ -1103,20 +1103,24 @@ Ptr<AreaLsa>
 OspfApp::GetAreaLsa ()
 {
   // <area neighbor ID, leader's IP address, interface metric>
-  std::vector<uint32_t> allAreaLinks;
-  std::unordered_set<uint32_t> areaIdHash;
+  std::vector<AreaLink> allAreaLinks;
+  std::unordered_map<uint32_t, uint32_t> areaBestLinks;
   // Read Router LSDB and extract neighbors link
   for (auto &[remoteRouterId, routerLsa] : m_routerLsdb)
     {
       auto crossAreaLinks = routerLsa.second->GetCrossAreaLinks ();
       for (auto l : crossAreaLinks)
         {
-          if (areaIdHash.insert (l).second)
-            {
-              allAreaLinks.emplace_back (l);
+          if (areaBestLinks.find(l.m_areaId) != areaBestLinks.end()) {
+            if (l.m_metric < areaBestLinks[l.m_areaId]) {
+              areaBestLinks[l.m_areaId] = l.m_metric;
             }
+          }
         }
     }
+  for (auto &[areaId, metric] : areaBestLinks) {
+    allAreaLinks.emplace_back(areaId, metric);
+  }
   NS_LOG_INFO ("Area-LSA Created with " << allAreaLinks.size () << " active links");
   return ConstructAreaLsa (allAreaLinks);
 }
@@ -1303,6 +1307,104 @@ OspfApp::UpdateL1ShortestPath ()
               Ipv4Address (routerLsa.second->GetLink (i).m_linkData));
           // m_routing->AddHostRouteTo (Ipv4Address (routerLsa.second->GetLink (i).m_linkData),
           //                            ifIndex, distanceTo[remoteRouterId]);
+        }
+    }
+  UpdateRouting ();
+}
+
+void
+OspfApp::UpdateL2ShortestPath ()
+{
+  std::unordered_map<uint32_t, uint32_t> distanceTo;
+  std::unordered_map<uint32_t, uint32_t> prevHop;
+  // <distance, next hop>
+  std::priority_queue<std::pair<uint32_t, uint32_t>, std::vector<std::pair<uint32_t, uint32_t>>,
+                      std::greater<std::pair<uint32_t, uint32_t>>>
+      pq;
+  NS_LOG_FUNCTION (this);
+
+  // Clear existing next-hop data
+  m_l2NextHop.clear ();
+  m_l2Prefixes.clear ();
+
+  // Dijkstra
+  while (!pq.empty ())
+    {
+      pq.pop ();
+    }
+  distanceTo.clear ();
+  uint32_t u, v, w;
+  pq.emplace (0, m_areaId);
+  distanceTo[m_areaId] = 0;
+  while (!pq.empty ())
+    {
+      std::tie (w, u) = pq.top ();
+      pq.pop ();
+      // Skip if the lsdb doesn't have any neighbors for that router
+      if (m_areaLsdb.find (u) == m_areaLsdb.end ())
+        continue;
+
+      for (uint32_t i = 0; i < m_areaLsdb[u].second->GetNLink (); i++)
+        {
+          v = m_areaLsdb[u].second->GetLink (i).m_areaId;
+          auto metric = m_areaLsdb[u].second->GetLink (i).m_metric;
+          if (distanceTo.find (v) == distanceTo.end () || w + metric < distanceTo[v])
+            {
+              distanceTo[v] = w + metric;
+              prevHop[v] = u;
+              pq.emplace (w + metric, v);
+            }
+        }
+    }
+  // std::cout << "node: " << GetNode()->GetId() << std::endl;
+  // Shortest path information for each subnet -- <mask, nextHop, interface, metric>
+  std::map<uint32_t, std::tuple<uint32_t, uint32_t, uint32_t, uint32_t>> routingEntries;
+  for (auto &[remoteAreaId, areaLsa] : m_areaLsdb)
+    {
+      // std::cout << "  destination: " << Ipv4Address(remoteRouterId) << std::endl;
+
+      // No reachable path
+      if (prevHop.find (remoteAreaId) == prevHop.end ())
+        {
+          // std::cout << "    no route" << std::endl;
+          continue;
+        }
+
+      // Find the first hop
+      v = remoteAreaId;
+      while (prevHop.find (v) != prevHop.end ())
+        {
+          if (prevHop[v] == m_areaId)
+            {
+              break;
+            }
+          v = prevHop[v];
+        }
+
+      // Find the next hop's IP and interface index
+      uint32_t ifIndex = 0;
+      for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
+        {
+          auto neighbors = m_ospfInterfaces[i]->GetNeighbors ();
+          for (auto n : neighbors)
+            {
+              if (n->GetRouterId ().Get () == v)
+                {
+                  ifIndex = i;
+                  break;
+                }
+            }
+          if (ifIndex)
+            break;
+        }
+      NS_ASSERT (ifIndex > 0);
+
+      // Fill in the next hop and prefixes data
+      for (uint32_t i = 0; i < areaLsa.second->GetNLink (); i++)
+        {
+          // NS_LOG_DEBUG ("Add route: " << Ipv4Address (routerLsa.second->GetLink (i).m_linkData)
+          // << ", " << ifIndex << ", " << distanceTo[areaId]);
+          m_l2NextHop[remoteAreaId] = std::make_pair (ifIndex, distanceTo[remoteAreaId]);
         }
     }
   UpdateRouting ();

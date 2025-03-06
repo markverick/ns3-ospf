@@ -85,7 +85,7 @@ public:
   void AddLink (RouterLink routerLink);
   RouterLink GetLink (uint32_t index);
   uint16_t GetNLink ();
-  std::vector<uint32_t> GetCrossAreaLinks ();
+  std::vector<AreaLink> GetCrossAreaLinks ();
   void ClearLinks ();
 
   static TypeId GetTypeId (void);

@@ -500,7 +500,7 @@ private:
   std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
       m_l2NextHop; //!< <distance, nexthop> to areas
   std::unordered_map<uint32_t, std::vector<std::pair<Ipv4Address, Ipv4Mask>>>
-      m_l1Prefixes; //!< IP prefixes for areas
+      m_l2Prefixes; //!< IP prefixes for areas
 
   // LSA
   bool m_enableAreaProxy; // True if Proxied L2 LSAs are generated
