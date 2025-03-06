@@ -32,7 +32,8 @@ NS_LOG_COMPONENT_DEFINE ("AreaLsa");
 
 NS_OBJECT_ENSURE_REGISTERED (AreaLsa);
 
-AreaLink::AreaLink (uint32_t areaId, uint32_t ipAddress, uint16_t metric) : m_areaId (areaId), m_ipAddress (ipAddress), m_metric (metric)
+AreaLink::AreaLink (uint32_t areaId, uint32_t ipAddress, uint16_t metric)
+    : m_areaId (areaId), m_ipAddress (ipAddress), m_metric (metric)
 {
 }
 

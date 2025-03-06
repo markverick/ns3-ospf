@@ -42,7 +42,8 @@ public:
   bool
   operator== (const AreaLink &other) const
   {
-    return m_areaId == other.m_areaId && m_ipAddress == other.m_ipAddress && m_metric == other.m_metric;
+    return m_areaId == other.m_areaId && m_ipAddress == other.m_ipAddress &&
+           m_metric == other.m_metric;
   }
   std::tuple<uint32_t, uint32_t, uint16_t>
   Get ()

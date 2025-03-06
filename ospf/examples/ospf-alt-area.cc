@@ -211,9 +211,12 @@ main (int argc, char *argv[])
 
   // Print LSDB
   // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
-  Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (7)->GetApplication (0));
+  Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (0)->GetApplication (0));
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
-                       "route.routes");
+                       "route0.routes");
+  app = DynamicCast<OspfApp> (c.Get (7)->GetApplication (0));
+  Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
+                       "route7.routes");
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c0);
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c1);
   for (int i = 0; i < 8; i++)
