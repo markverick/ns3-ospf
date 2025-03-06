@@ -84,7 +84,7 @@ RouterLsa::GetCrossAreaLinks ()
     {
       if (link.m_type == 5)
         {
-          crossAreaLinks.emplace_back (AreaLink(link.m_linkId, link.m_metric));
+          crossAreaLinks.emplace_back (AreaLink (link.m_linkId, link.m_metric));
         }
     }
   return crossAreaLinks;

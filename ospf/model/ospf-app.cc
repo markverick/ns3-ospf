@@ -1111,16 +1111,19 @@ OspfApp::GetAreaLsa ()
       auto crossAreaLinks = routerLsa.second->GetCrossAreaLinks ();
       for (auto l : crossAreaLinks)
         {
-          if (areaBestLinks.find(l.m_areaId) != areaBestLinks.end()) {
-            if (l.m_metric < areaBestLinks[l.m_areaId]) {
-              areaBestLinks[l.m_areaId] = l.m_metric;
+          if (areaBestLinks.find (l.m_areaId) != areaBestLinks.end ())
+            {
+              if (l.m_metric < areaBestLinks[l.m_areaId])
+                {
+                  areaBestLinks[l.m_areaId] = l.m_metric;
+                }
             }
-          }
         }
     }
-  for (auto &[areaId, metric] : areaBestLinks) {
-    allAreaLinks.emplace_back(areaId, metric);
-  }
+  for (auto &[areaId, metric] : areaBestLinks)
+    {
+      allAreaLinks.emplace_back (areaId, metric);
+    }
   NS_LOG_INFO ("Area-LSA Created with " << allAreaLinks.size () << " active links");
   return ConstructAreaLsa (allAreaLinks);
 }

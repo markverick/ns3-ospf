@@ -32,9 +32,7 @@ NS_LOG_COMPONENT_DEFINE ("AreaLsa");
 
 NS_OBJECT_ENSURE_REGISTERED (AreaLsa);
 
-
-AreaLink::AreaLink (uint32_t areaId, uint16_t metric)
-    : m_areaId (areaId), m_metric (metric)
+AreaLink::AreaLink (uint32_t areaId, uint16_t metric) : m_areaId (areaId), m_metric (metric)
 {
 }
 
@@ -135,7 +133,7 @@ AreaLsa::Serialize (Buffer::Iterator start) const
   for (uint16_t j = 0; j < m_links.size (); j++)
     {
       i.WriteHtonU32 (m_links[j].m_areaId);
-      i.Next(2);
+      i.Next (2);
       i.WriteHtonU16 (m_links[j].m_metric);
     }
   return GetSerializedSize ();
@@ -154,7 +152,7 @@ AreaLsa::Deserialize (Buffer::Iterator start)
   for (uint16_t j = 0; j < linkNum; j++)
     {
       uint32_t areaId = i.ReadNtohU32 ();
-      i.Next(2);
+      i.Next (2);
       uint16_t metric = i.ReadNtohU16 ();
       m_links.emplace_back (areaId, metric);
     }
