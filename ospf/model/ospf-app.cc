@@ -191,7 +191,7 @@ OspfApp::PrintLsdb ()
 {
   if (m_routerLsdb.empty ())
     return;
-  std::cout << "===== Router ID: " << m_routerId << " Area ID: " << m_areaId
+  std::cout << "===== L1 Router ID: " << m_routerId << " Area ID: " << m_areaId
             << " =====" << std::endl;
   for (auto &pair : m_routerLsdb)
     {
@@ -213,7 +213,7 @@ OspfApp::PrintAreaLsdb ()
 {
   if (m_areaLsdb.empty ())
     return;
-  std::cout << "===== Router ID: " << m_routerId << " Area ID: " << m_areaId
+  std::cout << "===== L2 Router ID: " << m_routerId << " Area ID: " << m_areaId
             << " =====" << std::endl;
   for (auto &pair : m_areaLsdb)
     {
