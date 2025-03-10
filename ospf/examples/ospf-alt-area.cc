@@ -39,7 +39,7 @@ Network topology: Areas seperated by routers, not links
 #include "ns3/point-to-point-module.h"
 #include "ns3/ospf-app-helper.h"
 #include "ns3/ospf-app.h"
-#include "ns3/ospf-lsdb-helper.h"
+#include "ns3/ospf-runtime-helper.h"
 
 #include <cassert>
 #include <fstream>

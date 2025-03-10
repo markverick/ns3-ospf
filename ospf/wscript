@@ -47,7 +47,7 @@ def build(bld):
         'model/ospf-dbd.h',
         'helper/ospf-app-helper.h',
         'helper/ospf-packet-helper.h',
-        'helper/ospf-lsdb-helper.h',
+        'helper/ospf-runtime-helper.h',
         ]
 
     if bld.env['ENABLE_EXAMPLES']:
