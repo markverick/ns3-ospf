@@ -39,6 +39,7 @@ Network topology: Areas seperated by routers, not links
 #include "ns3/point-to-point-module.h"
 #include "ns3/ospf-app-helper.h"
 #include "ns3/ospf-app.h"
+#include "ns3/ospf-lsdb-helper.h"
 
 #include <cassert>
 #include <fstream>
@@ -54,48 +55,6 @@ Ipv4Address ospfHelloAddress ("224.0.0.5");
 // Link Down at t=35
 // Link Up at t=85
 const uint32_t SIM_SECONDS = 105;
-
-void
-CompareLsdb (NodeContainer nodes)
-{
-  NS_ASSERT (nodes.GetN () > 0);
-  Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
-  uint32_t hash = app->GetLsdbHash ();
-
-  for (uint32_t i = 1; i < nodes.GetN (); i++)
-    {
-      app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
-      if (hash != app->GetLsdbHash ())
-        {
-          std::cout << "[" << Simulator::Now () << "] LSDBs mismatched" << std::endl;
-          return;
-        }
-    }
-  std::cout << "[" << Simulator::Now () << "] LSDBs matched" << std::endl;
-  ;
-  return;
-}
-
-void
-CompareAreaLsdb (NodeContainer nodes)
-{
-  NS_ASSERT (nodes.GetN () > 0);
-  Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
-  uint32_t hash = app->GetAreaLsdbHash ();
-
-  for (uint32_t i = 1; i < nodes.GetN (); i++)
-    {
-      app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
-      if (hash != app->GetAreaLsdbHash ())
-        {
-          std::cout << "[" << Simulator::Now () << "] Area LSDBs mismatched" << std::endl;
-          return;
-        }
-    }
-  std::cout << "[" << Simulator::Now () << "] Area LSDBs matched" << std::endl;
-  ;
-  return;
-}
 
 int
 main (int argc, char *argv[])
@@ -245,6 +204,7 @@ main (int argc, char *argv[])
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintAreaLsdb, app);
       // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
     }
 
