@@ -193,7 +193,9 @@ main (int argc, char *argv[])
   for (uint32_t i = 0; i < SIM_SECONDS; i += 10)
     {
       Simulator::Schedule (Seconds (i), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (i), &OspfApp::PrintAreaLsdb, app);
     }
+    Simulator::Schedule (Seconds (SIM_SECONDS), CompareAreaLsdb, c);
   for (auto nodes : areaNodes)
     {
       Simulator::Schedule (Seconds (SIM_SECONDS), CompareLsdb, nodes);
