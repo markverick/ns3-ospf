@@ -81,18 +81,18 @@ CompareAreaLsdb (NodeContainer nodes)
 {
   NS_ASSERT (nodes.GetN () > 0);
   Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
-  uint32_t hash = app->GetLsdbHash ();
+  uint32_t hash = app->GetAreaLsdbHash ();
 
   for (uint32_t i = 1; i < nodes.GetN (); i++)
     {
       app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
-      if (hash != app->GetLsdbHash ())
+      if (hash != app->GetAreaLsdbHash ())
         {
-          std::cout << "[" << Simulator::Now () << "] LSDBs mismatched" << std::endl;
+          std::cout << "[" << Simulator::Now () << "] Area LSDBs mismatched" << std::endl;
           return;
         }
     }
-  std::cout << "[" << Simulator::Now () << "] LSDBs matched" << std::endl;
+  std::cout << "[" << Simulator::Now () << "] Area LSDBs matched" << std::endl;
   ;
   return;
 }
@@ -240,6 +240,7 @@ main (int argc, char *argv[])
                        "route7.routes");
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c0);
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c1);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareAreaLsdb, c);
   for (int i = 0; i < 8; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
