@@ -108,9 +108,14 @@ public:
    */
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>> GetLsdb ();
   /**
-   * \brief Print LSDB
+   * \brief Print Router LSDB
    */
   void PrintLsdb ();
+
+  /**
+   * \brief Print AreaLSDB
+   */
+  void PrintAreaLsdb ();
 
   /**
    * \brief Print LSDB.

@@ -209,6 +209,28 @@ OspfApp::PrintLsdb ()
 }
 
 void
+OspfApp::PrintAreaLsdb ()
+{
+  if (m_areaLsdb.empty ())
+    return;
+  std::cout << "===== Router ID: " << m_routerId << " Area ID: " << m_areaId
+            << " =====" << std::endl;
+  for (auto &pair : m_areaLsdb)
+    {
+      std::cout << "At t=" << Simulator::Now ().GetSeconds ()
+                << " , Area: " << Ipv4Address (pair.first) << std::endl;
+      std::cout << "  Neighbors: " << pair.second.second->GetNLink () << std::endl;
+      for (uint32_t i = 0; i < pair.second.second->GetNLink (); i++)
+        {
+          AreaLink link = pair.second.second->GetLink (i);
+          std::cout << "  (" << Ipv4Address (link.m_areaId) << ", " << link.m_metric << ")"
+                    << std::endl;
+        }
+    }
+  std::cout << std::endl;
+}
+
+void
 OspfApp::PrintRouting (std::filesystem::path dirName, std::string filename)
 {
   try
