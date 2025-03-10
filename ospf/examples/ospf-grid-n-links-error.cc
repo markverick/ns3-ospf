@@ -41,7 +41,7 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE ("OspfGridRandomError");
+NS_LOG_COMPONENT_DEFINE ("OspfGridNLinksError");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 const uint32_t GRID_WIDTH = 6;
@@ -100,7 +100,7 @@ main (int argc, char *argv[])
 {
   // Users may find it convenient to turn on explicit debugging
   // for selected modules; the below lines suggest how to do this
-  LogComponentEnable ("OspfGridRandomError", LOG_LEVEL_INFO);
+  LogComponentEnable ("OspfGridNLinksError", LOG_LEVEL_INFO);
   // Set up some default values for the simulation.  Use the
 
   // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
@@ -123,10 +123,6 @@ main (int argc, char *argv[])
     {
       std::cerr << "Error: " << e.what () << std::endl;
     }
-
-  // Set up random variables
-  rv->SetAttribute ("Min", DoubleValue (0.0));
-  rv->SetAttribute ("Max", DoubleValue (1.0));
 
   // Create nodes
   NS_LOG_INFO ("Create nodes.");
@@ -183,15 +179,20 @@ main (int argc, char *argv[])
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
   // Test Error
+  // Set up random variables
+  rv->SetAttribute ("Min", DoubleValue (0));
+  rv->SetAttribute ("Max", DoubleValue (ndc.GetN ()));
+  uint32_t numErrorLinks = 3;
   for (uint32_t i = 5; i < SIM_SECONDS; i += 50)
     {
-      for (uint32_t j = 0; j < ndc.GetN (); j++)
+      std::vector<uint32_t> downLinks;
+      for (uint32_t j = 0; j < numErrorLinks; j++) {
+        downLinks.emplace_back((int)(rv->GetValue ()));
+      }
+      for (auto l : downLinks)
         {
-          if (rv->GetValue () <= 0.2)
-            {
-              Simulator::Schedule (Seconds (i), &SetLinkDown, ndc.Get (j));
-              Simulator::Schedule (Seconds (i + 50), &SetLinkUp, ndc.Get (j));
-            }
+            Simulator::Schedule (Seconds (i), &SetLinkDown, ndc.Get (l));
+            Simulator::Schedule (Seconds (i + 50), &SetLinkUp, ndc.Get (l));
         }
       Simulator::Schedule (Seconds (i + 49), &CompareLsdb, c);
     }

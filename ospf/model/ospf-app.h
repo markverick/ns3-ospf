@@ -146,6 +146,11 @@ public:
    */
   void PrintLsdbHash ();
 
+  /**
+   * \brief Print Area LSDB hash.
+   */
+  void PrintAreaLsdbHash ();
+
 protected:
   virtual void DoDispose (void);
 

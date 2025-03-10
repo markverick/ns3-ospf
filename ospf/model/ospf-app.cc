@@ -299,6 +299,12 @@ OspfApp::PrintLsdbHash ()
 }
 
 void
+OspfApp::PrintAreaLsdbHash ()
+{
+  std::cout << GetAreaLsdbHash () << std::endl;
+}
+
+void
 OspfApp::DoDispose (void)
 {
   NS_LOG_FUNCTION (this);
