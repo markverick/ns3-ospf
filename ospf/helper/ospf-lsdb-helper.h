@@ -23,7 +23,7 @@ CompareLsdb (NodeContainer nodes)
         }
     }
   std::cout << "[" << Simulator::Now () << "] LSDBs matched" << std::endl;
-  ;
+
   return;
 }
 
@@ -44,7 +44,7 @@ CompareAreaLsdb (NodeContainer nodes)
         }
     }
   std::cout << "[" << Simulator::Now () << "] Area LSDBs matched" << std::endl;
-  ;
+
   return;
 }
 
