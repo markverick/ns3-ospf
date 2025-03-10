@@ -274,6 +274,24 @@ OspfApp::GetLsdbHash ()
   return hasher (ss.str ());
 }
 
+uint32_t
+OspfApp::GetAreaLsdbHash ()
+{
+  std::stringstream ss;
+  for (auto &pair : m_areaLsdb)
+    {
+      ss << Ipv4Address (pair.first) << std::endl;
+      for (uint32_t i = 0; i < pair.second.second->GetNLink (); i++)
+        {
+          AreaLink link = pair.second.second->GetLink (i);
+          ss << "  (" << Ipv4Address (link.m_areaId) << Ipv4Address (link.m_metric) << ")"
+             << std::endl;
+        }
+    }
+  std::hash<std::string> hasher;
+  return hasher (ss.str ());
+}
+
 void
 OspfApp::PrintLsdbHash ()
 {

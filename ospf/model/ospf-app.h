@@ -130,10 +130,16 @@ public:
   void PrintAreas ();
 
   /**
-   * \brief Get LSDB hash for comparison.
-   * \return LSDB hash
+   * \brief Get Router LSDB hash for comparison.
+   * \return Router LSDB hash
    */
   uint32_t GetLsdbHash ();
+
+  /**
+   * \brief Get Area LSDB hash for comparison.
+   * \return Area LSDB hash
+   */
+  uint32_t GetAreaLsdbHash ();
 
   /**
    * \brief Print LSDB hash.

@@ -76,6 +76,27 @@ CompareLsdb (NodeContainer nodes)
   return;
 }
 
+void
+CompareAreaLsdb (NodeContainer nodes)
+{
+  NS_ASSERT (nodes.GetN () > 0);
+  Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
+  uint32_t hash = app->GetLsdbHash ();
+
+  for (uint32_t i = 1; i < nodes.GetN (); i++)
+    {
+      app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
+      if (hash != app->GetLsdbHash ())
+        {
+          std::cout << "[" << Simulator::Now () << "] LSDBs mismatched" << std::endl;
+          return;
+        }
+    }
+  std::cout << "[" << Simulator::Now () << "] LSDBs matched" << std::endl;
+  ;
+  return;
+}
+
 int
 main (int argc, char *argv[])
 {
