@@ -54,7 +54,7 @@ NS_LOG_COMPONENT_DEFINE ("OspfAltArea");
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 // Link Down at t=35
 // Link Up at t=85
-const uint32_t SIM_SECONDS = 105;
+const uint32_t SIM_SECONDS = 300;
 
 int
 main (int argc, char *argv[])
@@ -201,10 +201,10 @@ main (int argc, char *argv[])
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c1);
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareAreaLsdb, c);
 
-  Simulator::Schedule (Seconds (50), &SetLinkDown, allDevices[3].Get(0));
-  Simulator::Schedule (Seconds (50), &SetLinkDown, allDevices[3].Get(1));
-  Simulator::Schedule (Seconds (100), &SetLinkUp, allDevices[3].Get(0));
-  Simulator::Schedule (Seconds (100), &SetLinkUp, allDevices[3].Get(1));
+  Simulator::Schedule (Seconds (60), &SetLinkDown, allDevices[4].Get(0));
+  Simulator::Schedule (Seconds (60), &SetLinkDown, allDevices[4].Get(1));
+  Simulator::Schedule (Seconds (120), &SetLinkUp, allDevices[4].Get(0));
+  Simulator::Schedule (Seconds (120), &SetLinkUp, allDevices[4].Get(1));
   for (int i = 0; i < 8; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));

@@ -527,7 +527,7 @@ private:
       m_l2NextHop; //!< <distance, nexthop> to areas
   std::unordered_map<uint32_t, std::vector<SummaryPrefix>>
       m_l2Prefixes; //!< IP addresses for areas TODO: multi-access support: <addr, mask>
-  bool m_isAreaLeader; //!< IP addresses for areas TODO: multi-access support: <addr, mask>
+  bool m_isAreaLeader;
 
   // LSA
   bool m_enableAreaProxy; // True if Proxied L2 LSAs are generated
