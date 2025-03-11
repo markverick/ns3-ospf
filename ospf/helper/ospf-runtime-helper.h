@@ -6,7 +6,6 @@
 #include "ns3/network-module.h"
 #include "ns3/ospf-runtime-helper.h"
 
-
 namespace ns3 {
 
 void

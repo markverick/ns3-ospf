@@ -201,10 +201,10 @@ main (int argc, char *argv[])
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c1);
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareAreaLsdb, c);
 
-  Simulator::Schedule (Seconds (60), &SetLinkDown, allDevices[4].Get(0));
-  Simulator::Schedule (Seconds (60), &SetLinkDown, allDevices[4].Get(1));
-  Simulator::Schedule (Seconds (120), &SetLinkUp, allDevices[4].Get(0));
-  Simulator::Schedule (Seconds (120), &SetLinkUp, allDevices[4].Get(1));
+  Simulator::Schedule (Seconds (60), &SetLinkDown, allDevices[4].Get (0));
+  Simulator::Schedule (Seconds (60), &SetLinkDown, allDevices[4].Get (1));
+  Simulator::Schedule (Seconds (120), &SetLinkUp, allDevices[4].Get (0));
+  Simulator::Schedule (Seconds (120), &SetLinkUp, allDevices[4].Get (1));
   for (int i = 0; i < 8; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));

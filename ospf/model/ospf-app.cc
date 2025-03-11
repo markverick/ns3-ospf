@@ -201,8 +201,8 @@ OspfApp::PrintLsdb ()
       for (uint32_t i = 0; i < pair.second.second->GetNLink (); i++)
         {
           RouterLink link = pair.second.second->GetLink (i);
-          std::cout << "  (" << Ipv4Address (link.m_linkData) << ", " << link.m_metric << ", " << (uint32_t)(link.m_type) << ")"
-                    << std::endl;
+          std::cout << "  (" << Ipv4Address (link.m_linkData) << ", " << link.m_metric << ", "
+                    << (uint32_t) (link.m_type) << ")" << std::endl;
         }
     }
   std::cout << std::endl;
@@ -223,8 +223,8 @@ OspfApp::PrintAreaLsdb ()
       for (uint32_t i = 0; i < pair.second.second->GetNLink (); i++)
         {
           AreaLink link = pair.second.second->GetLink (i);
-          std::cout << "  (" << Ipv4Address (link.m_areaId) << ", " << Ipv4Address (link.m_ipAddress) << ", " << link.m_metric << ")"
-                    << std::endl;
+          std::cout << "  (" << Ipv4Address (link.m_areaId) << ", "
+                    << Ipv4Address (link.m_ipAddress) << ", " << link.m_metric << ")" << std::endl;
         }
     }
   std::cout << std::endl;
@@ -284,8 +284,8 @@ OspfApp::GetAreaLsdbHash ()
       for (uint32_t i = 0; i < pair.second.second->GetNLink (); i++)
         {
           AreaLink link = pair.second.second->GetLink (i);
-          ss << "  (" << Ipv4Address (link.m_areaId) << Ipv4Address (link.m_ipAddress) << Ipv4Address (link.m_metric) << ")"
-             << std::endl;
+          ss << "  (" << Ipv4Address (link.m_areaId) << Ipv4Address (link.m_ipAddress)
+             << Ipv4Address (link.m_metric) << ")" << std::endl;
         }
     }
   std::hash<std::string> hasher;
@@ -1082,9 +1082,10 @@ OspfApp::ProcessRouterLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader osp
     {
       // Update local Area LSDB entry if there's a change in area links
       // This will flood L2 LSA if self is the area leader
-      if (m_isAreaLeader) {
-        RecomputeAreaLsa ();
-      }
+      if (m_isAreaLeader)
+        {
+          RecomputeAreaLsa ();
+        }
 
       // Reset area leadership begin timer if it's a leader (lowest router ID)
       if (m_areaLeaderBeginTimer.IsRunning ())
@@ -1093,11 +1094,12 @@ OspfApp::ProcessRouterLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader osp
         }
       if (m_routerLsdb.begin ()->first == m_routerId.Get ())
         {
-          if (!m_isAreaLeader) {
-            m_areaLeaderBeginTimer =
-                Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
-                                     &OspfApp::AreaLeaderBegin, this);
-          }
+          if (!m_isAreaLeader)
+            {
+              m_areaLeaderBeginTimer = Simulator::Schedule (
+                  m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
+                  &OspfApp::AreaLeaderBegin, this);
+            }
         }
       else
         {
@@ -1116,9 +1118,9 @@ OspfApp::ProcessAreaLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfH
                          LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa)
 {
   if (!m_enableAreaProxy)
-  {
-    return;
-  }
+    {
+      return;
+    }
   NS_LOG_FUNCTION (this);
   // LS ID ofType 5 LSA is the originating LSA
   uint32_t areaId = lsaHeader.GetLsId ();
@@ -1252,9 +1254,6 @@ OspfApp::RecomputeAreaLsa ()
   if (m_areaLsdb.find (m_areaId) != m_areaLsdb.end () &&
       areaLsa->GetLinks () == m_areaLsdb[m_areaId].second->GetLinks ())
     {
-      if (m_areaId == 1) {
-        std::cout << " !!! " << std::endl;
-      }
       return;
     }
 
@@ -1279,18 +1278,19 @@ OspfApp::RecomputeAreaLsa ()
   m_areaLsdb[m_areaId] = std::make_pair (lsaHeader, areaLsa);
 
   // Flood LSA if it's the area leader
-  if (m_isAreaLeader) {
-    // Area-LSAs
-    Ptr<LsUpdate> lsUpdateArea = Create<LsUpdate> ();
-    lsUpdateArea->AddLsa (m_areaLsdb[m_areaId]);
-    FloodLsu (0, lsUpdateArea);
+  if (m_isAreaLeader)
+    {
+      // Area-LSAs
+      Ptr<LsUpdate> lsUpdateArea = Create<LsUpdate> ();
+      lsUpdateArea->AddLsa (m_areaLsdb[m_areaId]);
+      FloodLsu (0, lsUpdateArea);
 
-    // Area Summary LSA
-    RecomputeSummaryLsa ();
-    Ptr<LsUpdate> lsUpdateSummary = Create<LsUpdate> ();
-    lsUpdateSummary->AddLsa (m_summaryLsdb[m_areaId]);
-    FloodLsu (0, lsUpdateSummary);
-  }
+      // Area Summary LSA
+      RecomputeSummaryLsa ();
+      Ptr<LsUpdate> lsUpdateSummary = Create<LsUpdate> ();
+      lsUpdateSummary->AddLsa (m_summaryLsdb[m_areaId]);
+      FloodLsu (0, lsUpdateSummary);
+    }
 }
 
 void

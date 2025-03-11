@@ -153,21 +153,21 @@ main (int argc, char *argv[])
   rv->SetAttribute ("Min", DoubleValue (0.0));
   rv->SetAttribute ("Max", DoubleValue (1.0));
   for (uint32_t i = 55; i < SIM_SECONDS; i += 50)
-  {
-    for (uint32_t j = 0; j < ndc.GetN (); j++)
-      {
-        if (rv->GetValue () <= 0.2)
-          {
-            Simulator::Schedule (Seconds (i), &SetLinkDown, ndc.Get (j));
-            Simulator::Schedule (Seconds (i + 50), &SetLinkUp, ndc.Get (j));
-          }
-      }
-    Simulator::Schedule (Seconds (i + 49), &CompareAreaLsdb, c);
-    for (auto nodes : areaNodes)
     {
-      Simulator::Schedule (Seconds (i + 49), CompareLsdb, nodes);
+      for (uint32_t j = 0; j < ndc.GetN (); j++)
+        {
+          if (rv->GetValue () <= 0.2)
+            {
+              Simulator::Schedule (Seconds (i), &SetLinkDown, ndc.Get (j));
+              Simulator::Schedule (Seconds (i + 50), &SetLinkUp, ndc.Get (j));
+            }
+        }
+      Simulator::Schedule (Seconds (i + 49), &CompareAreaLsdb, c);
+      for (auto nodes : areaNodes)
+        {
+          Simulator::Schedule (Seconds (i + 49), CompareLsdb, nodes);
+        }
     }
-  }
 
   // User Traffic
   // uint16_t port = 9;  // well-known echo port number

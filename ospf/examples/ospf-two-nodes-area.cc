@@ -134,8 +134,8 @@ main (int argc, char *argv[])
   apps = client.Install (c.Get (0));
 
   // Setting areas
-  auto app0 = DynamicCast<OspfApp> (c.Get(0)->GetApplication (0));
-  auto app1 = DynamicCast<OspfApp> (c.Get(0)->GetApplication (0));
+  auto app0 = DynamicCast<OspfApp> (c.Get (0)->GetApplication (0));
+  auto app1 = DynamicCast<OspfApp> (c.Get (0)->GetApplication (0));
   app0->SetAreas (0);
   app1->SetAreas (1);
 
@@ -145,13 +145,13 @@ main (int argc, char *argv[])
   // Print LSDB
   // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
   for (int i = 0; i < 2; i++)
-  {
-    Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
-    Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
-    Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintAreaLsdb, app);
-    Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
-                          "n" + std::to_string (i) + ".routes");
-  }
+    {
+      Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintAreaLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
+                           "n" + std::to_string (i) + ".routes");
+    }
   // app  = DynamicCast<OspfApp>(c.Get(1)->GetApplication(0));
   // Simulator::Schedule(Seconds(146), &OspfApp::PrintLSDB, app);
   // app  = DynamicCast<OspfApp>(c.Get(2)->GetApplication(0));

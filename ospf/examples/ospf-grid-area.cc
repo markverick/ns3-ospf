@@ -195,7 +195,7 @@ main (int argc, char *argv[])
       Simulator::Schedule (Seconds (i), &OspfApp::PrintLsdb, app);
       Simulator::Schedule (Seconds (i), &OspfApp::PrintAreaLsdb, app);
     }
-    Simulator::Schedule (Seconds (SIM_SECONDS), CompareAreaLsdb, c);
+  Simulator::Schedule (Seconds (SIM_SECONDS), CompareAreaLsdb, c);
   for (auto nodes : areaNodes)
     {
       Simulator::Schedule (Seconds (SIM_SECONDS), CompareLsdb, nodes);
