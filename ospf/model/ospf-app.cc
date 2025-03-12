@@ -141,6 +141,12 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
 }
 
 void
+OspfApp::SetMask (Ipv4Mask mask)
+{
+  m_mask = mask;
+}
+
+void
 OspfApp::SetAreas (uint32_t area)
 {
   for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
