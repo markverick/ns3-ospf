@@ -35,7 +35,6 @@
 #include "ns3/header.h"
 
 #include "ospf-interface.h"
-#include "router-lsa.h"
 
 namespace ns3 {
 

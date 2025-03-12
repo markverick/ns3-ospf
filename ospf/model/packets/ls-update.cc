@@ -23,8 +23,8 @@
 #include "ns3/log.h"
 #include "ns3/header.h"
 #include "ns3/packet.h"
-#include "router-lsa.h"
-#include "summary-lsa.h"
+#include "ns3/router-lsa.h"
+#include "ns3/summary-lsa.h"
 #include "ls-update.h"
 
 namespace ns3 {
