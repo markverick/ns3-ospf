@@ -106,7 +106,10 @@ public:
    * \brief Print Router LSDB
    */
   void PrintLsdb ();
-
+  /**
+   * \brief Print AS External LSDB
+   */
+  void PrintL1PrefixLsdb ();
   /**
    * \brief Print AreaLSDB
    */
