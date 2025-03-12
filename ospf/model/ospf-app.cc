@@ -150,6 +150,7 @@ OspfApp::SetArea (uint32_t area, Ipv4Address address, Ipv4Mask mask)
   m_areaId = area;
   m_areaAddr = address;
   m_areaMask = mask;
+  m_routerId = address;
 }
 
 void
