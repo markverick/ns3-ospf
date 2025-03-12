@@ -31,6 +31,7 @@
 #include "ospf-header.h"
 #include "lsa-header.h"
 #include "router-lsa.h"
+#include "as-external-lsa.h"
 #include "area-lsa.h"
 #include "summary-lsa.h"
 #include "ospf-dbd.h"
@@ -78,13 +79,6 @@ public:
    * \param devs Net device container to beregisted
    */
   void SetBoundNetDevices (NetDeviceContainer devs);
-
-  /**
-   * \brief Set router IP and mask.
-   * \param address IP address
-   * \param mask IP mask
-   */
-  void SetRouterId (Ipv4Address address, Ipv4Mask mask);
 
   /**
    * \brief Set inteface areas.
@@ -347,6 +341,11 @@ private:
    * \brief Generate local Router-LSA based on adjacencies (Full)
    * \return Router-LSA for this router
    */
+  Ptr<AsExternalLsa> GetAsExternalLsa ();
+  /**
+   * \brief Generate local Router-LSA based on adjacencies (Full)
+   * \return Router-LSA for this router
+   */
   Ptr<RouterLsa> GetRouterLsa ();
   /**
    * \brief Generate local Area-LSA based on L2 adjacencies (Full)
@@ -497,10 +496,9 @@ private:
   // For OSPF
   // Attributes
   Ipv4Address m_routerId;
+  Ipv4Mask m_areaMask; // Area masks
   NetDeviceContainer m_boundDevices;
   uint32_t m_areaId; // Only used for default value and for alt area and
-  Ipv4Address m_areaAddr; // Area address
-  Ipv4Mask m_areaMask; // Area masks
 
   // Randomization
   // For a small time jitter
@@ -538,8 +536,14 @@ private:
   EventId m_areaLeaderBeginTimer; // area leadership begin timer
   Ipv4Address m_lsaAddress; //!< multicast address for LSA
   std::map<LsaHeader::LsaKey, uint16_t> m_seqNumbers; // sequence number of stored LSA
+
+  // L1 LSDB
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>
       m_routerLsdb; // LSDB for each remote router ID
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<AsExternalLsa>>>
+      m_asExternalLsdb; // LSDB for each remote router ID
+
+  // L2 LSDB
   std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> m_areaLsdb; // LSDB for each remote area ID
   std::map<uint32_t, std::pair<LsaHeader, Ptr<SummaryLsa>>>
       m_summaryLsdb; // LSDB for summary prefixes

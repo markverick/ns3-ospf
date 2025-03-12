@@ -33,10 +33,17 @@ namespace ns3 {
 class LsaHeader : public Header
 {
 public:
+
+  typedef std::tuple<uint8_t, uint32_t, uint32_t> LsaKey;
   /**
    * \brief Construct a null LSA header
    */
   LsaHeader ();
+
+  /**
+   * \brief Construct a LSA header with provided LSA key
+   */
+  LsaHeader (LsaKey key);
   /**
    * \brief Enable checksum calculation for this header.
    */
@@ -60,8 +67,6 @@ public:
     AreaLSAs = 0x6,
     SummaryLSAsArea = 0x7
   };
-
-  typedef std::tuple<uint8_t, uint32_t, uint32_t> LsaKey;
 
   /**
    * \brief Set Ospf Type Field

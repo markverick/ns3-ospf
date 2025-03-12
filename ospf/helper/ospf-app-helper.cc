@@ -69,7 +69,7 @@ OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing,
   Ptr<OspfApp> app = m_factory.Create<OspfApp> ();
   app->SetRouting (routing);
   Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-  app->SetRouterId (ipv4->GetAddress (1, 0).GetAddress ()); //eth0
+  app->SetRouterId (ipv4->GetAddress (1, 0).GetAddress ()); // default to the first interface address
   node->AddApplication (app);
   app->SetBoundNetDevices (devs);
 

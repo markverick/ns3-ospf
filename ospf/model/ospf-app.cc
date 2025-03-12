@@ -73,9 +73,12 @@ OspfApp::GetTypeId (void)
               MakeTimeChecker ())
           .AddAttribute ("LSUInterval", "LSU Retransmission Interval", TimeValue (Seconds (5)),
                          MakeTimeAccessor (&OspfApp::m_rxmtInterval), MakeTimeChecker ())
-          .AddAttribute ("DefaultArea", "Default area ID for interfaces", UintegerValue (0),
+          .AddAttribute ("DefaultArea", "Default area ID for router", UintegerValue (0),
                          MakeUintegerAccessor (&OspfApp::m_areaId),
                          MakeUintegerChecker<uint32_t> ())
+          .AddAttribute ("AreaMask", "Area mask for the router", Ipv4MaskValue (Ipv4Mask("255.0.0.0")),
+                         MakeIpv4MaskAccessor (&OspfApp::m_areaMask),
+                         MakeIpv4MaskChecker ())
           .AddAttribute ("EnableAreaProxy", "Enable area proxy for area routing",
                          BooleanValue (true), MakeBooleanAccessor (&OspfApp::m_enableAreaProxy),
                          MakeBooleanChecker ())
@@ -148,9 +151,8 @@ OspfApp::SetArea (uint32_t area, Ipv4Address address, Ipv4Mask mask)
       m_ospfInterfaces[i]->SetArea (area);
     }
   m_areaId = area;
-  m_areaAddr = address;
-  m_areaMask = mask;
   m_routerId = address;
+  m_areaMask = mask;
 }
 
 void
@@ -377,6 +379,17 @@ OspfApp::StartApplication (void)
       m_areaLeaderBeginTimer =
           Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
                                &OspfApp::AreaLeaderBegin, this);
+
+      // Create AS External LSA from Router ID for routing prefix
+      Ptr<AsExternalLsa> lsExternalLsa = GetAsExternalLsa ();
+      auto lsaKey =
+      std::make_tuple (LsaHeader::LsType::ASExternalLSAs, m_routerId.Get (), m_routerId.Get ());
+    
+      // Assign routerLsa to its router LSDB
+      LsaHeader lsaHeader (lsaKey);
+      lsaHeader.SetLength (20 + lsExternalLsa->GetSerializedSize ());
+      lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
+      m_asExternalLsdb[m_routerId.Get ()] = std::make_pair (lsaHeader, lsExternalLsa);
     }
 }
 
@@ -797,6 +810,13 @@ OspfApp::HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<O
               neighbor->AddDbdQueue (pair.second.first);
             }
         }
+      for (const auto &pair : m_asExternalLsdb)
+        {
+          if (neighbor->GetArea () == this->m_areaId)
+            {
+              neighbor->AddDbdQueue (pair.second.first);
+            }
+        }
       neighbor->SetState (OspfNeighbor::Exchange);
       PollMasterDbd (ifIndex, neighbor);
     }
@@ -900,11 +920,18 @@ OspfApp::HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     }
   // Construct LS Update as implicit ACK based on received lsr
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
-  for (auto &[remoteRouterId, routerLsa] : m_routerLsdb)
+  for (auto &[remoteRouterId, lsa] : m_routerLsdb)
     {
-      if (lsr->HasLsaKey (routerLsa.first.GetKey ()))
+      if (lsr->HasLsaKey (lsa.first.GetKey ()))
         {
-          lsUpdate->AddLsa (routerLsa.first, routerLsa.second);
+          lsUpdate->AddLsa (lsa.first, lsa.second);
+        }
+    }
+  for (auto &[remoteRouterId, lsa] : m_asExternalLsdb)
+    {
+      if (lsr->HasLsaKey (lsa.first.GetKey ()))
+        {
+          lsUpdate->AddLsa (lsa.first, lsa.second);
         }
     }
   if (lsUpdate->GetNLsa () != lsr->GetNLsaKeys ())
@@ -1163,6 +1190,14 @@ OspfApp::ProcessAreaSummaryLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeade
 }
 
 // LSA
+// Generate Local AS External LSA
+Ptr<AsExternalLsa>
+OspfApp::GetAsExternalLsa ()
+{
+  Ptr<AsExternalLsa> asExternalLsa = Create<AsExternalLsa> (m_areaMask.Get(), 1);
+  asExternalLsa->AddRoute (m_routerId.Get());
+  return asExternalLsa;
+}
 // Generate Local Router LSA with all areas
 Ptr<RouterLsa>
 OspfApp::GetRouterLsa ()
@@ -1219,12 +1254,9 @@ OspfApp::RecomputeRouterLsa ()
   Ptr<RouterLsa> routerLsa = GetRouterLsa ();
 
   // Assign routerLsa to its router LSDB
-  LsaHeader lsaHeader;
-  lsaHeader.SetType (LsaHeader::LsType::RouterLSAs);
+  LsaHeader lsaHeader (lsaKey);
   lsaHeader.SetLength (20 + routerLsa->GetSerializedSize ());
   lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
-  lsaHeader.SetLsId (m_routerId.Get ());
-  lsaHeader.SetAdvertisingRouter (m_routerId.Get ());
   m_routerLsdb[m_routerId.Get ()] = std::make_pair (lsaHeader, routerLsa);
 
   // Update routing according to the updated LSDB
@@ -1259,12 +1291,9 @@ OspfApp::RecomputeAreaLsa ()
   m_seqNumbers[lsaKey]++;
 
   // Assign areaLsa to its area LSDB
-  LsaHeader lsaHeader;
-  lsaHeader.SetType (LsaHeader::LsType::AreaLSAs);
+  LsaHeader lsaHeader (lsaKey);
   lsaHeader.SetLength (20 + areaLsa->GetSerializedSize ());
   lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
-  lsaHeader.SetLsId (m_areaId);
-  lsaHeader.SetAdvertisingRouter (m_routerId.Get ());
   m_areaLsdb[m_areaId] = std::make_pair (lsaHeader, areaLsa);
 
   // Flood LSA if it's the area leader
@@ -1303,12 +1332,9 @@ OspfApp::RecomputeSummaryLsa ()
   m_seqNumbers[lsaKey]++;
 
   // Assign areaLsa to its area LSDB
-  LsaHeader lsaHeader;
-  lsaHeader.SetType (LsaHeader::LsType::SummaryLSAsArea);
+  LsaHeader lsaHeader (lsaKey);
   lsaHeader.SetLength (20 + summary->GetSerializedSize ());
   lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
-  lsaHeader.SetLsId (m_areaId);
-  lsaHeader.SetAdvertisingRouter (m_routerId.Get ());
   m_summaryLsdb[m_areaId] = std::make_pair (lsaHeader, summary);
 }
 
@@ -1650,9 +1676,13 @@ OspfApp::CompareAndSendLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   auto interface = m_ospfInterfaces[ifIndex];
   std::vector<LsaHeader> localLsaHeaders;
-  for (auto &[remoteRouterId, routerLsa] : m_routerLsdb)
+  for (auto &[remoteRouterId, lsa] : m_routerLsdb)
     {
-      localLsaHeaders.emplace_back (routerLsa.first);
+      localLsaHeaders.emplace_back (lsa.first);
+    }
+  for (auto &[remoteRouterId, lsa] : m_asExternalLsdb)
+    {
+      localLsaHeaders.emplace_back (lsa.first);
     }
   NS_LOG_INFO ("Number of local LSAs: " << localLsaHeaders.size ());
   neighbor->AddOutdatedLsaKeysToQueue (localLsaHeaders);

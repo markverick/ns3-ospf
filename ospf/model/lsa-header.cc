@@ -45,6 +45,21 @@ LsaHeader::LsaHeader ()
 {
 }
 
+LsaHeader::LsaHeader (LsaKey lsaKey)
+    : m_calcChecksum (false),
+      m_lsAge (0),
+      m_options (0),
+      m_type (std::get<0>(lsaKey)),
+      m_length (0),
+      m_lsId (std::get<1>(lsaKey)),
+      m_advertisingRouter (std::get<2>(lsaKey)),
+      m_seqNum (0),
+      m_checksum (0),
+      m_goodChecksum (true),
+      m_headerSize (20)
+{
+}
+
 void
 LsaHeader::EnableChecksum (void)
 {
