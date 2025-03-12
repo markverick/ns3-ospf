@@ -141,38 +141,15 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
 }
 
 void
-OspfApp::AddMask (Ipv4Mask mask)
-{
-  m_masks.emplace_back (mask);
-}
-
-std::vector<Ipv4Mask>
-OspfApp::GetMasks ()
-{
-  return m_masks;
-}
-
-void
-OspfApp::SetAreas (uint32_t area)
+OspfApp::SetArea (uint32_t area, Ipv4Address address, Ipv4Mask mask)
 {
   for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
     {
       m_ospfInterfaces[i]->SetArea (area);
     }
   m_areaId = area;
-}
-
-void
-OspfApp::SetAreas (std::vector<uint32_t> areas)
-{
-  NS_ASSERT_MSG (areas.size () == m_ospfInterfaces.size (),
-                 "The length of areas must match the number of interfaces");
-  for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
-    {
-      m_ospfInterfaces[i]->SetArea (areas[i]);
-    }
-  // Loopback is the router area (only used for alt area)
-  m_areaId = areas[0];
+  m_areaAddr = address;
+  m_areaMask = mask;
 }
 
 void

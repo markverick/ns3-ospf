@@ -105,17 +105,6 @@ main (int argc, char *argv[])
   allNodes.emplace_back (NodeContainer (c.Get (5), c.Get (6)));
   allNodes.emplace_back (NodeContainer (c.Get (6), c.Get (7)));
 
-  // Prepare interface areas. Same subnets can be in different areas for alt-area
-  std::vector<std::vector<uint32_t>> areas;
-  areas.emplace_back (std::vector<uint32_t> ({0, 0}));
-  areas.emplace_back (std::vector<uint32_t> ({0, 0, 0, 0}));
-  areas.emplace_back (std::vector<uint32_t> ({0, 0, 0}));
-  areas.emplace_back (std::vector<uint32_t> ({0, 0, 0}));
-  areas.emplace_back (std::vector<uint32_t> ({1, 1, 1}));
-  areas.emplace_back (std::vector<uint32_t> ({1, 1, 1}));
-  areas.emplace_back (std::vector<uint32_t> ({1, 1, 1, 1}));
-  areas.emplace_back (std::vector<uint32_t> ({1, 1}));
-
   InternetStackHelper internet;
   internet.Install (c);
 
@@ -135,6 +124,7 @@ main (int argc, char *argv[])
   // Later, we add IP addresses.
 
   NS_LOG_INFO ("Assign IP Addresses.");
+  // Link Addresses
   Ipv4AddressHelper ipv4 ("10.1.1.0", "255.255.255.252");
   for (auto devices : allDevices)
     {
@@ -160,12 +150,23 @@ main (int argc, char *argv[])
   ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (30)));
   ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
 
+  // Area Addresses
+  Ipv4Mask areaMask ("255.255.255.0");
+  Ipv4AddressHelper areaIpv4 ("127.16.0.0", areaMask);
   // Install OSPF app with metrices
-  std::vector<uint32_t> emptyVec;
   ApplicationContainer ospfApp;
-  for (uint32_t i = 0; i < c.GetN (); i++)
+  for (uint32_t i = 0; i < c0.GetN (); i++)
     {
-      ospfApp.Add (ospfAppHelper.Install (c.Get (i), areas[i]));
+      auto app = DynamicCast<OspfApp> (ospfAppHelper.Install (c0.Get (i)).Get (0));
+      app->SetArea (0, areaIpv4.NewAddress (), areaMask);
+      ospfApp.Add (app);
+    }
+  areaIpv4.NewNetwork ();
+  for (uint32_t i = 0; i < c1.GetN (); i++)
+    {
+      auto app = DynamicCast<OspfApp> (ospfAppHelper.Install (c1.Get (i)).Get (0));
+      app->SetArea (1, areaIpv4.NewAddress (), areaMask);
+      ospfApp.Add (app);
     }
 
   ospfApp.Start (Seconds (1.0));

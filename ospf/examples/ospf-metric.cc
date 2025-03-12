@@ -96,11 +96,12 @@ main (int argc, char *argv[])
   NodeContainer n3n4 = NodeContainer (c.Get (3), c.Get (4));
 
   // Prepare interface metrices
-  std::vector<uint32_t> m0 = {0, 6, 1};
-  std::vector<uint32_t> m1 = {0, 6, 1};
-  std::vector<uint32_t> m2 = {0, 1, 3};
-  std::vector<uint32_t> m3 = {0, 1, 3, 10};
-  std::vector<uint32_t> m4 = {0, 10};
+  std::vector<std::vector<uint32_t>> metrices;
+  metrices.emplace_back (std::vector<uint32_t>{0, 6, 1});
+  metrices.emplace_back (std::vector<uint32_t>{0, 6, 1});
+  metrices.emplace_back (std::vector<uint32_t>{0, 1, 3});
+  metrices.emplace_back (std::vector<uint32_t>{0, 1, 3, 10});
+  metrices.emplace_back (std::vector<uint32_t>{0, 10});
 
   InternetStackHelper internet;
   internet.Install (c);
@@ -153,13 +154,13 @@ main (int argc, char *argv[])
   ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
 
   // Install OSPF app with metrices
-  std::vector<uint32_t> emptyVec;
   ApplicationContainer ospfApp;
-  ospfApp.Add (ospfAppHelper.Install (c.Get (0), emptyVec, m0));
-  ospfApp.Add (ospfAppHelper.Install (c.Get (1), emptyVec, m1));
-  ospfApp.Add (ospfAppHelper.Install (c.Get (2), emptyVec, m2));
-  ospfApp.Add (ospfAppHelper.Install (c.Get (3), emptyVec, m3));
-  ospfApp.Add (ospfAppHelper.Install (c.Get (4), emptyVec, m4));
+  for (uint32_t i = 0; i < c.GetN (); i++)
+    {
+      Ptr<OspfApp> app = DynamicCast<OspfApp> (ospfAppHelper.Install (c.Get (i)).Get (0));
+      app->SetMetrices (metrices[i]);
+      ospfApp.Add (app);
+    }
 
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
