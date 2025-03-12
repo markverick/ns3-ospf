@@ -23,79 +23,98 @@
 #include "ns3/log.h"
 #include "ns3/header.h"
 #include "ns3/packet.h"
-#include "summary-lsa.h"
+#include "as-external-lsa.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("SummaryLsa");
+NS_LOG_COMPONENT_DEFINE ("AsExternalLsa");
 
-NS_OBJECT_ENSURE_REGISTERED (SummaryLsa);
+NS_OBJECT_ENSURE_REGISTERED (AsExternalLsa);
 
-SummaryPrefix::SummaryPrefix (uint32_t mask, uint32_t metric) : m_mask (mask), m_metric (metric)
+ExternalRoute::ExternalRoute (uint32_t address) : m_address (address), m_routeTag (0)
 {
 }
-SummaryLsa::SummaryLsa ()
+ExternalRoute::ExternalRoute (uint32_t address, uint32_t routeTag)
+    : m_address (address), m_routeTag (routeTag)
+{
+}
+AsExternalLsa::AsExternalLsa () : m_mask (0), m_metric (0)
+{
+}
+AsExternalLsa::AsExternalLsa (uint32_t mask, uint32_t metric) : m_mask (mask), m_metric (metric)
 {
 }
 
-SummaryLsa::SummaryLsa (Ptr<Packet> packet)
+AsExternalLsa::AsExternalLsa (Ptr<Packet> packet)
 {
   Deserialize (packet);
 }
 
 void
-SummaryLsa::AddPrefix (SummaryPrefix prefix)
+AsExternalLsa::SetMask (uint32_t mask)
 {
-  m_prefixes.emplace_back (prefix);
+  m_mask = mask;
 }
 
-SummaryPrefix
-SummaryLsa::GetPrefix (uint32_t index)
+uint32_t
+AsExternalLsa::GetMask (void)
 {
-  NS_ASSERT_MSG (index >= 0 && index < m_prefixes.size (), "Invalid link index");
-  return m_prefixes[index];
+  return m_mask;
 }
 
 void
-SummaryLsa::ClearPrefixes ()
+AsExternalLsa::AddRoute (ExternalRoute route)
 {
-  m_prefixes.clear ();
+  m_routes.emplace_back (route);
+}
+
+ExternalRoute
+AsExternalLsa::GetRoute (uint32_t index)
+{
+  NS_ASSERT_MSG (index >= 0 && index < m_routes.size (), "Invalid route index");
+  return m_routes[index];
+}
+
+void
+AsExternalLsa::ClearRoutes ()
+{
+  m_routes.clear ();
 }
 
 uint16_t
-SummaryLsa::GetNPrefixes ()
+AsExternalLsa::GetNRoutes ()
 {
   NS_LOG_FUNCTION (this);
-  return m_prefixes.size ();
+  return m_routes.size ();
 }
 
 TypeId
-SummaryLsa::GetTypeId (void)
+AsExternalLsa::GetTypeId (void)
 {
   static TypeId tid =
-      TypeId ("ns3::SummaryLsa").SetGroupName ("Ospf").AddConstructor<SummaryLsa> ();
+      TypeId ("ns3::AsExternalLsa").SetGroupName ("Ospf").AddConstructor<AsExternalLsa> ();
   return tid;
 }
 TypeId
-SummaryLsa::GetInstanceTypeId (void) const
+AsExternalLsa::GetInstanceTypeId (void) const
 {
   NS_LOG_FUNCTION (this);
   return GetTypeId ();
 }
 void
-SummaryLsa::Print (std::ostream &os) const
+AsExternalLsa::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
-  os << "# prefixes: " << m_prefixes.size () << std::endl;
+  os << "# external routes: " << m_routes.size () << std::endl;
 }
 uint32_t
-SummaryLsa::GetSerializedSize (void) const
+AsExternalLsa::GetSerializedSize (void) const
 {
-  return m_prefixes.size () * 12; // Assumed no TOS
+  return 8 + m_routes.size () * 12; // Assumed no TOS
 }
 
 Ptr<Packet>
-SummaryLsa::ConstructPacket () const
+AsExternalLsa::ConstructPacket () const
 {
   NS_LOG_FUNCTION (this);
 
@@ -108,39 +127,43 @@ SummaryLsa::ConstructPacket () const
 }
 
 uint32_t
-SummaryLsa::Serialize (Buffer::Iterator start) const
+AsExternalLsa::Serialize (Buffer::Iterator start) const
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  for (uint16_t j = 0; j < m_prefixes.size (); j++)
+  i.WriteHtonU32 (m_mask);
+  i.WriteHtonU32 (m_metric);
+  for (uint16_t j = 0; j < m_routes.size (); j++)
     {
-      i.WriteHtonU32 (m_prefixes[j].m_mask);
-      i.WriteHtonU32 (m_prefixes[j].m_metric);
+      i.WriteHtonU32 (m_routes[j].m_address);
+      i.WriteHtonU32 (m_routes[j].m_routeTag);
       i.WriteHtonU32 (0); // TOS is not used
     }
   return GetSerializedSize ();
 }
 
 uint32_t
-SummaryLsa::Deserialize (Buffer::Iterator start)
+AsExternalLsa::Deserialize (Buffer::Iterator start)
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  m_prefixes.clear ();
-  for (uint16_t j = 0; j < m_prefixes.size (); j++)
+  m_routes.clear ();
+  m_mask = i.ReadNtohU32 ();
+  m_metric = i.ReadNtohU32 ();
+  for (uint16_t j = 0; j < m_routes.size (); j++)
     {
-      uint32_t mask = i.ReadNtohU32 ();
-      uint32_t metric = i.ReadNtohU32 ();
+      uint32_t addr = i.ReadNtohU32 ();
+      uint32_t routeTag = i.ReadNtohU32 ();
       i.Next (4); // Skip TOS
-      m_prefixes.emplace_back (SummaryPrefix (mask, metric));
+      m_routes.emplace_back (ExternalRoute (addr, routeTag));
     }
   return GetSerializedSize ();
 }
 
 uint32_t
-SummaryLsa::Deserialize (Ptr<Packet> packet)
+AsExternalLsa::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize ();

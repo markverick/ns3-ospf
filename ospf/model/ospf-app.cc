@@ -1349,7 +1349,6 @@ OspfApp::UpdateL1ShortestPath ()
 
   // Clear existing next-hop data
   m_l1NextHop.clear ();
-  m_l1Addresses.clear ();
   if (m_l2Prefixes.find (m_areaId) != m_l2Prefixes.end ())
     {
       m_l2Prefixes[m_areaId].clear ();
@@ -1433,7 +1432,6 @@ OspfApp::UpdateL1ShortestPath ()
           // NS_LOG_DEBUG ("Add route: " << Ipv4Address (routerLsa.second->GetLink (i).m_linkData)
           // << ", " << ifIndex << ", " << distanceTo[remoteRouterId]);
           m_l1NextHop[remoteRouterId] = std::make_pair (ifIndex, distanceTo[remoteRouterId]);
-          m_l1Addresses[remoteRouterId].emplace_back (routerLsa.second->GetLink (i).m_linkData);
           // Cost of proxied prefixes are always zero
           m_l2Prefixes[m_areaId].emplace_back (
               SummaryPrefix (routerLsa.second->GetLink (i).m_linkData, 0));

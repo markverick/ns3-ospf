@@ -18,8 +18,8 @@
  * Author: Sirapop Theeranantachaoi <stheera@g.ucla.edu>
  */
 
-#ifndef SUMMARY_LSA_H
-#define SUMMARY_LSA_H
+#ifndef AS_EXTERNAL_LSA_H
+#define AS_EXTERNAL_LSA_H
 
 #include "ns3/object.h"
 #include "ns3/header.h"
@@ -30,30 +30,39 @@ namespace ns3 {
 /**
  * \ingroup ospf
  *
- * \brief Summary LSA
+ * \brief AS External LSA
  */
-class SummaryPrefix
+class ExternalRoute
 {
 public:
-  SummaryPrefix ();
-  SummaryPrefix (uint32_t mask, uint32_t metric);
-  uint32_t m_mask;
-  uint32_t m_metric;
+  ExternalRoute ();
+  ExternalRoute (uint32_t address);
+
+  ExternalRoute (uint32_t address, uint32_t routeTag);
+  uint32_t m_address;
+  uint32_t m_routeTag;
 };
 
-class SummaryLsa : public Lsa
+class AsExternalLsa : public Lsa
 {
 public:
   /**
    * \brief Construct a Summary LSA
    */
-  SummaryLsa ();
-  SummaryLsa (Ptr<Packet> packet);
+  AsExternalLsa ();
+  AsExternalLsa (uint32_t mask, uint32_t metric);
+  AsExternalLsa (Ptr<Packet> packet);
 
-  void AddPrefix (SummaryPrefix Prefix);
-  SummaryPrefix GetPrefix (uint32_t index);
-  uint16_t GetNPrefixes ();
-  void ClearPrefixes ();
+  void SetMask (uint32_t mask);
+  uint32_t GetMask ();
+
+  void SetMetric (uint32_t metric);
+  uint32_t GetMetric ();
+
+  void AddRoute (ExternalRoute route);
+  ExternalRoute GetRoute (uint32_t index);
+  uint16_t GetNRoutes ();
+  void ClearRoutes ();
 
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
@@ -65,9 +74,12 @@ public:
   virtual uint32_t Deserialize (Ptr<Packet> packet);
 
 private:
-  std::vector<SummaryPrefix> m_prefixes;
+  std::vector<ExternalRoute> m_routes;
+  uint32_t m_mask;
+  uint32_t m_metric;
+  // TODO: Support bitE
 };
 
 } // namespace ns3
 
-#endif /* SUMMARY_LSA_H */
+#endif /* AS_EXTERNAL_LSA_H */
