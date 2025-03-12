@@ -33,7 +33,6 @@ namespace ns3 {
 class LsaHeader : public Header
 {
 public:
-
   typedef std::tuple<uint8_t, uint32_t, uint32_t> LsaKey;
   /**
    * \brief Construct a null LSA header

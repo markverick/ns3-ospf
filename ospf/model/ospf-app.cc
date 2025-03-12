@@ -76,9 +76,9 @@ OspfApp::GetTypeId (void)
           .AddAttribute ("DefaultArea", "Default area ID for router", UintegerValue (0),
                          MakeUintegerAccessor (&OspfApp::m_areaId),
                          MakeUintegerChecker<uint32_t> ())
-          .AddAttribute ("AreaMask", "Area mask for the router", Ipv4MaskValue (Ipv4Mask("255.0.0.0")),
-                         MakeIpv4MaskAccessor (&OspfApp::m_areaMask),
-                         MakeIpv4MaskChecker ())
+          .AddAttribute ("AreaMask", "Area mask for the router",
+                         Ipv4MaskValue (Ipv4Mask ("255.0.0.0")),
+                         MakeIpv4MaskAccessor (&OspfApp::m_areaMask), MakeIpv4MaskChecker ())
           .AddAttribute ("EnableAreaProxy", "Enable area proxy for area routing",
                          BooleanValue (true), MakeBooleanAccessor (&OspfApp::m_enableAreaProxy),
                          MakeBooleanChecker ())
@@ -383,8 +383,8 @@ OspfApp::StartApplication (void)
       // Create AS External LSA from Router ID for routing prefix
       Ptr<AsExternalLsa> lsExternalLsa = GetAsExternalLsa ();
       auto lsaKey =
-      std::make_tuple (LsaHeader::LsType::ASExternalLSAs, m_routerId.Get (), m_routerId.Get ());
-    
+          std::make_tuple (LsaHeader::LsType::ASExternalLSAs, m_routerId.Get (), m_routerId.Get ());
+
       // Assign routerLsa to its router LSDB
       LsaHeader lsaHeader (lsaKey);
       lsaHeader.SetLength (20 + lsExternalLsa->GetSerializedSize ());
@@ -1194,8 +1194,8 @@ OspfApp::ProcessAreaSummaryLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeade
 Ptr<AsExternalLsa>
 OspfApp::GetAsExternalLsa ()
 {
-  Ptr<AsExternalLsa> asExternalLsa = Create<AsExternalLsa> (m_areaMask.Get(), 1);
-  asExternalLsa->AddRoute (m_routerId.Get());
+  Ptr<AsExternalLsa> asExternalLsa = Create<AsExternalLsa> (m_areaMask.Get (), 1);
+  asExternalLsa->AddRoute (m_routerId.Get ());
   return asExternalLsa;
 }
 // Generate Local Router LSA with all areas
