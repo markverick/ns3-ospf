@@ -141,9 +141,15 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
 }
 
 void
-OspfApp::SetMask (Ipv4Mask mask)
+OspfApp::AddMask (Ipv4Mask mask)
 {
-  m_mask = mask;
+  m_masks.emplace_back (mask);
+}
+
+std::vector<Ipv4Mask>
+OspfApp::GetMasks ()
+{
+  return m_masks;
 }
 
 void

@@ -80,10 +80,15 @@ public:
   void SetBoundNetDevices (NetDeviceContainer devs);
 
   /**
-   * \brief Set IP mask.
+   * \brief Add IP mask.
    * \param mask Ipv4Mask
    */
-  void SetMask (Ipv4Mask mask);
+  void AddMask (Ipv4Mask mask);
+
+  /**
+   * \brief Get IP masks associated with this router.
+   */
+  std::vector<Ipv4Mask> GetMasks ();
 
   /**
    * \brief Set inteface areas.
@@ -502,7 +507,7 @@ private:
   // For OSPF
   // Attributes
   Ipv4Address m_routerId;
-  Ipv4Mask m_mask; // Area mask
+  std::vector<Ipv4Mask> m_masks; // Area masks
   NetDeviceContainer m_boundDevices;
   uint32_t m_areaId; // Only used for default value and for alt area and
 
