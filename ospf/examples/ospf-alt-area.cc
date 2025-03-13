@@ -152,7 +152,7 @@ main (int argc, char *argv[])
 
   // Area Addresses
   Ipv4Mask areaMask ("255.255.255.0");
-  Ipv4AddressHelper areaIpv4 ("127.16.0.0", areaMask);
+  Ipv4AddressHelper areaIpv4 ("172.16.0.0", areaMask);
   // Install OSPF app with metrices
   ApplicationContainer ospfApp;
   for (uint32_t i = 0; i < c0.GetN (); i++)
@@ -207,6 +207,10 @@ main (int argc, char *argv[])
   for (int i = 0; i < 8; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
+
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
+                           "route" + std::to_string (i) + ".routes");
+
       Simulator::Schedule (Seconds (SIM_SECONDS - 1.03), &OspfApp::PrintLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1.02), &OspfApp::PrintL1PrefixLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1.01), &OspfApp::PrintAreaLsdb, app);

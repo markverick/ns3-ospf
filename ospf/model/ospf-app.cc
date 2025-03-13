@@ -1309,6 +1309,7 @@ OspfApp::ProcessAreaSummaryLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeade
     {
       // Recompute and flood with the new seq num
       RecomputeSummaryLsa ();
+      UpdateRouting ();
       Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
       lsUpdate->AddLsa (m_summaryLsdb[m_areaId]);
       FloodLsu (0, lsUpdate);
@@ -1433,6 +1434,7 @@ OspfApp::RecomputeAreaLsa ()
       lsUpdateArea->AddLsa (m_areaLsdb[m_areaId]);
       FloodLsu (0, lsUpdateArea);
     }
+  UpdateL2ShortestPath ();
 }
 
 void
@@ -1468,6 +1470,7 @@ OspfApp::RecomputeSummaryLsa ()
       lsUpdateSummary->AddLsa (m_summaryLsdb[m_areaId]);
       FloodLsu (0, lsUpdateSummary);
     }
+  UpdateRouting ();
 }
 
 void
@@ -1502,6 +1505,9 @@ OspfApp::UpdateRouting ()
       auto header = m_summaryLsdb[remoteAreaId].first;
       auto lsa = m_summaryLsdb[remoteAreaId].second;
       // Ipv4Address network = Ipv4Address(header.GetAdvertisingRouter()).CombineMask (lsa->GetMask());
+      std::cout << "Node: " << m_node->GetId ()
+                << "Network: " << Ipv4Address (header.GetAdvertisingRouter ())
+                << "    Mask: " << Ipv4Mask (lsa->GetMask ()) << std::endl;
       m_routing->AddNetworkRouteTo (Ipv4Address (header.GetAdvertisingRouter ()),
                                     Ipv4Mask (lsa->GetMask ()), nextHop.first, nextHop.second);
     }

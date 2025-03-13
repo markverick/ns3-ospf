@@ -152,7 +152,7 @@ main (int argc, char *argv[])
 
   // Area Addresses
   Ipv4Mask areaMask ("255.255.255.0");
-  Ipv4AddressHelper areaIpv4 ("127.16.0.0", areaMask);
+  Ipv4AddressHelper areaIpv4 ("172.16.0.0", areaMask);
   // Install OSPF app with metrices
   ApplicationContainer ospfApp;
   for (uint32_t i = 0; i < c0.GetN (); i++)

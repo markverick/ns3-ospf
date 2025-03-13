@@ -137,7 +137,7 @@ main (int argc, char *argv[])
 
   // Setting areas
   Ipv4Mask areaMask ("255.255.255.0");
-  Ipv4AddressHelper areaIpv4 ("127.16.0.0", areaMask);
+  Ipv4AddressHelper areaIpv4 ("172.16.0.0", areaMask);
   for (uint32_t area = 0; area < NUM_STRIPES; area++)
     {
       for (uint32_t i = 0; i < areaNodes[area].GetN (); i++)

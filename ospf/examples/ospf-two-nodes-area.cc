@@ -135,7 +135,7 @@ main (int argc, char *argv[])
 
   // Setting areas
   Ipv4Mask areaMask ("255.255.255.0");
-  Ipv4AddressHelper areaIpv4 ("127.16.0.0", areaMask);
+  Ipv4AddressHelper areaIpv4 ("172.16.0.0", areaMask);
   auto app0 = DynamicCast<OspfApp> (c.Get (0)->GetApplication (0));
   auto app1 = DynamicCast<OspfApp> (c.Get (1)->GetApplication (0));
   app0->SetArea (0, areaIpv4.NewAddress (), areaMask);
