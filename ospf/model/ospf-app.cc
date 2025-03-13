@@ -1505,9 +1505,6 @@ OspfApp::UpdateRouting ()
       auto header = m_summaryLsdb[remoteAreaId].first;
       auto lsa = m_summaryLsdb[remoteAreaId].second;
       // Ipv4Address network = Ipv4Address(header.GetAdvertisingRouter()).CombineMask (lsa->GetMask());
-      std::cout << "Node: " << m_node->GetId ()
-                << "Network: " << Ipv4Address (header.GetAdvertisingRouter ())
-                << "    Mask: " << Ipv4Mask (lsa->GetMask ()) << std::endl;
       m_routing->AddNetworkRouteTo (Ipv4Address (header.GetAdvertisingRouter ()),
                                     Ipv4Mask (lsa->GetMask ()), nextHop.first, nextHop.second);
     }
