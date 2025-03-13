@@ -198,13 +198,16 @@ main (int argc, char *argv[])
   app = DynamicCast<OspfApp> (c.Get (7)->GetApplication (0));
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                        "route7.routes");
-  Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c0);
-  Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c1);
-  Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareAreaLsdb, c);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareLsdb, c0);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareL1PrefixLsdb, c0);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareLsdb, c1);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareL1PrefixLsdb, c1);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareAreaLsdb, c);
   for (int i = 0; i < 8; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.02), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.01), &OspfApp::PrintL1PrefixLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintAreaLsdb, app);
       // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
     }

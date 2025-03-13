@@ -183,39 +183,39 @@ OspfApp::PrintLsdb ()
 {
   if (m_routerLsdb.empty ())
     return;
-  std::cout << "===== L1 Router ID: " << m_routerId << " Area ID: " << m_areaId
+  std::cout << "==== [ " << m_routerId << " : " << m_areaId << "] Router LSDB"
             << " =====" << std::endl;
   for (auto &pair : m_routerLsdb)
     {
-      std::cout << "At t=" << Simulator::Now ().GetSeconds ()
+      std::cout << "  At t=" << Simulator::Now ().GetSeconds ()
                 << " , Router: " << Ipv4Address (pair.first) << std::endl;
-      std::cout << "  Neighbors: " << pair.second.second->GetNLink () << std::endl;
+      std::cout << "    Neighbors: " << pair.second.second->GetNLink () << std::endl;
       for (uint32_t i = 0; i < pair.second.second->GetNLink (); i++)
         {
           RouterLink link = pair.second.second->GetLink (i);
-          std::cout << "  (" << Ipv4Address (link.m_linkData) << ", " << link.m_metric << ", "
+          std::cout << "    (" << Ipv4Address (link.m_linkData) << ", " << link.m_metric << ", "
                     << (uint32_t) (link.m_type) << ")" << std::endl;
         }
     }
   std::cout << std::endl;
 }
 
+void
 OspfApp::PrintL1PrefixLsdb ()
 {
   if (m_asExternalLsdb.empty ())
     return;
-  std::cout << "===== L1 Router ID: " << m_routerId << " Area ID: " << m_areaId
+  std::cout << "==== [ " << m_routerId << " : " << m_areaId << "] AS External LSDB"
             << " =====" << std::endl;
-  for (auto &pair : m_routerLsdb)
+  for (auto &pair : m_asExternalLsdb)
     {
-      std::cout << "At t=" << Simulator::Now ().GetSeconds ()
+      std::cout << "  At t=" << Simulator::Now ().GetSeconds ()
                 << " , Router: " << Ipv4Address (pair.first) << std::endl;
-      std::cout << "  Neighbors: " << pair.second.second->GetNLink () << std::endl;
-      for (uint32_t i = 0; i < pair.second.second->GetNLink (); i++)
+      std::cout << "    External Routes: " << pair.second.second->GetNRoutes () << std::endl;
+      for (uint32_t i = 0; i < pair.second.second->GetNRoutes (); i++)
         {
-          RouterLink link = pair.second.second->GetLink (i);
-          std::cout << "  (" << Ipv4Address (link.m_linkData) << ", " << link.m_metric << ", "
-                    << (uint32_t) (link.m_type) << ")" << std::endl;
+          ExternalRoute link = pair.second.second->GetRoute (i);
+          std::cout << "    (" << Ipv4Address (link.m_address) << ")" << std::endl;
         }
     }
   std::cout << std::endl;
@@ -226,18 +226,18 @@ OspfApp::PrintAreaLsdb ()
 {
   if (m_areaLsdb.empty ())
     return;
-  std::cout << "===== L2 Router ID: " << m_routerId << " Area ID: " << m_areaId
+  std::cout << "==== [ " << m_routerId << " : " << m_areaId << "] Area LSDB"
             << " =====" << std::endl;
   for (auto &pair : m_areaLsdb)
     {
-      std::cout << "At t=" << Simulator::Now ().GetSeconds ()
+      std::cout << "  At t=" << Simulator::Now ().GetSeconds ()
                 << " , Area: " << Ipv4Address (pair.first) << std::endl;
-      std::cout << "  Neighbors: " << pair.second.second->GetNLink () << std::endl;
+      std::cout << "    Neighbors: " << pair.second.second->GetNLink () << std::endl;
       for (uint32_t i = 0; i < pair.second.second->GetNLink (); i++)
         {
           AreaLink link = pair.second.second->GetLink (i);
-          std::cout << "  (" << Ipv4Address (link.m_areaId) << ", "
-                    << Ipv4Address (link.m_ipAddress) << ", " << link.m_metric << ")" << std::endl;
+          std::cout << "    (" << link.m_areaId << ", " << Ipv4Address (link.m_ipAddress) << ", "
+                    << link.m_metric << ")" << std::endl;
         }
     }
   std::cout << std::endl;
@@ -280,6 +280,24 @@ OspfApp::GetLsdbHash ()
         {
           RouterLink link = pair.second.second->GetLink (i);
           ss << "  (" << Ipv4Address (link.m_linkData) << Ipv4Address (link.m_metric) << ")"
+             << std::endl;
+        }
+    }
+  std::hash<std::string> hasher;
+  return hasher (ss.str ());
+}
+
+uint32_t
+OspfApp::GetL1PrefixLsdbHash ()
+{
+  std::stringstream ss;
+  for (auto &pair : m_asExternalLsdb)
+    {
+      ss << Ipv4Address (pair.first) << std::endl;
+      for (uint32_t i = 0; i < pair.second.second->GetNRoutes (); i++)
+        {
+          ExternalRoute link = pair.second.second->GetRoute (i);
+          ss << "  (" << Ipv4Address (link.m_address) << Ipv4Address (link.m_routeTag) << ")"
              << std::endl;
         }
     }

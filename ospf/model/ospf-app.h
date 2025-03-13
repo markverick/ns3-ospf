@@ -134,6 +134,12 @@ public:
   uint32_t GetLsdbHash ();
 
   /**
+   * \brief Get AS External LSDB hash for comparison.
+   * \return Router LSDB hash
+   */
+  uint32_t GetL1PrefixLsdbHash ();
+
+  /**
    * \brief Get Area LSDB hash for comparison.
    * \return Area LSDB hash
    */
