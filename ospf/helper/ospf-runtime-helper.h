@@ -127,6 +127,27 @@ CompareAreaLsdb (NodeContainer nodes)
   return;
 }
 
+void
+CompareSummaryLsdb (NodeContainer nodes)
+{
+  NS_ASSERT (nodes.GetN () > 0);
+  Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
+  uint32_t hash = app->GetSummaryLsdbHash ();
+
+  for (uint32_t i = 1; i < nodes.GetN (); i++)
+    {
+      app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
+      if (hash != app->GetSummaryLsdbHash ())
+        {
+          std::cout << "[" << Simulator::Now () << "] Summary LSDBs mismatched" << std::endl;
+          return;
+        }
+    }
+  std::cout << "[" << Simulator::Now () << "] Summary LSDBs matched" << std::endl;
+
+  return;
+}
+
 } // namespace ns3
 
 #endif /* OSPF_RUNTIME_HELPER_H */

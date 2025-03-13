@@ -32,14 +32,6 @@ namespace ns3 {
  *
  * \brief Summary LSA
  */
-class SummaryPrefix
-{
-public:
-  SummaryPrefix ();
-  SummaryPrefix (uint32_t mask, uint32_t metric);
-  uint32_t m_mask;
-  uint32_t m_metric;
-};
 
 class SummaryLsa : public Lsa
 {
@@ -48,12 +40,15 @@ public:
    * \brief Construct a Summary LSA
    */
   SummaryLsa ();
+  SummaryLsa (uint32_t mask);
+  SummaryLsa (uint32_t mask, uint32_t metric);
   SummaryLsa (Ptr<Packet> packet);
 
-  void AddPrefix (SummaryPrefix Prefix);
-  SummaryPrefix GetPrefix (uint32_t index);
-  uint16_t GetNPrefixes ();
-  void ClearPrefixes ();
+  void SetMask (uint32_t mask);
+  uint32_t GetMask ();
+
+  void SetMetric (uint32_t metric);
+  uint32_t GetMetric ();
 
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
@@ -65,7 +60,8 @@ public:
   virtual uint32_t Deserialize (Ptr<Packet> packet);
 
 private:
-  std::vector<SummaryPrefix> m_prefixes;
+  uint32_t m_mask;
+  uint32_t m_metric;
 };
 
 } // namespace ns3

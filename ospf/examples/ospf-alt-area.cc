@@ -203,12 +203,14 @@ main (int argc, char *argv[])
   Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareLsdb, c1);
   Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareL1PrefixLsdb, c1);
   Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareAreaLsdb, c);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareSummaryLsdb, c);
   for (int i = 0; i < 8; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1.02), &OspfApp::PrintLsdb, app);
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1.01), &OspfApp::PrintL1PrefixLsdb, app);
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintAreaLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.03), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.02), &OspfApp::PrintL1PrefixLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.01), &OspfApp::PrintAreaLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.00), &OspfApp::PrintSummaryLsdb, app);
       // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
     }
 

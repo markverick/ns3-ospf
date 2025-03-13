@@ -31,10 +31,15 @@ NS_LOG_COMPONENT_DEFINE ("SummaryLsa");
 
 NS_OBJECT_ENSURE_REGISTERED (SummaryLsa);
 
-SummaryPrefix::SummaryPrefix (uint32_t mask, uint32_t metric) : m_mask (mask), m_metric (metric)
+SummaryLsa::SummaryLsa ()
 {
 }
-SummaryLsa::SummaryLsa ()
+
+SummaryLsa::SummaryLsa (uint32_t mask) : m_mask (mask), m_metric (0)
+{
+}
+
+SummaryLsa::SummaryLsa (uint32_t mask, uint32_t metric) : m_mask (mask), m_metric (metric)
 {
 }
 
@@ -44,29 +49,27 @@ SummaryLsa::SummaryLsa (Ptr<Packet> packet)
 }
 
 void
-SummaryLsa::AddPrefix (SummaryPrefix prefix)
+SummaryLsa::SetMask (uint32_t mask)
 {
-  m_prefixes.emplace_back (prefix);
+  m_mask = mask;
 }
 
-SummaryPrefix
-SummaryLsa::GetPrefix (uint32_t index)
+uint32_t
+SummaryLsa::GetMask ()
 {
-  NS_ASSERT_MSG (index >= 0 && index < m_prefixes.size (), "Invalid link index");
-  return m_prefixes[index];
+  return m_mask;
 }
 
 void
-SummaryLsa::ClearPrefixes ()
+SummaryLsa::SetMetric (uint32_t mask)
 {
-  m_prefixes.clear ();
+  m_mask = mask;
 }
 
-uint16_t
-SummaryLsa::GetNPrefixes ()
+uint32_t
+SummaryLsa::GetMetric ()
 {
-  NS_LOG_FUNCTION (this);
-  return m_prefixes.size ();
+  return m_mask;
 }
 
 TypeId
@@ -86,12 +89,12 @@ void
 SummaryLsa::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
-  os << "# prefixes: " << m_prefixes.size () << std::endl;
+  os << "mask: " << m_mask << ", metric: " << m_metric << std::endl;
 }
 uint32_t
 SummaryLsa::GetSerializedSize (void) const
 {
-  return m_prefixes.size () * 12; // Assumed no TOS
+  return 12; // Assumed no TOS
 }
 
 Ptr<Packet>
@@ -113,12 +116,10 @@ SummaryLsa::Serialize (Buffer::Iterator start) const
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  for (uint16_t j = 0; j < m_prefixes.size (); j++)
-    {
-      i.WriteHtonU32 (m_prefixes[j].m_mask);
-      i.WriteHtonU32 (m_prefixes[j].m_metric);
-      i.WriteHtonU32 (0); // TOS is not used
-    }
+  i.WriteHtonU32 (m_mask);
+  i.WriteHtonU32 (m_metric);
+  i.WriteHtonU32 (0); // TOS is not used
+
   return GetSerializedSize ();
 }
 
@@ -128,17 +129,10 @@ SummaryLsa::Deserialize (Buffer::Iterator start)
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  m_prefixes.clear ();
+  m_mask = i.ReadNtohU32 ();
+  m_metric = i.ReadNtohU32 ();
+  i.Next (4); // Skip TOS
 
-  uint16_t linkNum = i.GetRemainingSize () / 12;
-
-  for (uint16_t j = 0; j < linkNum; j++)
-    {
-      uint32_t mask = i.ReadNtohU32 ();
-      uint32_t metric = i.ReadNtohU32 ();
-      i.Next (4); // Skip TOS
-      m_prefixes.emplace_back (SummaryPrefix (mask, metric));
-    }
   return GetSerializedSize ();
 }
 

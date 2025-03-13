@@ -114,6 +114,10 @@ public:
    * \brief Print AreaLSDB
    */
   void PrintAreaLsdb ();
+  /**
+   * \brief Print SummaryLSDB
+   */
+  void PrintSummaryLsdb ();
 
   /**
    * \brief Print LSDB.
@@ -144,6 +148,12 @@ public:
    * \return Area LSDB hash
    */
   uint32_t GetAreaLsdbHash ();
+
+  /**
+   * \brief Get Summary LSDB hash for comparison.
+   * \return Summary LSDB hash
+   */
+  uint32_t GetSummaryLsdbHash ();
 
   /**
    * \brief Print LSDB hash.
@@ -547,8 +557,6 @@ private:
   // Area
   std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
       m_l2NextHop; //!< <distance, nexthop> to areas
-  std::unordered_map<uint32_t, std::vector<SummaryPrefix>>
-      m_l2Prefixes; //!< IP addresses for areas TODO: multi-access support: <addr, mask>
   bool m_isAreaLeader;
 
   // LSA

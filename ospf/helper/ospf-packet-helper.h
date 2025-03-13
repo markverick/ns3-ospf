@@ -156,18 +156,6 @@ ConstructAreaLsa (std::vector<AreaLink> areaLinks)
   return areaLsa;
 }
 
-Ptr<SummaryLsa>
-ConstructSummaryLsa (std::vector<SummaryPrefix> prefixes)
-{
-  // Create a Summary-LSA
-  Ptr<SummaryLsa> summaryLsa = Create<SummaryLsa> ();
-  for (auto p : prefixes)
-    {
-      summaryLsa->AddPrefix (p);
-    }
-  return summaryLsa;
-}
-
 Ptr<Packet>
 ConstructLSUPacket (OspfHeader ospfHeader, LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
 {
