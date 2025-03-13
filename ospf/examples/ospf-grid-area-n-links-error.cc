@@ -170,6 +170,7 @@ main (int argc, char *argv[])
           Simulator::Schedule (Seconds (i + 60), &SetLinkUp, ndc.Get (l));
         }
       Simulator::Schedule (Seconds (i + 59), &CompareAreaLsdb, c);
+      Simulator::Schedule (Seconds (i + 59), &CompareSummaryLsdb, c);
       for (uint32_t j = 0; j < c.GetN (); j++)
         {
           auto app = DynamicCast<OspfApp> (c.Get (j)->GetApplication (0));
@@ -179,6 +180,7 @@ main (int argc, char *argv[])
       for (auto nodes : areaNodes)
         {
           Simulator::Schedule (Seconds (i + 59), CompareLsdb, nodes);
+          Simulator::Schedule (Seconds (i + 59), CompareL1PrefixLsdb, nodes);
           //   // app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
           //   // Simulator::Schedule (Seconds (i + 59), &OspfApp::PrintLsdbHash, app);
         }
