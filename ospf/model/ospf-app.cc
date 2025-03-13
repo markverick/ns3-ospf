@@ -1092,6 +1092,10 @@ OspfApp::ProcessLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeade
     case LsaHeader::RouterLSAs:
       ProcessRouterLsa (ifIndex, ipHeader, ospfHeader, lsaHeader, DynamicCast<RouterLsa> (lsa));
       break;
+    case LsaHeader::ASExternalLSAs:
+      ProcessAsExternalLsa (ifIndex, ipHeader, ospfHeader, lsaHeader,
+                            DynamicCast<AsExternalLsa> (lsa));
+      break;
     case LsaHeader::AreaLSAs:
       ProcessAreaLsa (ifIndex, ipHeader, ospfHeader, lsaHeader, DynamicCast<AreaLsa> (lsa));
       break;
@@ -1134,6 +1138,20 @@ OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
             }
         }
     }
+}
+
+void
+OspfApp::ProcessAsExternalLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                               LsaHeader lsaHeader, Ptr<AsExternalLsa> asExternalLsa)
+{
+  uint32_t advertisingRouter = lsaHeader.GetAdvertisingRouter ();
+
+  // Filling in AS External LSDB
+  NS_LOG_FUNCTION (this);
+  m_asExternalLsdb[advertisingRouter] = std::make_pair (lsaHeader, asExternalLsa);
+
+  // Update routing table
+  UpdateL1ShortestPath ();
 }
 
 void

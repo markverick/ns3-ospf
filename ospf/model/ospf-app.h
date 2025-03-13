@@ -304,8 +304,20 @@ private:
    * \param ospfHeader OSPF Header
    * \param lsa LS Advertisement
    */
+
+  // TODO: seperate processor as objects
   void ProcessLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                    LsaHeader lsaHeader, Ptr<Lsa> lsa);
+  /**
+   * \brief Process Router-LSA during Full.
+   * \param ifIndex Interface index
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param lsaHeader LSA Header
+   * \param asExternalLsa AS External LSA Payload
+   */
+  void ProcessAsExternalLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
+                             LsaHeader lsaHeader, Ptr<AsExternalLsa> asExternalLsa);
   /**
    * \brief Process Router-LSA during Full.
    * \param ifIndex Interface index
