@@ -1028,14 +1028,14 @@ OspfApp::HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
           lsUpdate->AddLsa (lsa.first, lsa.second);
         }
     }
-  for (auto &[remoteRouterId, lsa] : m_areaLsdb)
+  for (auto &[remoteAreaId, lsa] : m_areaLsdb)
     {
       if (lsr->HasLsaKey (lsa.first.GetKey ()))
         {
           lsUpdate->AddLsa (lsa.first, lsa.second);
         }
     }
-  for (auto &[remoteRouterId, lsa] : m_summaryLsdb)
+  for (auto &[remoteAreaId, lsa] : m_summaryLsdb)
     {
       if (lsr->HasLsaKey (lsa.first.GetKey ()))
         {
@@ -1094,25 +1094,6 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
       m_seqNumbers[lsaKey] = 0;
     }
 
-  // If the sequence number equals or less than that of the last packet received from the
-  // originating router, the packet is dropped and ACK is sent.
-  if (seqNum <= m_seqNumbers[lsaKey])
-    {
-      // std::cout << "recv seqNum: "<< seqNum << ", stored seqNum: " << m_seqNumbers[originRouterId] << std::endl;
-      NS_LOG_INFO ("LSU is dropped: received sequence number <= stored sequence number");
-      // Send direct ACK once receiving duplicated sequence number
-      // NS_LOG_DEBUG ("Sending ACK [" << ackPacket->GetSize () << "] from " << m_routerId
-      //                               << " to interface " << ifIndex);
-      SendAck (ifIndex, ackPacket, neighbor->GetRouterId ());
-      return;
-    }
-
-  // Update seq num
-  m_seqNumbers[lsaKey] = seqNum;
-
-  // Process LSA
-  ProcessLsa (ifIndex, ipHeader, ospfHeader, lsaHeader, lsa);
-
   // Satisfy LSR
   bool isLsrSatisfied = false;
   if (neighbor->GetState () == OspfNeighbor::Loading)
@@ -1133,6 +1114,25 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     {
       SendAck (ifIndex, ackPacket, neighbor->GetRouterId ());
     }
+  // If the sequence number equals or less than that of the last packet received from the
+  // originating router, the packet is dropped and ACK is sent.
+  if (seqNum <= m_seqNumbers[lsaKey])
+    {
+      // std::cout << "recv seqNum: "<< seqNum << ", stored seqNum: " << m_seqNumbers[originRouterId] << std::endl;
+      NS_LOG_INFO ("LSU is dropped: received sequence number <= stored sequence number");
+      // Send direct ACK once receiving duplicated sequence number
+      // NS_LOG_DEBUG ("Sending ACK [" << ackPacket->GetSize () << "] from " << m_routerId
+      //                               << " to interface " << ifIndex);
+
+      SendAck (ifIndex, ackPacket, neighbor->GetRouterId ());
+      return;
+    }
+
+  // Update seq num
+  m_seqNumbers[lsaKey] = seqNum;
+
+  // Process LSA
+  ProcessLsa (ifIndex, ipHeader, ospfHeader, lsaHeader, lsa);
 
   // Flood the network
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
@@ -1800,9 +1800,23 @@ OspfApp::CompareAndSendLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
   std::vector<LsaHeader> localLsaHeaders;
   for (auto &[remoteRouterId, lsa] : m_routerLsdb)
     {
-      localLsaHeaders.emplace_back (lsa.first);
+      if (neighbor->GetArea () == this->m_areaId)
+        {
+          localLsaHeaders.emplace_back (lsa.first);
+        }
     }
   for (auto &[remoteRouterId, lsa] : m_asExternalLsdb)
+    {
+      if (neighbor->GetArea () == this->m_areaId)
+        {
+          localLsaHeaders.emplace_back (lsa.first);
+        }
+    }
+  for (auto &[remoteAreaId, lsa] : m_areaLsdb)
+    {
+      localLsaHeaders.emplace_back (lsa.first);
+    }
+  for (auto &[remoteAreaId, lsa] : m_summaryLsdb)
     {
       localLsaHeaders.emplace_back (lsa.first);
     }

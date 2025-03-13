@@ -146,6 +146,7 @@ main (int argc, char *argv[])
           auto app = DynamicCast<OspfApp> (node->GetApplication (0));
           app->SetArea (area, areaIpv4.NewAddress (), areaMask);
         }
+      areaIpv4.NewNetwork ();
     }
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));

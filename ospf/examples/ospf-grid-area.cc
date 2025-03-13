@@ -46,7 +46,7 @@ Ipv4Address ospfHelloAddress ("224.0.0.5");
 
 const uint32_t STRIPE_WIDTH = 2;
 const uint32_t NUM_STRIPES = 3;
-const uint32_t GRID_HEIGHT = 22;
+const uint32_t GRID_HEIGHT = 3;
 const uint32_t GRID_WIDTH = STRIPE_WIDTH * NUM_STRIPES;
 const uint32_t SIM_SECONDS = 100;
 
@@ -146,6 +146,7 @@ main (int argc, char *argv[])
           auto app = DynamicCast<OspfApp> (node->GetApplication (0));
           app->SetArea (area, areaIpv4.NewAddress (), areaMask);
         }
+      areaIpv4.NewNetwork ();
     }
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
@@ -187,22 +188,24 @@ main (int argc, char *argv[])
       // Simulator::Schedule(Seconds(80), &OspfApp::PrintLsdbHash, app);
       // Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLsdbHash, app);
     }
-  app = DynamicCast<OspfApp> (c.Get (0)->GetApplication (0));
-  Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::PrintLsdb, app);
+  app = DynamicCast<OspfApp> (c.Get (2)->GetApplication (0));
   Simulator::Schedule (Seconds (100), &OspfApp::PrintRouting, app, dirName, "route.routes");
 
-  // Print progress
-  for (uint32_t i = 0; i < SIM_SECONDS; i += 10)
-    {
-      Simulator::Schedule (Seconds (i), &OspfApp::PrintLsdb, app);
-      Simulator::Schedule (Seconds (i), &OspfApp::PrintAreaLsdb, app);
-    }
+  // Print LSDBs
+  Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::PrintLsdb, app);
+  Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::PrintL1PrefixLsdb, app);
+  Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::PrintAreaLsdb, app);
+  Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::PrintSummaryLsdb, app);
+
   Simulator::Schedule (Seconds (SIM_SECONDS), CompareAreaLsdb, c);
   for (auto nodes : areaNodes)
     {
       Simulator::Schedule (Seconds (SIM_SECONDS), CompareLsdb, nodes);
+      Simulator::Schedule (Seconds (SIM_SECONDS), CompareL1PrefixLsdb, nodes);
       Simulator::Schedule (Seconds (SIM_SECONDS), VerifyNeighbor, c, nodes);
     }
+  Simulator::Schedule (Seconds (SIM_SECONDS), CompareAreaLsdb, c);
+  Simulator::Schedule (Seconds (SIM_SECONDS), CompareSummaryLsdb, c);
   // Enable Pcap
   AsciiTraceHelper ascii;
   p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));

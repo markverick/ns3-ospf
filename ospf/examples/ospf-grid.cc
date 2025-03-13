@@ -43,8 +43,8 @@ NS_LOG_COMPONENT_DEFINE ("OspfGrid");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
-const uint32_t GRID_WIDTH = 10;
-const uint32_t GRID_HEIGHT = 10;
+const uint32_t GRID_WIDTH = 2;
+const uint32_t GRID_HEIGHT = 2;
 const uint32_t SIM_SECONDS = 100;
 
 // Fill static routes with

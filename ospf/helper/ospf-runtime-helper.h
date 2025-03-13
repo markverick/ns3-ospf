@@ -46,7 +46,7 @@ VerifyNeighbor (NodeContainer allNodes, NodeContainer nodes)
               allNodes.Get (app->GetNode ()->GetId ())->GetNDevices () - 1)
             {
               std::cout << "[" << Simulator::Now () << "] LSDB entry [" << Ipv4Address (pair.first)
-                        << "] of node [" << i << "] is incorrect ("
+                        << "] of node [" << nodes.Get (i)->GetId () << "] is incorrect ("
                         << pair.second.second->GetNLink ()
                         << " != " << allNodes.Get (app->GetNode ()->GetId ())->GetNDevices () - 1
                         << ")" << std::endl;
