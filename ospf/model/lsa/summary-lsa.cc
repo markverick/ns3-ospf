@@ -129,7 +129,10 @@ SummaryLsa::Deserialize (Buffer::Iterator start)
   Buffer::Iterator i = start;
 
   m_prefixes.clear ();
-  for (uint16_t j = 0; j < m_prefixes.size (); j++)
+
+  uint16_t linkNum = i.GetRemainingSize () / 12;
+
+  for (uint16_t j = 0; j < linkNum; j++)
     {
       uint32_t mask = i.ReadNtohU32 ();
       uint32_t metric = i.ReadNtohU32 ();

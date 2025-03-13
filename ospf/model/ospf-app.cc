@@ -211,7 +211,9 @@ OspfApp::PrintL1PrefixLsdb ()
     {
       std::cout << "  At t=" << Simulator::Now ().GetSeconds ()
                 << " , Router: " << Ipv4Address (pair.first) << std::endl;
-      std::cout << "    External Routes: " << pair.second.second->GetNRoutes () << std::endl;
+      std::cout << "    External Routes [ " << Ipv4Mask (pair.second.second->GetMask ()) << " / "
+                << Ipv4Mask (pair.second.second->GetMask ()).GetPrefixLength ()
+                << " ] : " << pair.second.second->GetNRoutes () << std::endl;
       for (uint32_t i = 0; i < pair.second.second->GetNRoutes (); i++)
         {
           ExternalRoute link = pair.second.second->GetRoute (i);
@@ -423,6 +425,7 @@ OspfApp::StartApplication (void)
       Ptr<AsExternalLsa> lsExternalLsa = GetAsExternalLsa ();
       auto lsaKey =
           std::make_tuple (LsaHeader::LsType::ASExternalLSAs, m_routerId.Get (), m_routerId.Get ());
+      m_seqNumbers[lsaKey] = 1;
 
       // Assign routerLsa to its router LSDB
       LsaHeader lsaHeader (lsaKey);
@@ -834,6 +837,14 @@ OspfApp::HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<O
               neighbor->AddDbdQueue (pair.second.first);
             }
         }
+      for (const auto &pair : m_asExternalLsdb)
+        {
+          // L1 LSAs must not cross the area
+          if (neighbor->GetArea () == this->m_areaId)
+            {
+              neighbor->AddDbdQueue (pair.second.first);
+            }
+        }
       NegotiateDbd (ifIndex, neighbor, false);
       neighbor->SetState (OspfNeighbor::Exchange);
     }
@@ -1075,6 +1086,7 @@ void
 OspfApp::ProcessLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                      LsaHeader lsaHeader, Ptr<Lsa> lsa)
 {
+  NS_LOG_FUNCTION (this);
   switch (lsaHeader.GetType ())
     {
     case LsaHeader::RouterLSAs:

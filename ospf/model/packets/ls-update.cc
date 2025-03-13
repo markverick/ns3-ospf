@@ -25,6 +25,7 @@
 #include "ns3/packet.h"
 #include "ns3/router-lsa.h"
 #include "ns3/summary-lsa.h"
+#include "ns3/as-external-lsa.h"
 #include "ls-update.h"
 
 namespace ns3 {
@@ -151,6 +152,13 @@ LsUpdate::Deserialize (Buffer::Iterator start)
       else if (lsaHeader.GetType () == LsaHeader::SummaryLSAsArea)
         {
           Ptr<SummaryLsa> lsa = Create<SummaryLsa> ();
+          i.Next (lsa->Deserialize (i));
+          m_lsaList.emplace_back (lsaHeader, lsa);
+          m_serializedSize += lsaHeader.GetLength ();
+        }
+      else if (lsaHeader.GetType () == LsaHeader::ASExternalLSAs)
+        {
+          Ptr<AsExternalLsa> lsa = Create<AsExternalLsa> ();
           i.Next (lsa->Deserialize (i));
           m_lsaList.emplace_back (lsaHeader, lsa);
           m_serializedSize += lsaHeader.GetLength ();

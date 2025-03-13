@@ -152,7 +152,10 @@ AsExternalLsa::Deserialize (Buffer::Iterator start)
   m_routes.clear ();
   m_mask = i.ReadNtohU32 ();
   m_metric = i.ReadNtohU32 ();
-  for (uint16_t j = 0; j < m_routes.size (); j++)
+
+  uint16_t linkNum = i.GetRemainingSize () / 12;
+
+  for (uint16_t j = 0; j < linkNum; j++)
     {
       uint32_t addr = i.ReadNtohU32 ();
       uint32_t routeTag = i.ReadNtohU32 ();

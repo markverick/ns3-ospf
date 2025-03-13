@@ -52,7 +52,7 @@ NS_LOG_COMPONENT_DEFINE ("OspfTwoNode");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
-const uint32_t SIM_SECONDS = 30;
+const uint32_t SIM_SECONDS = 70;
 
 int
 main (int argc, char *argv[])
@@ -153,6 +153,7 @@ main (int argc, char *argv[])
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintL1PrefixLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                            "n" + std::to_string (i) + ".routes");
     }
