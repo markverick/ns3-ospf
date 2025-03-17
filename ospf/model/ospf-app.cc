@@ -1496,6 +1496,7 @@ OspfApp::UpdateRouting ()
               nextHop.first, nextHop.second);
         }
     }
+
   for (auto &[remoteAreaId, nextHop] : m_l2NextHop)
     {
       if (m_summaryLsdb.find (remoteAreaId) == m_summaryLsdb.end ())
@@ -1506,7 +1507,9 @@ OspfApp::UpdateRouting ()
       auto lsa = m_summaryLsdb[remoteAreaId].second;
       // Ipv4Address network = Ipv4Address(header.GetAdvertisingRouter()).CombineMask (lsa->GetMask());
       m_routing->AddNetworkRouteTo (Ipv4Address (header.GetAdvertisingRouter ()),
-                                    Ipv4Mask (lsa->GetMask ()), nextHop.first, nextHop.second);
+                                    Ipv4Mask (lsa->GetMask ()),
+                                    m_nextHopToShortestBorderRouter[remoteAreaId].first,
+                                    m_nextHopToShortestBorderRouter[remoteAreaId].second);
     }
 }
 void
@@ -1603,6 +1606,27 @@ OspfApp::UpdateL1ShortestPath ()
           m_l1NextHop[remoteRouterId] = std::make_pair (ifIndex, distanceTo[remoteRouterId]);
           // m_routing->AddHostRouteTo (Ipv4Address (routerLsa.second->GetLink (i).m_linkData),
           //                            ifIndex, distanceTo[remoteRouterId]);
+        }
+    }
+  if (m_enableAreaProxy)
+    {
+      // Getting exit routers
+      m_nextHopToShortestBorderRouter.clear ();
+      for (auto &[remoteRouterId, lsa] : m_routerLsdb)
+        {
+          auto links = lsa.second->GetCrossAreaLinks ();
+          if (m_l1NextHop.find (remoteRouterId) == m_l1NextHop.end ())
+            continue;
+          for (auto link : links)
+            {
+              if (m_nextHopToShortestBorderRouter.find (link.m_areaId) ==
+                      m_nextHopToShortestBorderRouter.end () ||
+                  m_nextHopToShortestBorderRouter[link.m_areaId].second >
+                      m_l1NextHop[remoteRouterId].second)
+                {
+                  m_nextHopToShortestBorderRouter[link.m_areaId] = m_l1NextHop[remoteRouterId];
+                }
+            }
         }
     }
   UpdateRouting ();

@@ -551,12 +551,12 @@ private:
   // Routing
   Ptr<Ipv4StaticRouting> m_routing; // !< Routing table
   std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
-      m_l1NextHop; //!< <distance, nexthop> to routers
+      m_l1NextHop; //!< <next hop, distance> to routers
   std::unordered_map<uint32_t, std::vector<uint32_t>> m_l1Addresses; //!< Addresses for L1 routers
 
   // Area
   std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
-      m_l2NextHop; //!< <distance, nexthop> to areas
+      m_l2NextHop; //!< <next hop, distance> to areas
   bool m_isAreaLeader;
 
   // LSA
@@ -571,6 +571,8 @@ private:
       m_routerLsdb; // LSDB for each remote router ID
   std::map<uint32_t, std::pair<LsaHeader, Ptr<AsExternalLsa>>>
       m_asExternalLsdb; // LSDB for each remote router ID
+  std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
+      m_nextHopToShortestBorderRouter; // <next hop, metric>
 
   // L2 LSDB
   std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> m_areaLsdb; // LSDB for each remote area ID
