@@ -1505,11 +1505,12 @@ OspfApp::UpdateRouting ()
         }
       auto header = m_summaryLsdb[remoteAreaId].first;
       auto lsa = m_summaryLsdb[remoteAreaId].second;
+      auto nextHopIf = m_nextHopToShortestBorderRouter[remoteAreaId].first;
+      auto gateway = m_ospfInterfaces[nextHopIf]->GetAddress ();
+      auto metric = m_nextHopToShortestBorderRouter[remoteAreaId].second;
       // Ipv4Address network = Ipv4Address(header.GetAdvertisingRouter()).CombineMask (lsa->GetMask());
       m_routing->AddNetworkRouteTo (Ipv4Address (header.GetAdvertisingRouter ()),
-                                    Ipv4Mask (lsa->GetMask ()),
-                                    m_nextHopToShortestBorderRouter[remoteAreaId].first,
-                                    m_nextHopToShortestBorderRouter[remoteAreaId].second);
+                                    Ipv4Mask (lsa->GetMask ()), gateway, nextHopIf, metric);
     }
 }
 void
