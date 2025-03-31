@@ -77,6 +77,18 @@ OspfInterface::SetAddress (Ipv4Address ipAddress)
   m_ipAddress = ipAddress;
 }
 
+Ipv4Address
+OspfInterface::GetGateway ()
+{
+  return m_gateway;
+}
+
+void
+OspfInterface::SetGateway (Ipv4Address gateway)
+{
+  m_gateway = gateway;
+}
+
 Ipv4Mask
 OspfInterface::GetMask ()
 {

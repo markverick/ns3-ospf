@@ -172,23 +172,23 @@ main (int argc, char *argv[])
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
-  // // User Traffic
-  // uint16_t port = 9;  // well-known echo port number
-  // UdpEchoServerHelper server (port);
-  // ApplicationContainer apps = server.Install (c.Get (4));
-  // apps.Start (Seconds (1.0));
-  // apps.Stop (Seconds (SIM_SECONDS));
+  // User Traffic
+  uint16_t port = 9; // well-known echo port number
+  UdpEchoServerHelper server (port);
+  ApplicationContainer apps = server.Install (c.Get (2));
+  apps.Start (Seconds (1.0));
+  apps.Stop (Seconds (SIM_SECONDS));
 
-  // uint32_t tSize = 1024;
-  // uint32_t maxPacketCount = 200;
-  // Time interPacketInterval = Seconds (1.);
-  // UdpEchoClientHelper client (Ipv4Address("10.1.1.9"), port);
-  // client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
-  // client.SetAttribute ("Interval", TimeValue (interPacketInterval));
-  // client.SetAttribute ("PacketSize", UintegerValue (tSize));
-  // apps = client.Install (c.Get (0));
-  // apps.Start (Seconds (2.0));
-  // apps.Stop (Seconds (SIM_SECONDS));
+  uint32_t tSize = 1024;
+  uint32_t maxPacketCount = 200;
+  Time interPacketInterval = Seconds (1.);
+  UdpEchoClientHelper client (Ipv4Address ("172.16.0.3"), port);
+  client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
+  client.SetAttribute ("Interval", TimeValue (interPacketInterval));
+  client.SetAttribute ("PacketSize", UintegerValue (tSize));
+  apps = client.Install (c.Get (0));
+  apps.Start (Seconds (2.0));
+  apps.Stop (Seconds (SIM_SECONDS));
 
   // Print LSDB
   // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
@@ -211,10 +211,10 @@ main (int argc, char *argv[])
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                            "route" + std::to_string (i) + ".routes");
 
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1.03), &OspfApp::PrintLsdb, app);
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1.02), &OspfApp::PrintL1PrefixLsdb, app);
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1.01), &OspfApp::PrintAreaLsdb, app);
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1.00), &OspfApp::PrintSummaryLsdb, app);
+      // Simulator::Schedule (Seconds (SIM_SECONDS - 1.03), &OspfApp::PrintLsdb, app);
+      // Simulator::Schedule (Seconds (SIM_SECONDS - 1.02), &OspfApp::PrintL1PrefixLsdb, app);
+      // Simulator::Schedule (Seconds (SIM_SECONDS - 1.01), &OspfApp::PrintAreaLsdb, app);
+      // Simulator::Schedule (Seconds (SIM_SECONDS - 1.00), &OspfApp::PrintSummaryLsdb, app);
       // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
     }
 

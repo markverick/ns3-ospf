@@ -21,6 +21,8 @@
 #include "ns3/log.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/ipv6-address.h"
+#include "ns3/point-to-point-net-device.h"
+#include "ns3/point-to-point-channel.h"
 #include "ns3/address-utils.h"
 #include "ns3/nstime.h"
 #include "ns3/inet-socket-address.h"
@@ -139,6 +141,30 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
       Ptr<OspfInterface> ospfInterface = Create<OspfInterface> (
           sourceIp, mask, m_helloInterval.GetSeconds (), m_routerDeadInterval.GetSeconds (),
           m_areaId, 1, m_boundDevices.Get (i)->GetMtu ());
+
+      // Set default routes
+      if (m_boundDevices.Get (i)->IsPointToPoint ())
+        {
+
+          // Get remote IP address
+          auto dev = m_boundDevices.Get (i);
+          auto ch = DynamicCast<PointToPointChannel> (dev->GetChannel ());
+          Ptr<NetDevice> remoteDev;
+          for (uint32_t j = 0; j < ch->GetNDevices (); j++)
+            {
+              remoteDev = ch->GetDevice (j);
+              if (remoteDev != dev)
+                {
+                  // Set as a gateway
+                  auto remoteIpv4 = remoteDev->GetNode ()->GetObject<Ipv4> ();
+                  // std::cout << " ! Num IF: " << ipv4->GetNInterfaces () << " / " << remoteDev->GetIfIndex () << std::endl;
+                  // std::cout << " !! GW : " << sourceIp << " -> " << remoteIpv4->GetAddress(remoteDev->GetIfIndex (), 0).GetAddress () << std::endl;
+                  ospfInterface->SetGateway (
+                      remoteIpv4->GetAddress (remoteDev->GetIfIndex (), 0).GetAddress ());
+                  break;
+                }
+            }
+        }
       m_ospfInterfaces.emplace_back (ospfInterface);
     }
 }
@@ -146,10 +172,18 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
 void
 OspfApp::SetArea (uint32_t area, Ipv4Address address, Ipv4Mask mask)
 {
+  Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
   for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
     {
       m_ospfInterfaces[i]->SetArea (area);
+      // // Overwrite interface addresses if area
+      // while (ipv4->GetNAddresses (i))
+      //   {
+      //     ipv4->RemoveAddress (i, 0);
+      //   }
     }
+  ipv4->AddAddress (0, Ipv4InterfaceAddress (address, mask));
+
   m_areaId = area;
   m_routerId = address;
   m_areaMask = mask;
@@ -559,6 +593,7 @@ OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address (originRo
 void
 OspfApp::SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor)
 {
+  NS_LOG_FUNCTION (this << ifIndex << neighbor->GetIpAddress ());
   auto socket = m_sockets[ifIndex];
   m_txTrace (packet);
 
@@ -570,7 +605,7 @@ void
 OspfApp::SendToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet,
                                  Ptr<OspfNeighbor> neighbor)
 {
-  // NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << ifIndex << neighbor->GetIpAddress ());
   // No sockets to send
   if (m_sockets.empty ())
     {
@@ -587,7 +622,7 @@ void
 OspfApp::SendToNeighborKeyedInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet,
                                       Ptr<OspfNeighbor> neighbor, LsaHeader::LsaKey lsaKey)
 {
-  // NS_LOG_FUNCTION (this);
+  NS_LOG_FUNCTION (this << ifIndex << neighbor->GetIpAddress ());
   // No sockets to send
   if (m_sockets.empty ())
     return;
@@ -608,7 +643,7 @@ OspfApp::SendToNeighborKeyedInterval (Time interval, uint32_t ifIndex, Ptr<Packe
 void
 OspfApp::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
 {
-  if (m_lsaSockets.empty ())
+  if (m_sockets.empty ())
     {
       NS_LOG_INFO ("No sockets to flood LSU");
       return;
@@ -619,7 +654,7 @@ OspfApp::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
 
   auto lsaKey = lsu->GetLsaList ()[0].first.GetKey ();
 
-  for (uint32_t i = 1; i < m_lsaSockets.size (); i++)
+  for (uint32_t i = 1; i < m_sockets.size (); i++)
     {
       // Skip the incoming interface
       if (inputIfIndex == i)
@@ -1069,10 +1104,14 @@ void
 OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                     LsaHeader lsaHeader, Ptr<Lsa> lsa)
 {
+  NS_LOG_FUNCTION (this << ifIndex << Ipv4Address (ospfHeader.GetRouterId ())
+                        << ipHeader.GetSource ());
   auto interface = m_ospfInterfaces[ifIndex];
   Ptr<OspfNeighbor> neighbor =
       interface->GetNeighbor (Ipv4Address (ospfHeader.GetRouterId ()), ipHeader.GetSource ());
 
+  PrintRouting ("results/ospf", "routes");
+  NS_ASSERT_MSG (neighbor != nullptr, "Neighbor does not exist");
   uint32_t advertisingRouter = lsaHeader.GetAdvertisingRouter ();
   uint16_t seqNum = lsaHeader.GetSeqNum ();
   LsaHeader::LsaKey lsaKey = lsaHeader.GetKey ();
@@ -1324,6 +1363,7 @@ OspfApp::ProcessAreaSummaryLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeade
 Ptr<AsExternalLsa>
 OspfApp::GetAsExternalLsa ()
 {
+  // Hardcoded masks and prefixes to be node's IP
   Ptr<AsExternalLsa> asExternalLsa = Create<AsExternalLsa> (m_areaMask.Get (), 1);
   asExternalLsa->AddRoute (m_routerId.Get ());
   return asExternalLsa;
@@ -1491,13 +1531,15 @@ OspfApp::UpdateRouting ()
       auto n = m_asExternalLsdb[remoteRouterId].second->GetNRoutes ();
       for (auto i = 0; i < n; i++)
         {
+          auto gateway = m_ospfInterfaces[nextHop.ifIndex]->GetGateway ();
+          std::cout << "GATEWAY: " << gateway << std::endl;
           m_routing->AddHostRouteTo (
               Ipv4Address (m_asExternalLsdb[remoteRouterId].second->GetRoute (i).m_address),
-              nextHop.first, nextHop.second);
+              gateway, nextHop.ifIndex, nextHop.metric);
         }
     }
 
-  for (auto &[remoteAreaId, nextHop] : m_l2NextHop)
+  for (auto &[remoteAreaId, l2NextHop] : m_l2NextHop)
     {
       if (m_summaryLsdb.find (remoteAreaId) == m_summaryLsdb.end ())
         {
@@ -1505,12 +1547,13 @@ OspfApp::UpdateRouting ()
         }
       auto header = m_summaryLsdb[remoteAreaId].first;
       auto lsa = m_summaryLsdb[remoteAreaId].second;
-      auto nextHopIf = m_nextHopToShortestBorderRouter[remoteAreaId].first;
-      auto gateway = m_ospfInterfaces[nextHopIf]->GetAddress ();
-      auto metric = m_nextHopToShortestBorderRouter[remoteAreaId].second;
+      auto nextHop = m_nextHopToShortestBorderRouter[remoteAreaId].second;
+      auto gateway = m_ospfInterfaces[nextHop.ifIndex]->GetGateway ();
+
       // Ipv4Address network = Ipv4Address(header.GetAdvertisingRouter()).CombineMask (lsa->GetMask());
       m_routing->AddNetworkRouteTo (Ipv4Address (header.GetAdvertisingRouter ()),
-                                    Ipv4Mask (lsa->GetMask ()), gateway, nextHopIf, metric);
+                                    Ipv4Mask (lsa->GetMask ()), gateway, nextHop.ifIndex,
+                                    nextHop.metric);
     }
 }
 void
@@ -1604,7 +1647,8 @@ OspfApp::UpdateL1ShortestPath ()
         {
           // NS_LOG_DEBUG ("Add route: " << Ipv4Address (routerLsa.second->GetLink (i).m_linkData)
           // << ", " << ifIndex << ", " << distanceTo[remoteRouterId]);
-          m_l1NextHop[remoteRouterId] = std::make_pair (ifIndex, distanceTo[remoteRouterId]);
+          m_l1NextHop[remoteRouterId] = NextHop (ifIndex, routerLsa.second->GetLink (i).m_linkData,
+                                                 routerLsa.second->GetLink (i).m_metric);
           // m_routing->AddHostRouteTo (Ipv4Address (routerLsa.second->GetLink (i).m_linkData),
           //                            ifIndex, distanceTo[remoteRouterId]);
         }
@@ -1622,10 +1666,11 @@ OspfApp::UpdateL1ShortestPath ()
             {
               if (m_nextHopToShortestBorderRouter.find (link.m_areaId) ==
                       m_nextHopToShortestBorderRouter.end () ||
-                  m_nextHopToShortestBorderRouter[link.m_areaId].second >
-                      m_l1NextHop[remoteRouterId].second)
+                  m_nextHopToShortestBorderRouter[link.m_areaId].second.metric >
+                      m_l1NextHop[remoteRouterId].metric)
                 {
-                  m_nextHopToShortestBorderRouter[link.m_areaId] = m_l1NextHop[remoteRouterId];
+                  m_nextHopToShortestBorderRouter[link.m_areaId] =
+                      std::make_pair (remoteRouterId, m_l1NextHop[remoteRouterId]);
                 }
             }
         }

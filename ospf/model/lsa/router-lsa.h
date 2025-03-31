@@ -36,6 +36,7 @@ namespace ns3 {
 class RouterLink
 {
 public:
+  RouterLink ();
   RouterLink (uint32_t linkId, uint32_t linkData, uint8_t type, uint16_t metric);
   uint32_t m_linkId;
   /*
@@ -54,6 +55,24 @@ public:
   {
     return m_linkId == other.m_linkId && m_linkData == other.m_linkData && m_type == other.m_type &&
            m_metric == other.m_metric;
+  }
+  bool
+  operator< (const RouterLink &other) const
+  {
+    return std::tie (m_linkId, m_linkData, m_type, m_metric) <
+           std::tie (other.m_linkId, other.m_linkData, other.m_type, other.m_metric);
+  }
+  RouterLink &
+  operator= (const RouterLink &other)
+  {
+    if (this != &other)
+      { // Prevent self-assignment
+        m_linkId = other.m_linkId;
+        m_linkData = other.m_linkData;
+        m_type = other.m_type;
+        m_metric = other.m_metric;
+      }
+    return *this;
   }
   std::tuple<uint32_t, uint32_t, uint32_t, uint32_t>
   Get ()

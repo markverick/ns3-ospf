@@ -38,6 +38,7 @@
 #include "ns3/as-external-lsa.h"
 #include "ns3/area-lsa.h"
 #include "ns3/summary-lsa.h"
+#include "next-hop.h"
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
@@ -550,8 +551,7 @@ private:
 
   // Routing
   Ptr<Ipv4StaticRouting> m_routing; // !< Routing table
-  std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
-      m_l1NextHop; //!< <next hop, distance> to routers
+  std::unordered_map<uint32_t, NextHop> m_l1NextHop; //!< Next Hopto routers
   std::unordered_map<uint32_t, std::vector<uint32_t>> m_l1Addresses; //!< Addresses for L1 routers
 
   // Area
@@ -571,8 +571,9 @@ private:
       m_routerLsdb; // LSDB for each remote router ID
   std::map<uint32_t, std::pair<LsaHeader, Ptr<AsExternalLsa>>>
       m_asExternalLsdb; // LSDB for each remote router ID
-  std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
-      m_nextHopToShortestBorderRouter; // <next hop, metric>
+  std::unordered_map<uint32_t, std::pair<uint32_t, NextHop>>
+      m_nextHopToShortestBorderRouter; // next hop
+  std::vector<uint32_t> m_advertisingPrefixes;
 
   // L2 LSDB
   std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> m_areaLsdb; // LSDB for each remote area ID

@@ -184,14 +184,14 @@ main (int argc, char *argv[])
   // apps.Stop (Seconds (SIM_SECONDS));
 
   // Print LSDB
-  Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (1)->GetApplication (0));
-  // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
-  Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
-                       "route.routes");
+
   for (int i = 0; i < 5; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+      // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
+                           std::to_string (i) + ".routes");
     }
 
   // Enable Pcap

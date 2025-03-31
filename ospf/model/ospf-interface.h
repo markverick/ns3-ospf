@@ -54,6 +54,9 @@ public:
   Ipv4Address GetAddress ();
   void SetAddress (Ipv4Address ipAddress);
 
+  Ipv4Address GetGateway ();
+  void SetGateway (Ipv4Address ipAddress);
+
   Ipv4Mask GetMask ();
   void SetMask (Ipv4Mask ipMask);
 
@@ -90,6 +93,7 @@ public:
 
 private:
   Ipv4Address m_ipAddress;
+  Ipv4Address m_gateway;
   Ipv4Mask m_ipMask;
   uint16_t m_helloInterval;
   uint32_t m_routerDeadInterval;

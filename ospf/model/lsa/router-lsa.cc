@@ -32,6 +32,10 @@ NS_LOG_COMPONENT_DEFINE ("RouterLsa");
 
 NS_OBJECT_ENSURE_REGISTERED (RouterLsa);
 
+RouterLink::RouterLink () : m_linkId (0), m_linkData (0), m_type (0), m_metric (0)
+{
+}
+
 RouterLink::RouterLink (uint32_t linkId, uint32_t linkData, uint8_t type, uint16_t metric)
     : m_linkId (linkId), m_linkData (linkData), m_type (type), m_metric (metric)
 {

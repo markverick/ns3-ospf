@@ -35,6 +35,7 @@ def build(bld):
         'model/ospf-app.h',
         'model/ospf-interface.h',
         'model/ospf-neighbor.h',
+        'model/next-hop.h',
         'model/packets/ospf-header.h',
         'model/packets/ospf-hello.h',
         'model/packets/ls-ack.h',
