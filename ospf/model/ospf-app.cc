@@ -1110,7 +1110,6 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
   Ptr<OspfNeighbor> neighbor =
       interface->GetNeighbor (Ipv4Address (ospfHeader.GetRouterId ()), ipHeader.GetSource ());
 
-  PrintRouting ("results/ospf", "routes");
   NS_ASSERT_MSG (neighbor != nullptr, "Neighbor does not exist");
   uint32_t advertisingRouter = lsaHeader.GetAdvertisingRouter ();
   uint16_t seqNum = lsaHeader.GetSeqNum ();
