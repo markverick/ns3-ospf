@@ -212,6 +212,24 @@ OspfApp::GetLsdb ()
   return m_routerLsdb;
 }
 
+std::map<uint32_t, std::pair<LsaHeader, Ptr<AsExternalLsa>>>
+OspfApp::GetL1PrefixLsdb ()
+{
+  return m_asExternalLsdb;
+}
+
+std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>>
+OspfApp::GetAreaLsdb ()
+{
+  return m_areaLsdb;
+}
+
+std::map<uint32_t, std::pair<LsaHeader, Ptr<SummaryLsa>>>
+OspfApp::GetSummaryLsdb ()
+{
+  return m_summaryLsdb;
+}
+
 void
 OspfApp::PrintLsdb ()
 {

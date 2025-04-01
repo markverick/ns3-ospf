@@ -103,6 +103,9 @@ public:
    * \brief Get LSDB; only use for testing/debugging
    */
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>> GetLsdb ();
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<AsExternalLsa>>> GetL1PrefixLsdb ();
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> GetAreaLsdb ();
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<SummaryLsa>>> GetSummaryLsdb ();
   /**
    * \brief Print Router LSDB
    */

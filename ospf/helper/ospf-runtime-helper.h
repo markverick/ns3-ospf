@@ -80,7 +80,8 @@ CompareLsdb (NodeContainer nodes)
           return;
         }
     }
-  std::cout << "[" << Simulator::Now () << "] Router LSDBs matched" << std::endl;
+  std::cout << "[" << Simulator::Now () << "] Router LSDBs matched: " << app->GetLsdb ().size ()
+            << std::endl;
 
   return;
 }
@@ -101,7 +102,8 @@ CompareL1PrefixLsdb (NodeContainer nodes)
           return;
         }
     }
-  std::cout << "[" << Simulator::Now () << "] AS External LSDBs matched" << std::endl;
+  std::cout << "[" << Simulator::Now ()
+            << "] AS External LSDBs matched: " << app->GetL1PrefixLsdb ().size () << std::endl;
 
   return;
 }
@@ -122,7 +124,8 @@ CompareAreaLsdb (NodeContainer nodes)
           return;
         }
     }
-  std::cout << "[" << Simulator::Now () << "] Area LSDBs matched" << std::endl;
+  std::cout << "[" << Simulator::Now () << "] Area LSDBs matched: " << app->GetAreaLsdb ().size ()
+            << std::endl;
 
   return;
 }
@@ -143,7 +146,8 @@ CompareSummaryLsdb (NodeContainer nodes)
           return;
         }
     }
-  std::cout << "[" << Simulator::Now () << "] Summary LSDBs matched" << std::endl;
+  std::cout << "[" << Simulator::Now ()
+            << "] Summary LSDBs matched: " << app->GetSummaryLsdb ().size () << std::endl;
 
   return;
 }

@@ -198,7 +198,7 @@ main (int argc, char *argv[])
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
   // Test Error
-  for (uint32_t i = 5; i < SIM_SECONDS; i += 100)
+  for (uint32_t i = 100; i < SIM_SECONDS; i += 100)
     {
       uint32_t j = ((int) rv->GetValue ()) % (GRID_HEIGHT * GRID_WIDTH);
       std::cout << j << std::endl;
