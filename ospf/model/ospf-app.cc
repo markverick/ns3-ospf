@@ -1532,7 +1532,6 @@ OspfApp::UpdateRouting ()
       for (auto i = 0; i < n; i++)
         {
           auto gateway = m_ospfInterfaces[nextHop.ifIndex]->GetGateway ();
-          std::cout << "GATEWAY: " << gateway << std::endl;
           m_routing->AddHostRouteTo (
               Ipv4Address (m_asExternalLsdb[remoteRouterId].second->GetRoute (i).m_address),
               gateway, nextHop.ifIndex, nextHop.metric);
@@ -1648,7 +1647,7 @@ OspfApp::UpdateL1ShortestPath ()
           // NS_LOG_DEBUG ("Add route: " << Ipv4Address (routerLsa.second->GetLink (i).m_linkData)
           // << ", " << ifIndex << ", " << distanceTo[remoteRouterId]);
           m_l1NextHop[remoteRouterId] = NextHop (ifIndex, routerLsa.second->GetLink (i).m_linkData,
-                                                 routerLsa.second->GetLink (i).m_metric);
+                                                 distanceTo[remoteRouterId]);
           // m_routing->AddHostRouteTo (Ipv4Address (routerLsa.second->GetLink (i).m_linkData),
           //                            ifIndex, distanceTo[remoteRouterId]);
         }
