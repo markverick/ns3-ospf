@@ -739,6 +739,7 @@ OspfApp::HandleRead (Ptr<Socket> socket)
     }
   else if (ospfHeader.GetType () == OspfHeader::OspfType::OspfLSUpdate)
     {
+      NS_LOG_DEBUG ("LSU");
       Ptr<LsUpdate> lsu = Create<LsUpdate> (packet);
       HandleLsu (socket->GetBoundNetDevice ()->GetIfIndex (), ipHeader, ospfHeader, lsu);
     }
@@ -1066,11 +1067,18 @@ OspfApp::HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
       NS_LOG_WARN ("Received LSR when the state is not at least Loading");
     }
   // Construct LS Update as implicit ACK based on received lsr
+  std::vector<Ptr<LsUpdate>> lsUpdates;
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
+  // TODO: Clean up
   for (auto &[remoteRouterId, lsa] : m_routerLsdb)
     {
       if (lsr->HasLsaKey (lsa.first.GetKey ()))
         {
+          if (lsUpdate->GetSerializedSize () + lsa.first.GetLength () > interface->GetMtu () - 100)
+            {
+              lsUpdates.emplace_back (lsUpdate);
+              lsUpdate = Create<LsUpdate> ();
+            }
           lsUpdate->AddLsa (lsa.first, lsa.second);
         }
     }
@@ -1078,6 +1086,11 @@ OspfApp::HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     {
       if (lsr->HasLsaKey (lsa.first.GetKey ()))
         {
+          if (lsUpdate->GetSerializedSize () + lsa.first.GetLength () > interface->GetMtu () - 100)
+            {
+              lsUpdates.emplace_back (lsUpdate);
+              lsUpdate = Create<LsUpdate> ();
+            }
           lsUpdate->AddLsa (lsa.first, lsa.second);
         }
     }
@@ -1085,6 +1098,11 @@ OspfApp::HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     {
       if (lsr->HasLsaKey (lsa.first.GetKey ()))
         {
+          if (lsUpdate->GetSerializedSize () + lsa.first.GetLength () > interface->GetMtu () - 100)
+            {
+              lsUpdates.emplace_back (lsUpdate);
+              lsUpdate = Create<LsUpdate> ();
+            }
           lsUpdate->AddLsa (lsa.first, lsa.second);
         }
     }
@@ -1092,19 +1110,24 @@ OspfApp::HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     {
       if (lsr->HasLsaKey (lsa.first.GetKey ()))
         {
+          if (lsUpdate->GetSerializedSize () + lsa.first.GetLength () > interface->GetMtu () - 100)
+            {
+              lsUpdates.emplace_back (lsUpdate);
+              lsUpdate = Create<LsUpdate> ();
+            }
           lsUpdate->AddLsa (lsa.first, lsa.second);
         }
     }
-  if (lsUpdate->GetNLsa () != lsr->GetNLsaKeys ())
-    {
-      NS_LOG_WARN ("LSDB does not contain some LSAs in LS Request");
-    }
+  lsUpdates.emplace_back (lsUpdate);
   NS_LOG_INFO ("Received LSR (" << lsr->GetNLsaKeys () << ") from interface: " << ifIndex);
-  Ptr<Packet> packet = lsUpdate->ConstructPacket ();
-  EncapsulateOspfPacket (packet, m_routerId, interface->GetArea (),
-                         OspfHeader::OspfType::OspfLSUpdate);
-  // Implicit Ack, only send once
-  SendToNeighbor (ifIndex, packet, neighbor);
+  for (auto lsUpdate : lsUpdates)
+    {
+      Ptr<Packet> packet = lsUpdate->ConstructPacket ();
+      EncapsulateOspfPacket (packet, m_routerId, interface->GetArea (),
+                             OspfHeader::OspfType::OspfLSUpdate);
+      // Implicit Ack, only send once
+      SendToNeighbor (ifIndex, packet, neighbor);
+    }
 }
 
 void
@@ -1359,20 +1382,27 @@ OspfApp::ProcessAreaSummaryLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeade
   // LS ID of Summary LSA is the originating LSA
   uint32_t areaId = lsaHeader.GetLsId ();
 
-  // If the area leader receives LSAs with higher seq num from other nodes
-  if (areaId == m_areaId && m_isAreaLeader &&
-      lsaHeader.GetSeqNum () >= m_seqNumbers[lsaHeader.GetKey ()])
+  // If this is the first area-LSA for this area
+  if (m_summaryLsdb.find (areaId) == m_summaryLsdb.end ())
     {
-      // Recompute and flood with the new seq num
-      RecomputeSummaryLsa ();
+      m_summaryLsdb[areaId] = std::make_pair (lsaHeader, summaryLsa);
       UpdateRouting ();
-      Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
-      lsUpdate->AddLsa (m_summaryLsdb[m_areaId]);
-      FloodLsu (0, lsUpdate);
       return;
     }
-  m_summaryLsdb[areaId] = std::make_pair (lsaHeader, summaryLsa);
-  UpdateRouting ();
+  // If the received areaSummaryLSA is newer and taking precedence
+  if (lsaHeader.GetSeqNum () > m_summaryLsdb[areaId].first.GetSeqNum ())
+    {
+      // Higher seq num
+      m_summaryLsdb[areaId] = std::make_pair (lsaHeader, summaryLsa);
+      UpdateRouting ();
+    }
+  else if (lsaHeader.GetSeqNum () == m_summaryLsdb[areaId].first.GetSeqNum () &&
+           lsaHeader.GetAdvertisingRouter () < m_summaryLsdb[areaId].first.GetAdvertisingRouter ())
+    {
+      // Tiebreaker. Lower router ID becomes the leader
+      m_summaryLsdb[areaId] = std::make_pair (lsaHeader, summaryLsa);
+      UpdateRouting ();
+    }
 }
 
 // LSA
@@ -1908,8 +1938,7 @@ OspfApp::CompareAndSendLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
     }
   NS_LOG_INFO ("Number of local LSAs: " << localLsaHeaders.size ());
   neighbor->AddOutdatedLsaKeysToQueue (localLsaHeaders);
-  NS_LOG_INFO ("Number of outdated LSA: " << neighbor->GetLsrQueueSize () << " / "
-                                          << neighbor->GetLsrQueueSize ());
+  NS_LOG_INFO ("Number of outdated LSA: " << neighbor->GetLsrQueueSize ());
   SendNextLsr (ifIndex, neighbor);
 }
 void

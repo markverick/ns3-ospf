@@ -48,6 +48,7 @@ Ipv4Address ospfHelloAddress ("224.0.0.5");
 const uint32_t GRID_WIDTH = 6;
 const uint32_t GRID_HEIGHT = 6;
 const uint32_t SIM_SECONDS = 1000;
+const uint32_t NUM_ERROR_LINKS = 3;
 Ptr<UniformRandomVariable> rv = CreateObject<UniformRandomVariable> ();
 
 int
@@ -137,11 +138,10 @@ main (int argc, char *argv[])
   // Set up random variables
   rv->SetAttribute ("Min", DoubleValue (0));
   rv->SetAttribute ("Max", DoubleValue (ndc.GetN ()));
-  uint32_t numErrorLinks = 3;
   for (uint32_t i = 5; i < SIM_SECONDS; i += 50)
     {
       std::vector<uint32_t> downLinks;
-      for (uint32_t j = 0; j < numErrorLinks; j++)
+      for (uint32_t j = 0; j < NUM_ERROR_LINKS; j++)
         {
           downLinks.emplace_back ((int) (rv->GetValue ()));
         }

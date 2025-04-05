@@ -49,6 +49,7 @@ const uint32_t NUM_STRIPES = 3;
 const uint32_t GRID_HEIGHT = 3;
 const uint32_t GRID_WIDTH = STRIPE_WIDTH * NUM_STRIPES;
 const uint32_t SIM_SECONDS = 1000;
+const uint32_t NUM_ERROR_LINKS = 3;
 
 int
 main (int argc, char *argv[])
@@ -155,12 +156,11 @@ main (int argc, char *argv[])
   Ptr<UniformRandomVariable> rv = CreateObject<UniformRandomVariable> ();
   rv->SetAttribute ("Min", DoubleValue (0.0));
   rv->SetAttribute ("Max", DoubleValue (ndc.GetN ()));
-  uint32_t numErrorLinks = 3;
   std::vector<uint32_t> downLinks;
   for (uint32_t i = 60; i < SIM_SECONDS - 60; i += 60)
     {
       downLinks.clear ();
-      for (uint32_t j = 0; j < numErrorLinks; j++)
+      for (uint32_t j = 0; j < NUM_ERROR_LINKS; j++)
         {
           downLinks.emplace_back ((int) (rv->GetValue ()));
         }

@@ -129,7 +129,7 @@ LsUpdate::Deserialize (Buffer::Iterator start)
   Buffer::Iterator i = start;
 
   uint32_t numLsa = i.ReadNtohU32 ();
-
+  m_lsaList.clear ();
   m_serializedSize = 4;
   for (uint32_t j = 0; j < numLsa; j++)
     {
@@ -168,6 +168,7 @@ LsUpdate::Deserialize (Buffer::Iterator start)
           NS_ASSERT_MSG (true, "Unsupported LSA Type");
         }
     }
+
   return m_serializedSize;
 }
 

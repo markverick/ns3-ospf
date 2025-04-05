@@ -110,7 +110,7 @@ AsExternalLsa::Print (std::ostream &os) const
 uint32_t
 AsExternalLsa::GetSerializedSize (void) const
 {
-  return 8 + m_routes.size () * 12; // Assumed no TOS
+  return 12 + m_routes.size () * 8; // Assumed no TOS
 }
 
 Ptr<Packet>
@@ -134,11 +134,12 @@ AsExternalLsa::Serialize (Buffer::Iterator start) const
 
   i.WriteHtonU32 (m_mask);
   i.WriteHtonU32 (m_metric);
-  for (uint16_t j = 0; j < m_routes.size (); j++)
+  uint32_t routeNum = m_routes.size ();
+  i.WriteHtonU32 (routeNum);
+  for (uint32_t j = 0; j < m_routes.size (); j++)
     {
       i.WriteHtonU32 (m_routes[j].m_address);
       i.WriteHtonU32 (m_routes[j].m_routeTag);
-      i.WriteHtonU32 (0); // TOS is not used
     }
   return GetSerializedSize ();
 }
@@ -152,14 +153,12 @@ AsExternalLsa::Deserialize (Buffer::Iterator start)
   m_routes.clear ();
   m_mask = i.ReadNtohU32 ();
   m_metric = i.ReadNtohU32 ();
+  uint32_t routeNum = i.ReadNtohU32 ();
 
-  uint16_t linkNum = i.GetRemainingSize () / 12;
-
-  for (uint16_t j = 0; j < linkNum; j++)
+  for (uint32_t j = 0; j < routeNum; j++)
     {
       uint32_t addr = i.ReadNtohU32 ();
       uint32_t routeTag = i.ReadNtohU32 ();
-      i.Next (4); // Skip TOS
       m_routes.emplace_back (ExternalRoute (addr, routeTag));
     }
   return GetSerializedSize ();
