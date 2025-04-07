@@ -21,6 +21,9 @@
 #include "ns3/names.h"
 #include "ns3/ipv4-static-routing-helper.h"
 #include "ns3/ospf-app.h"
+#include "ns3/point-to-point-net-device.h"
+#include "ns3/point-to-point-channel.h"
+#include "ns3/ospf-neighbor.h"
 #include "ospf-app-helper.h"
 
 namespace ns3 {
@@ -60,6 +63,53 @@ OspfAppHelper::Install (Ptr<Node> n) const
       devs.Add (n->GetDevice (j));
     }
   return InstallPriv (n, routing, devs);
+}
+
+void
+OspfAppHelper::Preload (NodeContainer c)
+{
+  // Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId,
+  // OspfNeighbor::NeighborState state
+  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+    {
+      Ptr<Node> node = *i;
+      Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+      auto app = DynamicCast<OspfApp> (node->GetApplication (0));
+      auto numIf = node->GetNDevices ();
+
+      // Neighbor Values
+      Ipv4Address remoteRouterId;
+      Ipv4Address remoteIp;
+      uint32_t remoteAreaId;
+
+      for (uint32_t ifIndex = 0; ifIndex < numIf; ifIndex++)
+        {
+          Ptr<NetDevice> dev = node->GetDevice (numIf);
+          if (!dev->IsPointToPoint ())
+            {
+              // TODO: Only support p2p for now
+              continue;
+            }
+          Ptr<NetDevice> remoteDev;
+          auto ch = DynamicCast<PointToPointChannel> (dev->GetChannel ());
+          for (uint32_t j = 0; j < ch->GetNDevices (); j++)
+            {
+              remoteDev = ch->GetDevice (j);
+              if (remoteDev != dev)
+                {
+                  // Set as a gateway
+                  auto remoteIpv4 = remoteDev->GetNode ()->GetObject<Ipv4> ();
+                  auto remoteApp = DynamicCast<OspfApp> (remoteDev->GetNode ()->GetApplication (0));
+                  remoteRouterId = remoteApp->GetRouterId ();
+                  remoteIp = remoteIpv4->GetAddress (remoteDev->GetIfIndex (), 0).GetAddress ();
+                  remoteAreaId = remoteApp->GetArea ();
+                  break;
+                }
+            }
+          app->AddNeighbor (ifIndex, Create<OspfNeighbor> (remoteRouterId, remoteIp, remoteAreaId,
+                                                           OspfNeighbor::NeighborState::Full));
+        }
+    }
 }
 
 Ptr<Application>

@@ -79,7 +79,7 @@ public:
 
   std::vector<Ptr<OspfNeighbor>> GetNeighbors ();
 
-  Ptr<OspfNeighbor> AddNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  void AddNeighbor (Ptr<OspfNeighbor> neighbor);
 
   Ptr<OspfNeighbor> AddNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp,
                                  uint32_t remoteAreaId, OspfNeighbor::NeighborState state);

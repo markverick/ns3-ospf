@@ -189,6 +189,12 @@ OspfApp::SetArea (uint32_t area, Ipv4Address address, Ipv4Mask mask)
   m_areaMask = mask;
 }
 
+uint32_t
+OspfApp::GetArea ()
+{
+  return m_areaId;
+}
+
 void
 OspfApp::SetMetrices (std::vector<uint32_t> metrices)
 {
@@ -204,6 +210,12 @@ void
 OspfApp::SetRouterId (Ipv4Address routerId)
 {
   m_routerId = routerId;
+}
+
+Ipv4Address
+OspfApp::GetRouterId ()
+{
+  return m_routerId;
 }
 
 std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>
@@ -2002,6 +2014,13 @@ OspfApp::AreaLeaderEnd ()
 {
   NS_LOG_FUNCTION (this);
   // TODO: Area Leader Logic -- stop flooding Area-LSA and Summary-LSA-Area
+}
+
+void
+OspfApp::AddNeighbor (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
+{
+  Ptr<OspfInterface> ospfInterface = m_ospfInterfaces[ifIndex];
+  ospfInterface->AddNeighbor (neighbor);
 }
 
 } // Namespace ns3

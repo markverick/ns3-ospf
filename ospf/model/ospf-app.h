@@ -83,9 +83,17 @@ public:
 
   /**
    * \brief Set inteface areas.
-   * \param areas a list of areas for each interface
+   * \param area the area ID
+   * \param address address assigned to the ID
+   * \param mask the area prefix mask
    */
   void SetArea (uint32_t area, Ipv4Address address, Ipv4Mask mask);
+
+  /**
+   * \brief Get inteface areas.
+   * \return the area ID
+   */
+  uint32_t GetArea ();
 
   /**
    * \brief Set inteface metrices.
@@ -98,6 +106,12 @@ public:
    * \param routerId Router ID of this router
    */
   void SetRouterId (Ipv4Address routerId);
+
+  /**
+   * \brief Get router ID.
+   * \return routerId Router ID of this router
+   */
+  Ipv4Address GetRouterId ();
 
   /**
    * \brief Get LSDB; only use for testing/debugging
@@ -168,6 +182,10 @@ public:
    * \brief Print Area LSDB hash.
    */
   void PrintAreaLsdbHash ();
+  /**
+   * \brief AddNeighbor
+  */
+  void AddNeighbor (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
 protected:
   virtual void DoDispose (void);

@@ -179,6 +179,14 @@ OspfInterface::GetNeighbors ()
   return m_neighbors;
 }
 
+void
+OspfInterface::AddNeighbor (Ptr<OspfNeighbor> neighbor)
+{
+  NS_LOG_FUNCTION (this);
+  m_neighbors.emplace_back (neighbor);
+  return;
+}
+
 Ptr<OspfNeighbor>
 OspfInterface::AddNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId,
                             OspfNeighbor::NeighborState state)

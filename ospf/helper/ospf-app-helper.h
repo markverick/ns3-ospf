@@ -65,6 +65,8 @@ public:
   ApplicationContainer Install (Ptr<Node> n) const;
   ApplicationContainer Install (NodeContainer c) const;
 
+  void Preload (NodeContainer c);
+
 private:
   /**
    * Install an ns3::UdpEchoServer on the node configured with all the
