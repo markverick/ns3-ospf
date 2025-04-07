@@ -109,14 +109,28 @@ OspfAppHelper::Preload (NodeContainer c)
                   remoteRouterId = remoteApp->GetRouterId ();
                   remoteIp = remoteIpv4->GetAddress (remoteDev->GetIfIndex (), 0).GetAddress ();
                   remoteAreaId = remoteApp->GetArea ();
+
+                  // Add neighbor with status FULL
+                  app->AddNeighbor (ifIndex,
+                                    Create<OspfNeighbor> (remoteRouterId, remoteIp, remoteAreaId,
+                                                          OspfNeighbor::NeighborState::Full));
                   // RouterLink (uint32_t linkId, uint32_t linkData, uint8_t type, uint16_t metric)
-                  routerLsa->AddLink (RouterLink (remoteRouterId.Get (), selfIp.Get (), 1,
-                                                  app->GetMetric (ifIndex)));
+                  // Router LSA
+                  if (remoteAreaId == app->GetArea ())
+                    {
+                      // Intra-area Link
+                      routerLsa->AddLink (RouterLink (remoteRouterId.Get (), selfIp.Get (), 1,
+                                                      app->GetMetric (ifIndex)));
+                    }
+                  else
+                    {
+                      // Inter-area Link
+                      routerLsa->AddLink (
+                          RouterLink (remoteAreaId, selfIp.Get (), 5, app->GetMetric (ifIndex)));
+                    }
                   break;
                 }
             }
-          app->AddNeighbor (ifIndex, Create<OspfNeighbor> (remoteRouterId, remoteIp, remoteAreaId,
-                                                           OspfNeighbor::NeighborState::Full));
         }
       // RouterLsa
       LsaHeader lsaHeader (std::make_tuple (LsaHeader::LsType::RouterLSAs, app->GetArea (),
