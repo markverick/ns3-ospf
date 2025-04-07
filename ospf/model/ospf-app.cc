@@ -206,6 +206,12 @@ OspfApp::SetMetrices (std::vector<uint32_t> metrices)
     }
 }
 
+uint32_t
+OspfApp::GetMetric (uint32_t ifIndex)
+{
+  return m_ospfInterfaces[ifIndex]->GetMetric ();
+}
+
 void
 OspfApp::SetRouterId (Ipv4Address routerId)
 {
@@ -1223,7 +1229,7 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
   m_seqNumbers[lsaKey] = seqNum;
 
   // Process LSA
-  ProcessLsa (ifIndex, ipHeader, ospfHeader, lsaHeader, lsa);
+  ProcessLsa (lsaHeader, lsa);
 
   // Flood the network
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
@@ -1232,25 +1238,22 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
 }
 
 void
-OspfApp::ProcessLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                     LsaHeader lsaHeader, Ptr<Lsa> lsa)
+OspfApp::ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa)
 {
   NS_LOG_FUNCTION (this);
   switch (lsaHeader.GetType ())
     {
     case LsaHeader::RouterLSAs:
-      ProcessRouterLsa (ifIndex, ipHeader, ospfHeader, lsaHeader, DynamicCast<RouterLsa> (lsa));
+      ProcessRouterLsa (lsaHeader, DynamicCast<RouterLsa> (lsa));
       break;
     case LsaHeader::ASExternalLSAs:
-      ProcessAsExternalLsa (ifIndex, ipHeader, ospfHeader, lsaHeader,
-                            DynamicCast<AsExternalLsa> (lsa));
+      ProcessAsExternalLsa (lsaHeader, DynamicCast<AsExternalLsa> (lsa));
       break;
     case LsaHeader::AreaLSAs:
-      ProcessAreaLsa (ifIndex, ipHeader, ospfHeader, lsaHeader, DynamicCast<AreaLsa> (lsa));
+      ProcessAreaLsa (lsaHeader, DynamicCast<AreaLsa> (lsa));
       break;
     case LsaHeader::SummaryLSAsArea:
-      ProcessAreaSummaryLsa (ifIndex, ipHeader, ospfHeader, lsaHeader,
-                             DynamicCast<SummaryLsa> (lsa));
+      ProcessAreaSummaryLsa (lsaHeader, DynamicCast<SummaryLsa> (lsa));
       break;
     default:
       NS_LOG_WARN ("Received unsupport LSA type in received LS Update");
@@ -1290,8 +1293,7 @@ OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
 }
 
 void
-OspfApp::ProcessAsExternalLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                               LsaHeader lsaHeader, Ptr<AsExternalLsa> asExternalLsa)
+OspfApp::ProcessAsExternalLsa (LsaHeader lsaHeader, Ptr<AsExternalLsa> asExternalLsa)
 {
   uint32_t advertisingRouter = lsaHeader.GetAdvertisingRouter ();
 
@@ -1304,8 +1306,7 @@ OspfApp::ProcessAsExternalLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader
 }
 
 void
-OspfApp::ProcessRouterLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                           LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
+OspfApp::ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
 {
   uint32_t advertisingRouter = lsaHeader.GetAdvertisingRouter ();
 
@@ -1347,8 +1348,7 @@ OspfApp::ProcessRouterLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader osp
 }
 
 void
-OspfApp::ProcessAreaLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                         LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa)
+OspfApp::ProcessAreaLsa (LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa)
 {
   if (!m_enableAreaProxy)
     {
@@ -1382,8 +1382,7 @@ OspfApp::ProcessAreaLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfH
 }
 
 void
-OspfApp::ProcessAreaSummaryLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                                LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa)
+OspfApp::ProcessAreaSummaryLsa (LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa)
 {
   NS_LOG_FUNCTION (this);
   if (!m_enableAreaProxy)
@@ -2021,6 +2020,15 @@ OspfApp::AddNeighbor (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   Ptr<OspfInterface> ospfInterface = m_ospfInterfaces[ifIndex];
   ospfInterface->AddNeighbor (neighbor);
+}
+
+void
+OspfApp::InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList)
+{
+  for (auto &[header, lsa] : lsaList)
+    {
+      ProcessLsa (header, lsa);
+    }
 }
 
 } // Namespace ns3

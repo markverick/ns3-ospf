@@ -37,6 +37,7 @@ class RouterLink
 {
 public:
   RouterLink ();
+  // Type 1: linkId = Remote Router ID, linkData = Self interface IP
   RouterLink (uint32_t linkId, uint32_t linkData, uint8_t type, uint16_t metric);
   uint32_t m_linkId;
   /*

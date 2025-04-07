@@ -102,6 +102,12 @@ public:
   void SetMetrices (std::vector<uint32_t> metrices);
 
   /**
+   * \brief Set inteface metrices.
+   * \param metrices Routing metrices to be registed
+   */
+  uint32_t GetMetric (uint32_t ifIndex);
+
+  /**
    * \brief Set router ID.
    * \param routerId Router ID of this router
    */
@@ -186,6 +192,11 @@ public:
    * \brief AddNeighbor
   */
   void AddNeighbor (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+
+  /**
+   * \brief InjectLsa
+  */
+  void InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList);
 
 protected:
   virtual void DoDispose (void);
@@ -331,58 +342,39 @@ private:
                   Ptr<Lsa> lsa);
   /**
    * \brief Process LSA.
-   * \param ifIndex Interface index
    * \param ipHeader IPv4 Header
    * \param ospfHeader OSPF Header
    * \param lsa LS Advertisement
    */
 
   // TODO: seperate processor as objects
-  void ProcessLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                   LsaHeader lsaHeader, Ptr<Lsa> lsa);
+  void ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa);
   /**
    * \brief Process Router-LSA during Full.
-   * \param ifIndex Interface index
-   * \param ipHeader IPv4 Header
-   * \param ospfHeader OSPF Header
    * \param lsaHeader LSA Header
    * \param asExternalLsa AS External LSA Payload
    */
-  void ProcessAsExternalLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                             LsaHeader lsaHeader, Ptr<AsExternalLsa> asExternalLsa);
+  void ProcessAsExternalLsa (LsaHeader lsaHeader, Ptr<AsExternalLsa> asExternalLsa);
   /**
    * \brief Process Router-LSA during Full.
-   * \param ifIndex Interface index
-   * \param ipHeader IPv4 Header
-   * \param ospfHeader OSPF Header
    * \param lsaHeader LSA Header
    * \param routerLsa Router LSA Payload
    */
-  void ProcessRouterLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                         LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
+  void ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
   /**
    * \brief Process Area-LSA.
-   * \param ifIndex Interface index
-   * \param ipHeader IPv4 Header
-   * \param ospfHeader OSPF Header
    * \param lsaHeader LSA Header
    * \param areaLsa Area LSA Payload
    */
-  void ProcessAreaLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                       LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa);
+  void ProcessAreaLsa (LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa);
   /**
    * \brief Process Summary-LSA (Area).
-   * \param ifIndex Interface index
-   * \param ipHeader IPv4 Header
-   * \param ospfHeader OSPF Header
    * \param lsaHeader LSA Header
    * \param summaryLsa Area Summary LSA Payload
    */
-  void ProcessAreaSummaryLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                              LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa);
+  void ProcessAreaSummaryLsa (LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa);
   /**
    * \brief Process LS Acknowledge as a response for LS Update during Full.
-   * \param ifIndex Interface index
    * \param ipHeader IPv4 Header
    * \param ospfHeader OSPF Header
    * \param lsAck LS Acknowledge Payload
