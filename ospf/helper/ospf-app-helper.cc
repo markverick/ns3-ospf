@@ -184,6 +184,16 @@ OspfAppHelper::Preload (NodeContainer c)
       summaryLsaHeader.SetSeqNum (1);
       proxiedLsaList.emplace_back (summaryLsaHeader, summaryLsa);
     }
+  // Area Summary LSA
+  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+  {
+    Ptr<Node> node = *i;
+    Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+    auto app = DynamicCast<OspfApp> (node->GetApplication (0));
+    // Process area-leader LSAs
+    app->InjectLsa (proxiedLsaList);
+    app->InjectLsa (lsaList[app->GetArea ()]);
+  }
 }
 
 Ptr<Application>
