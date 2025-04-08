@@ -25,9 +25,11 @@
 #include "ns3/point-to-point-channel.h"
 #include "ns3/ospf-neighbor.h"
 #include "ns3/lsa.h"
+#include "ns3/area-lsa.h"
 #include "ospf-app-helper.h"
 
 #include <map>
+#include <set>
 
 namespace ns3 {
 
@@ -75,12 +77,18 @@ OspfAppHelper::Preload (NodeContainer c)
   // OspfNeighbor::NeighborState state
   std::vector<std::pair<LsaHeader, Ptr<Lsa>>> proxiedLsaList;
   std::map<uint32_t, std::vector<std::pair<LsaHeader, Ptr<Lsa>>>> lsaList;
+  std::map<uint32_t, std::vector<AreaLink>> areaAdj;
+  std::map<uint32_t, std::set<uint32_t>> areaMembers;
+  std::map<uint32_t, Ipv4Mask> areaMasks;
   for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
     {
       Ptr<Node> node = *i;
       Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
       auto app = DynamicCast<OspfApp> (node->GetApplication (0));
       auto numIf = node->GetNDevices ();
+
+      areaMembers[app->GetArea ()].insert (app->GetRouterId ().Get ());
+      areaMasks[app->GetArea ()] = app->GetAreaMask ();
 
       // Neighbor Values
       Ipv4Address remoteRouterId;
@@ -129,35 +137,52 @@ OspfAppHelper::Preload (NodeContainer c)
                       // Inter-area Link
                       routerLsa->AddLink (
                           RouterLink (remoteAreaId, selfIp.Get (), 5, app->GetMetric (ifIndex)));
+                      areaAdj[app->GetArea ()].emplace_back (
+                          AreaLink (remoteAreaId, selfIp.Get (), app->GetMetric (ifIndex)));
                     }
                   break;
                 }
             }
         }
       LsaHeader routerLsaHeader (std::make_tuple (LsaHeader::LsType::RouterLSAs, app->GetArea (),
-                                            app->GetRouterId ().Get ()));
+                                                  app->GetRouterId ().Get ()));
       routerLsaHeader.SetLength (20 + routerLsa->GetSerializedSize ());
       routerLsaHeader.SetSeqNum (1);
       lsaList[app->GetArea ()].emplace_back (routerLsaHeader, routerLsa);
 
       // AS External LSA
       Ptr<AsExternalLsa> asExternalLsa = Create<AsExternalLsa> (app->GetAreaMask ().Get (), 1);
-      asExternalLsa->AddRoute (app->GetRouterId().Get ());
-      LsaHeader asExternalLsaHeader (std::make_tuple (LsaHeader::LsType::ASExternalLSAs, app->GetArea (),
-                                            app->GetRouterId ().Get ()));
-        
+      asExternalLsa->AddRoute (app->GetRouterId ().Get ());
+      LsaHeader asExternalLsaHeader (std::make_tuple (LsaHeader::LsType::ASExternalLSAs,
+                                                      app->GetArea (), app->GetRouterId ().Get ()));
+
       asExternalLsaHeader.SetLength (20 + asExternalLsa->GetSerializedSize ());
       asExternalLsaHeader.SetSeqNum (1);
       lsaList[app->GetArea ()].emplace_back (routerLsaHeader, asExternalLsa);
     }
-  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+
+  // Proxied LSA
+  for (auto &[areaId, adj] : areaAdj)
     {
-      Ptr<Node> node = *i;
-      Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-      auto app = DynamicCast<OspfApp> (node->GetApplication (0));
-      // Process area-leader LSAs
-      app->InjectLsa (proxiedLsaList);
-      app->InjectLsa (lsaList[app->GetArea ()]);
+      Ptr<AreaLsa> areaLsa;
+      for (auto areaLink : adj)
+        {
+          areaLsa->AddLink (areaLink);
+        }
+      // Area LSA
+      LsaHeader areaLsaHeader (
+          std::make_tuple (LsaHeader::LsType::AreaLSAs, areaId, *areaMembers[areaId].begin ()));
+      areaLsaHeader.SetLength (20 + areaLsa->GetSerializedSize ());
+      areaLsaHeader.SetSeqNum (1);
+      proxiedLsaList.emplace_back (areaLsaHeader, areaLsa);
+
+      // Area Summary LSA
+      Ptr<SummaryLsa> summaryLsa = Create<SummaryLsa> (areaMasks[areaId].Get ());
+      LsaHeader summaryLsaHeader (std::make_tuple (LsaHeader::LsType::SummaryLSAsArea, areaId,
+                                                   *areaMembers[areaId].begin ()));
+      summaryLsaHeader.SetLength (20 + summaryLsa->GetSerializedSize ());
+      summaryLsaHeader.SetSeqNum (1);
+      proxiedLsaList.emplace_back (summaryLsaHeader, summaryLsa);
     }
 }
 
