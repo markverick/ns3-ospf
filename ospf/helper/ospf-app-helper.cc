@@ -86,6 +86,8 @@ OspfAppHelper::Preload (NodeContainer c)
       Ipv4Address remoteRouterId;
       Ipv4Address remoteIp, selfIp;
       uint32_t remoteAreaId;
+
+      // Router LSA and Neighbor Status
       Ptr<RouterLsa> routerLsa = Create<RouterLsa> ();
       for (uint32_t ifIndex = 0; ifIndex < numIf; ifIndex++)
         {
@@ -132,12 +134,21 @@ OspfAppHelper::Preload (NodeContainer c)
                 }
             }
         }
-      // RouterLsa
-      LsaHeader lsaHeader (std::make_tuple (LsaHeader::LsType::RouterLSAs, app->GetArea (),
+      LsaHeader routerLsaHeader (std::make_tuple (LsaHeader::LsType::RouterLSAs, app->GetArea (),
                                             app->GetRouterId ().Get ()));
-      lsaHeader.SetLength (20 + routerLsa->GetSerializedSize ());
-      lsaHeader.SetSeqNum (1);
-      lsaList[app->GetArea ()].emplace_back (LsaHeader (), routerLsa);
+      routerLsaHeader.SetLength (20 + routerLsa->GetSerializedSize ());
+      routerLsaHeader.SetSeqNum (1);
+      lsaList[app->GetArea ()].emplace_back (routerLsaHeader, routerLsa);
+
+      // AS External LSA
+      Ptr<AsExternalLsa> asExternalLsa = Create<AsExternalLsa> (app->GetAreaMask ().Get (), 1);
+      asExternalLsa->AddRoute (app->GetRouterId().Get ());
+      LsaHeader asExternalLsaHeader (std::make_tuple (LsaHeader::LsType::ASExternalLSAs, app->GetArea (),
+                                            app->GetRouterId ().Get ()));
+        
+      asExternalLsaHeader.SetLength (20 + asExternalLsa->GetSerializedSize ());
+      asExternalLsaHeader.SetSeqNum (1);
+      lsaList[app->GetArea ()].emplace_back (routerLsaHeader, asExternalLsa);
     }
   for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
     {

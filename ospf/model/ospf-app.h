@@ -96,6 +96,12 @@ public:
   uint32_t GetArea ();
 
   /**
+   * \brief Get area mask.
+   * \return the area mask
+   */
+  Ipv4Mask GetAreaMask ();
+
+  /**
    * \brief Set inteface metrices.
    * \param metrices Routing metrices to be registed
    */

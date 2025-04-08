@@ -195,6 +195,12 @@ OspfApp::GetArea ()
   return m_areaId;
 }
 
+Ipv4Mask
+OspfApp::GetAreaMask ()
+{
+  return m_areaMask;
+}
+
 void
 OspfApp::SetMetrices (std::vector<uint32_t> metrices)
 {
@@ -1225,7 +1231,6 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
       return;
     }
 
-  // Update seq num
   m_seqNumbers[lsaKey] = seqNum;
 
   // Process LSA
@@ -1241,6 +1246,8 @@ void
 OspfApp::ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa)
 {
   NS_LOG_FUNCTION (this);
+  // Update seq num
+  m_seqNumbers[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
   switch (lsaHeader.GetType ())
     {
     case LsaHeader::RouterLSAs:
