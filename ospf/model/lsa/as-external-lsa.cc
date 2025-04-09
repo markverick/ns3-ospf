@@ -178,4 +178,16 @@ AsExternalLsa::Deserialize (Ptr<Packet> packet)
   return payloadSize;
 }
 
+Ptr<Lsa>
+AsExternalLsa::Copy ()
+{
+  // Not very optimized way of copying
+  Buffer buff;
+  buff.AddAtStart (GetSerializedSize ());
+  Ptr<AsExternalLsa> copy = Create<AsExternalLsa> ();
+  Serialize (buff.Begin ());
+  copy->Deserialize (buff.Begin ());
+  return copy;
+}
+
 } // namespace ns3

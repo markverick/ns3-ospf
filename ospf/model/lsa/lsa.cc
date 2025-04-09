@@ -70,4 +70,10 @@ Lsa::Deserialize (Ptr<Packet> packet)
   return GetSerializedSize ();
 }
 
+Ptr<Lsa>
+Lsa::Copy ()
+{
+  return nullptr;
+}
+
 } // namespace ns3

@@ -150,4 +150,16 @@ SummaryLsa::Deserialize (Ptr<Packet> packet)
   return payloadSize;
 }
 
+Ptr<Lsa>
+SummaryLsa::Copy ()
+{
+  // Not very optimized way of copying
+  Buffer buff;
+  buff.AddAtStart (GetSerializedSize ());
+  Ptr<SummaryLsa> copy = Create<SummaryLsa> ();
+  Serialize (buff.Begin ());
+  copy->Deserialize (buff.Begin ());
+  return copy;
+}
+
 } // namespace ns3

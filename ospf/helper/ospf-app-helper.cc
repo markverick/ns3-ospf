@@ -85,7 +85,6 @@ OspfAppHelper::Preload (NodeContainer c)
       Ptr<Node> node = *i;
       Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
       auto app = DynamicCast<OspfApp> (node->GetApplication (0));
-      auto numIf = node->GetNDevices ();
 
       areaMembers[app->GetArea ()].insert (app->GetRouterId ().Get ());
       areaMasks[app->GetArea ()] = app->GetAreaMask ();
@@ -97,9 +96,10 @@ OspfAppHelper::Preload (NodeContainer c)
 
       // Router LSA and Neighbor Status
       Ptr<RouterLsa> routerLsa = Create<RouterLsa> ();
+      auto numIf = node->GetNDevices ();
       for (uint32_t ifIndex = 0; ifIndex < numIf; ifIndex++)
         {
-          Ptr<NetDevice> dev = node->GetDevice (numIf);
+          Ptr<NetDevice> dev = node->GetDevice (ifIndex);
           if (!dev->IsPointToPoint ())
             {
               // TODO: Only support p2p for now
@@ -148,6 +148,8 @@ OspfAppHelper::Preload (NodeContainer c)
                                                   app->GetRouterId ().Get ()));
       routerLsaHeader.SetLength (20 + routerLsa->GetSerializedSize ());
       routerLsaHeader.SetSeqNum (1);
+      std::cout << "  ! " << Ipv4Address (routerLsaHeader.GetAdvertisingRouter ()) << " vs "
+                << Ipv4Address (routerLsa->GetLink (0).m_linkId) << std::endl;
       lsaList[app->GetArea ()].emplace_back (routerLsaHeader, routerLsa);
 
       // AS External LSA
@@ -158,7 +160,7 @@ OspfAppHelper::Preload (NodeContainer c)
 
       asExternalLsaHeader.SetLength (20 + asExternalLsa->GetSerializedSize ());
       asExternalLsaHeader.SetSeqNum (1);
-      lsaList[app->GetArea ()].emplace_back (routerLsaHeader, asExternalLsa);
+      lsaList[app->GetArea ()].emplace_back (asExternalLsaHeader, asExternalLsa);
     }
 
   // Proxied LSA

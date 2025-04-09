@@ -58,6 +58,7 @@ public:
   virtual Ptr<Packet> ConstructPacket () const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
+  virtual Ptr<Lsa> Copy ();
 
 private:
   uint32_t m_mask;

@@ -240,4 +240,16 @@ LsaHeader::Deserialize (Buffer::Iterator start)
   return GetSerializedSize ();
 }
 
+LsaHeader
+LsaHeader::Copy ()
+{
+  // Not very optimized way of copying
+  Buffer buff;
+  buff.AddAtStart (GetSerializedSize ());
+  LsaHeader copy;
+  Serialize (buff.Begin ());
+  copy.Deserialize (buff.Begin ());
+  return copy;
+}
+
 } // namespace ns3

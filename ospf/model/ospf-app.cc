@@ -269,7 +269,8 @@ OspfApp::PrintLsdb ()
       for (uint32_t i = 0; i < pair.second.second->GetNLink (); i++)
         {
           RouterLink link = pair.second.second->GetLink (i);
-          std::cout << "    (" << Ipv4Address (link.m_linkData) << ", " << link.m_metric << ", "
+          std::cout << "    (" << Ipv4Address (link.m_linkId) << ", "
+                    << Ipv4Address (link.m_linkData) << ", " << link.m_metric << ", "
                     << (uint32_t) (link.m_type) << ")" << std::endl;
         }
     }
@@ -1320,7 +1321,6 @@ OspfApp::ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
   // Filling in Router LSDB
   NS_LOG_FUNCTION (this);
   m_routerLsdb[advertisingRouter] = std::make_pair (lsaHeader, routerLsa);
-
   if (m_enableAreaProxy)
     {
       // Update local Area LSDB entry if there's a change in area links
@@ -2034,7 +2034,7 @@ OspfApp::InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList)
 {
   for (auto &[header, lsa] : lsaList)
     {
-      ProcessLsa (header, lsa);
+      ProcessLsa (header.Copy (), lsa->Copy ());
     }
 }
 
