@@ -22,8 +22,8 @@ def build(bld):
     # obj = bld.create_ns3_program('ospf-metric', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     # obj.source = 'ospf-metric.cc'
     
-    # obj = bld.create_ns3_program('ospf-alt-area', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
-    # obj.source = 'ospf-alt-area.cc'
+    obj = bld.create_ns3_program('ospf-alt-area', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
+    obj.source = 'ospf-alt-area.cc'
     
     # obj = bld.create_ns3_program('ospf-alt-area-error', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     # obj.source = 'ospf-alt-area-error.cc'

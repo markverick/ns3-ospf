@@ -148,8 +148,6 @@ OspfAppHelper::Preload (NodeContainer c)
                                                   app->GetRouterId ().Get ()));
       routerLsaHeader.SetLength (20 + routerLsa->GetSerializedSize ());
       routerLsaHeader.SetSeqNum (1);
-      std::cout << "  ! " << Ipv4Address (routerLsaHeader.GetAdvertisingRouter ()) << " vs "
-                << Ipv4Address (routerLsa->GetLink (0).m_linkId) << std::endl;
       lsaList[app->GetArea ()].emplace_back (routerLsaHeader, routerLsa);
 
       // AS External LSA
@@ -166,7 +164,7 @@ OspfAppHelper::Preload (NodeContainer c)
   // Proxied LSA
   for (auto &[areaId, adj] : areaAdj)
     {
-      Ptr<AreaLsa> areaLsa;
+      Ptr<AreaLsa> areaLsa = Create<AreaLsa> ();
       for (auto areaLink : adj)
         {
           areaLsa->AddLink (areaLink);

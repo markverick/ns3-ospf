@@ -709,8 +709,9 @@ OspfApp::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
       for (auto neighbor : neighbors)
         {
           // Flood L1 LSAs to neighbors within the same area
-          if (lsu->GetLsaList ()[0].first.GetType () == LsaHeader::RouterLSAs &&
-              neighbor->GetArea () != this->m_areaId)
+          if (neighbor->GetArea () != this->m_areaId &&
+              (lsu->GetLsaList ()[0].first.GetType () == LsaHeader::RouterLSAs ||
+               lsu->GetLsaList ()[0].first.GetType () == LsaHeader::ASExternalLSAs))
             {
               continue;
             }

@@ -169,6 +169,7 @@ main (int argc, char *argv[])
       ospfApp.Add (app);
     }
 
+  ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
@@ -211,10 +212,10 @@ main (int argc, char *argv[])
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                            "route" + std::to_string (i) + ".routes");
 
-      // Simulator::Schedule (Seconds (SIM_SECONDS - 1.03), &OspfApp::PrintLsdb, app);
-      // Simulator::Schedule (Seconds (SIM_SECONDS - 1.02), &OspfApp::PrintL1PrefixLsdb, app);
-      // Simulator::Schedule (Seconds (SIM_SECONDS - 1.01), &OspfApp::PrintAreaLsdb, app);
-      // Simulator::Schedule (Seconds (SIM_SECONDS - 1.00), &OspfApp::PrintSummaryLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.03), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.02), &OspfApp::PrintL1PrefixLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.01), &OspfApp::PrintAreaLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.00), &OspfApp::PrintSummaryLsdb, app);
       // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
     }
 
