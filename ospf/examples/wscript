@@ -16,8 +16,8 @@ def build(bld):
     # obj = bld.create_ns3_program('ospf-four-nodes', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     # obj.source = 'ospf-four-nodes.cc'
     
-    # obj = bld.create_ns3_program('ospf-grid', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
-    # obj.source = 'ospf-grid.cc'
+    obj = bld.create_ns3_program('ospf-grid', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
+    obj.source = 'ospf-grid.cc'
     
     # obj = bld.create_ns3_program('ospf-metric', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     # obj.source = 'ospf-metric.cc'
@@ -49,8 +49,8 @@ def build(bld):
     # obj = bld.create_ns3_program('ospf-grid-random-node-out', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     # obj.source = 'ospf-grid-random-node-out.cc'
     
-    # obj = bld.create_ns3_program('ospf-grid-area', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
-    # obj.source = 'ospf-grid-area.cc'
+    obj = bld.create_ns3_program('ospf-grid-area', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
+    obj.source = 'ospf-grid-area.cc'
     
     # obj = bld.create_ns3_program('ospf-grid-area-random-error', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     # obj.source = 'ospf-grid-area-random-error.cc'

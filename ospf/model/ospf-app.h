@@ -96,6 +96,18 @@ public:
   uint32_t GetArea ();
 
   /**
+   * \brief Set the area leader status
+   * \param isLeader the status of area leader
+   */
+  void SetAreaLeader (bool isLeader);
+
+  /**
+   * \brief Set if LSAs are already preloaded
+   * \param doInitialize the status
+   */
+  void SetDoInitialize (bool doInitialize);
+
+  /**
    * \brief Get area mask.
    * \return the area mask
    */
@@ -532,6 +544,8 @@ private:
   std::vector<Ptr<Socket>> m_helloSockets; //!< Hello multicast socket
   std::vector<Ptr<Socket>> m_lsaSockets; //!< LSA multicast socket
   Address m_local; //!< local multicast address
+
+  bool m_doInitialize = true;
 
   // Area
   /**

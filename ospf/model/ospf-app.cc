@@ -195,6 +195,18 @@ OspfApp::GetArea ()
   return m_areaId;
 }
 
+void
+OspfApp::SetAreaLeader (bool isLeader)
+{
+  m_isAreaLeader = isLeader;
+}
+
+void
+OspfApp::SetDoInitialize (bool doInitialize)
+{
+  m_doInitialize = doInitialize;
+}
+
 Ipv4Mask
 OspfApp::GetAreaMask ()
 {
@@ -519,24 +531,26 @@ OspfApp::StartApplication (void)
   // Start sending Hello
   ScheduleTransmitHello (Seconds (0.));
 
-  // Create AS External LSA from Router ID for L1 routing prefix
-  Ptr<AsExternalLsa> lsExternalLsa = GetAsExternalLsa ();
-  auto lsaKey =
-      std::make_tuple (LsaHeader::LsType::ASExternalLSAs, m_routerId.Get (), m_routerId.Get ());
-  m_seqNumbers[lsaKey] = 1;
-
-  LsaHeader lsaHeader (lsaKey);
-  lsaHeader.SetLength (20 + lsExternalLsa->GetSerializedSize ());
-  lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
-  m_asExternalLsdb[m_routerId.Get ()] = std::make_pair (lsaHeader, lsExternalLsa);
-
-  m_isAreaLeader = false;
-  // Will begin as an area leader if noone will
-  if (m_enableAreaProxy)
+  if (m_doInitialize)
     {
-      m_areaLeaderBeginTimer =
-          Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
-                               &OspfApp::AreaLeaderBegin, this);
+      // Create AS External LSA from Router ID for L1 routing prefix
+      Ptr<AsExternalLsa> lsExternalLsa = GetAsExternalLsa ();
+      auto lsaKey =
+          std::make_tuple (LsaHeader::LsType::ASExternalLSAs, m_routerId.Get (), m_routerId.Get ());
+      m_seqNumbers[lsaKey] = 1;
+
+      LsaHeader lsaHeader (lsaKey);
+      lsaHeader.SetLength (20 + lsExternalLsa->GetSerializedSize ());
+      lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
+      m_asExternalLsdb[m_routerId.Get ()] = std::make_pair (lsaHeader, lsExternalLsa);
+      m_isAreaLeader = false;
+      // Will begin as an area leader if noone will
+      if (m_enableAreaProxy)
+        {
+          m_areaLeaderBeginTimer =
+              Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
+                                   &OspfApp::AreaLeaderBegin, this);
+        }
     }
 }
 

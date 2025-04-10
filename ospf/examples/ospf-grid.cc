@@ -44,7 +44,7 @@ NS_LOG_COMPONENT_DEFINE ("OspfGrid");
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
 const uint32_t GRID_WIDTH = 2;
-const uint32_t GRID_HEIGHT = 2;
+const uint32_t GRID_HEIGHT = 10;
 const uint32_t SIM_SECONDS = 100;
 
 // Fill static routes with
@@ -205,6 +205,7 @@ main (int argc, char *argv[])
   ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
 
   ApplicationContainer ospfApp = ospfAppHelper.Install (c);
+  // ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
