@@ -49,7 +49,7 @@ const uint32_t NUM_STRIPES = 3;
 const uint32_t GRID_HEIGHT = 3;
 const uint32_t GRID_WIDTH = STRIPE_WIDTH * NUM_STRIPES;
 const uint32_t SIM_SECONDS = 1000;
-const uint32_t NUM_ERROR_LINKS = 3;
+const uint32_t NUM_ERROR_LINKS = 50;
 
 int
 main (int argc, char *argv[])
@@ -149,6 +149,7 @@ main (int argc, char *argv[])
         }
       areaIpv4.NewNetwork ();
     }
+  ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
@@ -156,13 +157,16 @@ main (int argc, char *argv[])
   Ptr<UniformRandomVariable> rv = CreateObject<UniformRandomVariable> ();
   rv->SetAttribute ("Min", DoubleValue (0.0));
   rv->SetAttribute ("Max", DoubleValue (ndc.GetN ()));
-  std::vector<uint32_t> downLinks;
+  std::set<uint32_t> downLinks;
   for (uint32_t i = 60; i < SIM_SECONDS - 60; i += 60)
     {
-      downLinks.clear ();
-      for (uint32_t j = 0; j < NUM_ERROR_LINKS; j++)
+      if (i % 120 == 0)
         {
-          downLinks.emplace_back ((int) (rv->GetValue ()));
+          downLinks.clear ();
+          for (uint32_t j = 0; j < NUM_ERROR_LINKS; j++)
+            {
+              downLinks.insert ((int) (rv->GetValue ()));
+            }
         }
       for (auto l : downLinks)
         {

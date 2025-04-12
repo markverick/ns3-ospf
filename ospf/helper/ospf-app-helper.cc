@@ -192,8 +192,8 @@ OspfAppHelper::Preload (NodeContainer c)
       auto app = DynamicCast<OspfApp> (node->GetApplication (0));
       // Process area-leader LSAs
       bool isLeader = app->GetRouterId ().Get () == *areaMembers[app->GetArea ()].begin ();
-      app->SetAreaLeader (isLeader);
       app->SetDoInitialize (false);
+      app->SetAreaLeader (isLeader);
       app->InjectLsa (proxiedLsaList);
       app->InjectLsa (lsaList[app->GetArea ()]);
     }

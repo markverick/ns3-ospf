@@ -54,7 +54,7 @@ NS_LOG_COMPONENT_DEFINE ("OspfAltArea");
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 // Link Down at t=35
 // Link Up at t=85
-const uint32_t SIM_SECONDS = 105;
+const uint32_t SIM_SECONDS = 200;
 
 int
 main (int argc, char *argv[])
@@ -169,7 +169,7 @@ main (int argc, char *argv[])
       ospfApp.Add (app);
     }
 
-  ospfAppHelper.Preload (c);
+  // ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 

@@ -169,6 +169,7 @@ main (int argc, char *argv[])
       ospfApp.Add (app);
     }
 
+  ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
@@ -198,6 +199,9 @@ main (int argc, char *argv[])
   app = DynamicCast<OspfApp> (c.Get (7)->GetApplication (0));
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                        "route7.routes");
+  Simulator::Schedule (Seconds (119), &CompareLsdb, c0);
+  Simulator::Schedule (Seconds (119), &CompareLsdb, c1);
+  Simulator::Schedule (Seconds (119), &CompareAreaLsdb, c);
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c0);
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c1);
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareAreaLsdb, c);
@@ -206,6 +210,10 @@ main (int argc, char *argv[])
   Simulator::Schedule (Seconds (60), &SetLinkDown, allDevices[4].Get (1));
   Simulator::Schedule (Seconds (120), &SetLinkUp, allDevices[4].Get (0));
   Simulator::Schedule (Seconds (120), &SetLinkUp, allDevices[4].Get (1));
+  Simulator::Schedule (Seconds (60), &SetLinkDown, allDevices[5].Get (0));
+  Simulator::Schedule (Seconds (60), &SetLinkDown, allDevices[5].Get (1));
+  Simulator::Schedule (Seconds (120), &SetLinkUp, allDevices[5].Get (0));
+  Simulator::Schedule (Seconds (120), &SetLinkUp, allDevices[5].Get (1));
   for (int i = 0; i < 8; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));

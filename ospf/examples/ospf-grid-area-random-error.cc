@@ -148,6 +148,7 @@ main (int argc, char *argv[])
         }
       areaIpv4.NewNetwork ();
     }
+  ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
