@@ -18,62 +18,41 @@
  * Author: Sirapop Theeranantachaoi <stheera@g.ucla.edu>
  */
 
-#ifndef ROUTER_LSA_H
-#define ROUTER_LSA_H
+#ifndef LS_REQUEST_H
+#define LS_REQUEST_H
 
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
-#include "lsa.h"
+#include "ns3/lsa-header.h"
 
 namespace ns3 {
 /**
  * \ingroup ospf
  *
- * \brief Router LSA
+ * \brief LS Request Object
  */
-class RouterLink
-{
-public:
-  RouterLink ();
-  RouterLink (uint32_t linkId, uint32_t linkData, uint8_t type, uint16_t metric);
-  uint32_t m_linkId;
-  /*
-      Type   Link ID
-    ______________________________________
-    1      Neighboring router's Router ID
-    2      IP address of Designated Router
-    3      IP network/subnet number
-    4      Neighboring router's Router ID
-  */
-  uint32_t m_linkData;
-  uint8_t m_type;
-  uint16_t m_metric;
-};
 
-class RouterLsa : public Lsa
+class LsRequest : public Object
 {
 public:
   /**
-   * \brief Construct a router LSA
+   * \brief Construct a LS Request Object
    */
-  RouterLsa ();
-  RouterLsa (bool bitV, bool bitE, bool bitB);
-  RouterLsa (Ptr<Packet> packet);
 
-  void SetBitV (bool size);
-  bool GetBitV (void) const;
+  LsRequest ();
+  LsRequest (std::vector<LsaHeader::LsaKey> lsaKeys);
+  LsRequest (Ptr<Packet> packet);
 
-  void SetBitE (bool size);
-  bool GetBitE (void) const;
+  void AddLsaKey (LsaHeader::LsaKey lsaKey);
+  bool RemoveLsaKey (LsaHeader::LsaKey lsaKey);
+  bool IsLsaKeyEmpty ();
+  void ClearLsaKeys (void);
+  bool HasLsaKey (LsaHeader::LsaKey lsaKey);
 
-  void SetBitB (bool size);
-  bool GetBitB (void) const;
-
-  void AddLink (RouterLink routerLink);
-  RouterLink GetLink (uint32_t index);
-  uint16_t GetNLink ();
-  void ClearLinks ();
+  LsaHeader::LsaKey GetLsaKey (uint32_t index);
+  std::vector<LsaHeader::LsaKey> GetLsaKeys ();
+  uint32_t GetNLsaKeys ();
 
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
@@ -85,12 +64,9 @@ public:
   virtual uint32_t Deserialize (Ptr<Packet> packet);
 
 private:
-  bool m_bitV;
-  bool m_bitE;
-  bool m_bitB;
-  std::vector<RouterLink> m_links;
+  std::vector<LsaHeader::LsaKey> m_lsaKeys; // storing LSA keys to request
 };
 
 } // namespace ns3
 
-#endif /* ROUTER_LSA_H */
+#endif /* LS_REQUEST_H */

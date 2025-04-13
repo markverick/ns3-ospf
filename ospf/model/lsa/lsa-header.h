@@ -33,10 +33,17 @@ namespace ns3 {
 class LsaHeader : public Header
 {
 public:
+  // Type,
+  typedef std::tuple<uint8_t, uint32_t, uint32_t> LsaKey;
   /**
    * \brief Construct a null LSA header
    */
   LsaHeader ();
+
+  /**
+   * \brief Construct a LSA header with provided LSA key
+   */
+  LsaHeader (LsaKey key);
   /**
    * \brief Enable checksum calculation for this header.
    */
@@ -56,10 +63,10 @@ public:
     NetworkLSAs = 0x2,
     SummaryLSAsIP = 0x3,
     SummaryLSAsASBR = 0x4,
-    ASExternalLSAs = 0x5
+    ASExternalLSAs = 0x5,
+    AreaLSAs = 0x6,
+    SummaryLSAsArea = 0x7
   };
-
-  typedef std::tuple<uint8_t, uint32_t, uint32_t> LsaKey;
 
   /**
    * \brief Set Ospf Type Field
@@ -72,12 +79,12 @@ public:
   LsType GetType (void) const;
 
   /**
-   * \param length the number of LSAs
+   * \param length the number of bytes of the LSA + header
    */
   void SetLength (uint16_t length);
 
   /**
-   * \returns the number of LSAs
+   * \returns the number of bytes of the LSA + header
    */
   uint16_t GetLength (void) const;
 
@@ -119,6 +126,7 @@ public:
   virtual uint32_t GetSerializedSize (void) const;
   virtual void Serialize (Buffer::Iterator start) const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
+  LsaHeader Copy ();
 
 private:
   bool m_calcChecksum; //!< true if the checksum must be calculated
@@ -126,7 +134,7 @@ private:
   uint16_t m_lsAge; //!< time in seconds since the LSA was originated
   uint8_t m_options; //!< options
   uint8_t m_type; //!< LSA type
-  uint16_t m_length; //!< number of LSAs
+  uint16_t m_length; //!< the length in bytes of the LSA including the header
   uint32_t m_lsId; //!< link state ID
   uint32_t m_advertisingRouter; //!< advertising router
   uint32_t m_seqNum; //!< link state sequence number

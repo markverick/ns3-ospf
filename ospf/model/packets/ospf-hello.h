@@ -24,7 +24,7 @@
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
-#include "ospf-interface.h"
+#include "ns3/ospf-interface.h"
 
 namespace ns3 {
 /**

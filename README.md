@@ -1,6 +1,6 @@
 Simplified OSPF module for ns-3
 ===============================
-This project is an external module for the [ns-3 network simulator](https://www.nsnam.org/), implementing basic functionality of the Open Shortest Path First Version 2 (OSPFv2) routing protocol as defined in [RFC 2328](https://datatracker.ietf.org/doc/rfc2328/). This module is targetted for ns-3 version 3.35. **Area Routing will be based on IS-IS abstraction.**
+This project is an external module for the [ns-3 network simulator](https://www.nsnam.org/), implementing basic functionality of the Open Shortest Path First Version 2 (OSPFv2) routing protocol as defined in [RFC 2328](https://datatracker.ietf.org/doc/rfc2328/). This module is targetted for ns-3 version 3.35.
 
 ## License
 
@@ -18,6 +18,7 @@ See the LICENSE file for more details.
 ### What's currently implemented 
 - Basic OSPF functionality for point-to-point routers
 - Data synchronization and flooding procedures
+- Area Proxy implementation (RFC 9666) for OSPF
 
 ### Major Simplifications
 - Link State Updates subject to flooding contain only one Link State Advertisement (LSA) each.
@@ -28,7 +29,6 @@ See the LICENSE file for more details.
 
 ### Current Limitations
 - Broadcast networks are not supported.
-- Area routing is not implemented.
 - Network devices added after the OSPF application starts are not dynamically registered.
 
 ## Instruction

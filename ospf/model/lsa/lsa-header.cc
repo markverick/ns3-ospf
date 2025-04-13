@@ -45,6 +45,21 @@ LsaHeader::LsaHeader ()
 {
 }
 
+LsaHeader::LsaHeader (LsaKey lsaKey)
+    : m_calcChecksum (false),
+      m_lsAge (0),
+      m_options (0),
+      m_type (std::get<0> (lsaKey)),
+      m_length (0),
+      m_lsId (std::get<1> (lsaKey)),
+      m_advertisingRouter (std::get<2> (lsaKey)),
+      m_seqNum (0),
+      m_checksum (0),
+      m_goodChecksum (true),
+      m_headerSize (20)
+{
+}
+
 void
 LsaHeader::EnableChecksum (void)
 {
@@ -148,6 +163,10 @@ LsaHeader::LsTypeToString (LsType type) const
       return "Summary-LSAs (ASBR)";
     case ASExternalLSAs:
       return "AS-external-LSAs";
+    case AreaLSAs:
+      return "Area-LSAs";
+    case SummaryLSAsArea:
+      return "Summary-LSAs (Area)";
     default:
       return "Unrecognized LSA Type";
     };
@@ -219,6 +238,18 @@ LsaHeader::Deserialize (Buffer::Iterator start)
   m_length = i.ReadNtohU16 ();
 
   return GetSerializedSize ();
+}
+
+LsaHeader
+LsaHeader::Copy ()
+{
+  // Not very optimized way of copying
+  Buffer buff;
+  buff.AddAtStart (GetSerializedSize ());
+  LsaHeader copy;
+  Serialize (buff.Begin ());
+  copy.Deserialize (buff.Begin ());
+  return copy;
 }
 
 } // namespace ns3

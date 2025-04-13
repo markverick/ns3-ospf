@@ -28,13 +28,17 @@
 #include "ns3/traced-callback.h"
 #include "ns3/ipv4-static-routing-helper.h"
 #include "ns3/random-variable-stream.h"
-#include "ospf-header.h"
-#include "lsa-header.h"
-#include "router-lsa.h"
-#include "ospf-dbd.h"
-#include "ospf-hello.h"
-#include "ls-ack.h"
-#include "ls-update.h"
+#include "ns3/ospf-header.h"
+#include "ns3/ospf-dbd.h"
+#include "ns3/ospf-hello.h"
+#include "ns3/ls-ack.h"
+#include "ns3/ls-update.h"
+#include "ns3/lsa-header.h"
+#include "ns3/router-lsa.h"
+#include "ns3/as-external-lsa.h"
+#include "ns3/area-lsa.h"
+#include "ns3/summary-lsa.h"
+#include "next-hop.h"
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
@@ -79,15 +83,35 @@ public:
 
   /**
    * \brief Set inteface areas.
-   * \param areas a list of areas for each interface
+   * \param area the area ID
+   * \param address address assigned to the ID
+   * \param mask the area prefix mask
    */
-  void SetAreas (std::vector<uint32_t> areas);
+  void SetArea (uint32_t area, Ipv4Address address, Ipv4Mask mask);
 
   /**
-   * \brief Set all inteface areas to be area.
-   * \param area the area to be set on all interfaces
+   * \brief Get inteface areas.
+   * \return the area ID
    */
-  void SetAreas (uint32_t area);
+  uint32_t GetArea ();
+
+  /**
+   * \brief Set the area leader status
+   * \param isLeader the status of area leader
+   */
+  void SetAreaLeader (bool isLeader);
+
+  /**
+   * \brief Set if LSAs are already preloaded
+   * \param doInitialize the status
+   */
+  void SetDoInitialize (bool doInitialize);
+
+  /**
+   * \brief Get area mask.
+   * \return the area mask
+   */
+  Ipv4Mask GetAreaMask ();
 
   /**
    * \brief Set inteface metrices.
@@ -96,19 +120,46 @@ public:
   void SetMetrices (std::vector<uint32_t> metrices);
 
   /**
+   * \brief Set inteface metrices.
+   * \param metrices Routing metrices to be registed
+   */
+  uint32_t GetMetric (uint32_t ifIndex);
+
+  /**
    * \brief Set router ID.
    * \param routerId Router ID of this router
    */
   void SetRouterId (Ipv4Address routerId);
 
   /**
+   * \brief Get router ID.
+   * \return routerId Router ID of this router
+   */
+  Ipv4Address GetRouterId ();
+
+  /**
    * \brief Get LSDB; only use for testing/debugging
    */
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>> GetLsdb ();
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<AsExternalLsa>>> GetL1PrefixLsdb ();
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> GetAreaLsdb ();
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<SummaryLsa>>> GetSummaryLsdb ();
   /**
-   * \brief Print LSDB
+   * \brief Print Router LSDB
    */
   void PrintLsdb ();
+  /**
+   * \brief Print AS External LSDB
+   */
+  void PrintL1PrefixLsdb ();
+  /**
+   * \brief Print AreaLSDB
+   */
+  void PrintAreaLsdb ();
+  /**
+   * \brief Print SummaryLSDB
+   */
+  void PrintSummaryLsdb ();
 
   /**
    * \brief Print LSDB.
@@ -123,15 +174,47 @@ public:
   void PrintAreas ();
 
   /**
-   * \brief Get LSDB hash for comparison.
-   * \return LSDB hash
+   * \brief Get Router LSDB hash for comparison.
+   * \return Router LSDB hash
    */
   uint32_t GetLsdbHash ();
+
+  /**
+   * \brief Get AS External LSDB hash for comparison.
+   * \return Router LSDB hash
+   */
+  uint32_t GetL1PrefixLsdbHash ();
+
+  /**
+   * \brief Get Area LSDB hash for comparison.
+   * \return Area LSDB hash
+   */
+  uint32_t GetAreaLsdbHash ();
+
+  /**
+   * \brief Get Summary LSDB hash for comparison.
+   * \return Summary LSDB hash
+   */
+  uint32_t GetSummaryLsdbHash ();
 
   /**
    * \brief Print LSDB hash.
    */
   void PrintLsdbHash ();
+
+  /**
+   * \brief Print Area LSDB hash.
+   */
+  void PrintAreaLsdbHash ();
+  /**
+   * \brief AddNeighbor
+  */
+  void AddNeighbor (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+
+  /**
+   * \brief InjectLsa
+  */
+  void InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList);
 
 protected:
   virtual void DoDispose (void);
@@ -265,19 +348,51 @@ private:
    * \param lsu LS Update Payload
    */
   void HandleLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsUpdate> lsu);
+
   /**
-   * \brief Handle LS Update containing one Router-LSA during Full.
+   * \brief Handle LSA.
    * \param ifIndex Interface index
    * \param ipHeader IPv4 Header
    * \param ospfHeader OSPF Header
+   * \param lsu LS Update Payload
+   */
+  void HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, LsaHeader lsaHeader,
+                  Ptr<Lsa> lsa);
+  /**
+   * \brief Process LSA.
+   * \param ipHeader IPv4 Header
+   * \param ospfHeader OSPF Header
+   * \param lsa LS Advertisement
+   */
+
+  // TODO: seperate processor as objects
+  void ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa);
+  /**
+   * \brief Process Router-LSA during Full.
+   * \param lsaHeader LSA Header
+   * \param asExternalLsa AS External LSA Payload
+   */
+  void ProcessAsExternalLsa (LsaHeader lsaHeader, Ptr<AsExternalLsa> asExternalLsa);
+  /**
+   * \brief Process Router-LSA during Full.
    * \param lsaHeader LSA Header
    * \param routerLsa Router LSA Payload
    */
-  void HandleRouterLsu (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
-                        LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
+  void ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
   /**
-   * \brief Handle LS Acknowledge as a response for LS Update during Full.
-   * \param ifIndex Interface index
+   * \brief Process Area-LSA.
+   * \param lsaHeader LSA Header
+   * \param areaLsa Area LSA Payload
+   */
+  void ProcessAreaLsa (LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa);
+  /**
+   * \brief Process Summary-LSA (Area).
+   * \param lsaHeader LSA Header
+   * \param summaryLsa Area Summary LSA Payload
+   */
+  void ProcessAreaSummaryLsa (LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa);
+  /**
+   * \brief Process LS Acknowledge as a response for LS Update during Full.
    * \param ipHeader IPv4 Header
    * \param ospfHeader OSPF Header
    * \param lsAck LS Acknowledge Payload
@@ -289,7 +404,22 @@ private:
    * \brief Generate local Router-LSA based on adjacencies (Full)
    * \return Router-LSA for this router
    */
+  Ptr<AsExternalLsa> GetAsExternalLsa ();
+  /**
+   * \brief Generate local Router-LSA based on adjacencies (Full)
+   * \return Router-LSA for this router
+   */
   Ptr<RouterLsa> GetRouterLsa ();
+  /**
+   * \brief Generate local Area-LSA based on L2 adjacencies (Full)
+   * \return Router-LSA for this router
+   */
+  Ptr<AreaLsa> GetAreaLsa ();
+  /**
+   * \brief Generate Summary Area-LSA for its area
+   * \return Summary-LSA containing all prefixes in the areas
+   */
+  Ptr<SummaryLsa> GetSummaryLsa ();
   /**
    * \brief Generate local Router-LSA based on adjacencies (Full), filtered by areaId
    * \param areaId Area ID to filter
@@ -297,13 +427,31 @@ private:
    */
   Ptr<RouterLsa> GetRouterLsa (uint32_t areaId);
   /**
-   * \brief Recompute local Router-LSA, increment its Sequence Number, and inject to LSDB
+   * \brief Recompute local Router-LSA, increment its Sequence Number, and inject to Router LSDB
    */
   void RecomputeRouterLsa ();
   /**
-   * \brief Update routing table based on LSDB
+   * \brief Recompute local Area-LSA, increment its Sequence Number, and inject to Area LSDB
+   */
+  void RecomputeAreaLsa ();
+  /**
+   * \brief Recompute Area Summary-LSA, increment its Sequence Number, and inject to Area LSDB
+   */
+  void RecomputeSummaryLsa ();
+  /**
+   * \brief Update routing table based on shortest paths and prefixes
    */
   void UpdateRouting ();
+
+  /**
+   * \brief Update shortest paths and prefixes for L1
+   */
+  void UpdateL1ShortestPath ();
+
+  /**
+   * \brief Update shortest paths and prefixes for L2
+   */
+  void UpdateL2ShortestPath ();
 
   // Hello Protocol
   /**
@@ -397,9 +545,23 @@ private:
   std::vector<Ptr<Socket>> m_lsaSockets; //!< LSA multicast socket
   Address m_local; //!< local multicast address
 
+  bool m_doInitialize = true;
+
+  // Area
+  /**
+   * \brief Begin as an area leader
+   */
+  void AreaLeaderBegin ();
+
+  /**
+   * \brief End a role as an area leader
+   */
+  void AreaLeaderEnd ();
+
   // For OSPF
   // Attributes
-  Ipv4Address m_routerId; // eth0
+  Ipv4Address m_routerId;
+  Ipv4Mask m_areaMask; // Area masks
   NetDeviceContainer m_boundDevices;
   uint32_t m_areaId; // Only used for default value and for alt area and
 
@@ -418,17 +580,38 @@ private:
   EventId m_helloEvent; //!< Event to send the next hello packet
 
   // Interface
-  std::vector<Ptr<OspfInterface>> m_ospfInterfaces; // router interfaces
+  std::vector<Ptr<OspfInterface>> m_ospfInterfaces; // !< Router interfaces
 
   // Routing
-  Ptr<Ipv4StaticRouting> m_routing; // routing table
+  Ptr<Ipv4StaticRouting> m_routing; // !< Routing table
+  std::unordered_map<uint32_t, NextHop> m_l1NextHop; //!< Next Hopto routers
+  std::unordered_map<uint32_t, std::vector<uint32_t>> m_l1Addresses; //!< Addresses for L1 routers
+
+  // Area
+  std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
+      m_l2NextHop; //!< <next hop, distance> to areas
+  bool m_isAreaLeader;
 
   // LSA
+  bool m_enableAreaProxy; // True if Proxied L2 LSAs are generated
   Time m_rxmtInterval; // retransmission timer
+  EventId m_areaLeaderBeginTimer; // area leadership begin timer
   Ipv4Address m_lsaAddress; //!< multicast address for LSA
   std::map<LsaHeader::LsaKey, uint16_t> m_seqNumbers; // sequence number of stored LSA
+
+  // L1 LSDB
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>
       m_routerLsdb; // LSDB for each remote router ID
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<AsExternalLsa>>>
+      m_asExternalLsdb; // LSDB for each remote router ID
+  std::unordered_map<uint32_t, std::pair<uint32_t, NextHop>>
+      m_nextHopToShortestBorderRouter; // next hop
+  std::vector<uint32_t> m_advertisingPrefixes;
+
+  // L2 LSDB
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> m_areaLsdb; // LSDB for each remote area ID
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<SummaryLsa>>>
+      m_summaryLsdb; // LSDB for summary prefixes
 
   /// Callbacks for tracing the packet Tx events
   TracedCallback<Ptr<const Packet>> m_txTrace;

@@ -52,7 +52,7 @@ NS_LOG_COMPONENT_DEFINE ("OspfTwoNode");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
-const uint32_t SIM_SECONDS = 30;
+const uint32_t SIM_SECONDS = 70;
 
 int
 main (int argc, char *argv[])
@@ -124,8 +124,9 @@ main (int argc, char *argv[])
   ospfAppHelper.SetAttribute ("HelloAddress", Ipv4AddressValue (ospfHelloAddress));
   ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (30)));
   ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
-
   ApplicationContainer ospfApp = ospfAppHelper.Install (c);
+  // ospfAppHelper.Preload (c);
+
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
@@ -153,6 +154,7 @@ main (int argc, char *argv[])
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintL1PrefixLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                            "n" + std::to_string (i) + ".routes");
     }

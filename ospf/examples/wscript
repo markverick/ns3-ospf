@@ -9,6 +9,9 @@ def build(bld):
     
     obj = bld.create_ns3_program('ospf-two-nodes', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     obj.source = 'ospf-two-nodes.cc'
+    
+    obj = bld.create_ns3_program('ospf-two-nodes-area', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
+    obj.source = 'ospf-two-nodes-area.cc'
 
     obj = bld.create_ns3_program('ospf-four-nodes', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     obj.source = 'ospf-four-nodes.cc'
@@ -21,6 +24,9 @@ def build(bld):
     
     obj = bld.create_ns3_program('ospf-alt-area', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     obj.source = 'ospf-alt-area.cc'
+    
+    obj = bld.create_ns3_program('ospf-alt-area-error', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
+    obj.source = 'ospf-alt-area-error.cc'
     
     obj = bld.create_ns3_program('ospf-link-error', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     obj.source = 'ospf-link-error.cc'
@@ -37,8 +43,17 @@ def build(bld):
     obj = bld.create_ns3_program('ospf-grid-random-error', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     obj.source = 'ospf-grid-random-error.cc'
     
+    obj = bld.create_ns3_program('ospf-grid-n-links-error', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
+    obj.source = 'ospf-grid-n-links-error.cc'
+    
     obj = bld.create_ns3_program('ospf-grid-random-node-out', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     obj.source = 'ospf-grid-random-node-out.cc'
     
     obj = bld.create_ns3_program('ospf-grid-area', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     obj.source = 'ospf-grid-area.cc'
+    
+    obj = bld.create_ns3_program('ospf-grid-area-random-error', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
+    obj.source = 'ospf-grid-area-random-error.cc'
+    
+    obj = bld.create_ns3_program('ospf-grid-area-n-links-error', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
+    obj.source = 'ospf-grid-area-n-links-error.cc'

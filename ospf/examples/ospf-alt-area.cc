@@ -39,6 +39,7 @@ Network topology: Areas seperated by routers, not links
 #include "ns3/point-to-point-module.h"
 #include "ns3/ospf-app-helper.h"
 #include "ns3/ospf-app.h"
+#include "ns3/ospf-runtime-helper.h"
 
 #include <cassert>
 #include <fstream>
@@ -53,29 +54,7 @@ NS_LOG_COMPONENT_DEFINE ("OspfAltArea");
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 // Link Down at t=35
 // Link Up at t=85
-const uint32_t SIM_SECONDS = 105;
-
-
-void
-CompareLsdb (NodeContainer nodes)
-{
-  NS_ASSERT (nodes.GetN () > 0);
-  Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
-  uint32_t hash = app->GetLsdbHash ();
-
-  for (uint32_t i = 1; i < nodes.GetN (); i++)
-    {
-      app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
-      if (hash != app->GetLsdbHash ())
-        {
-          std::cout << "[" << Simulator::Now () << "] LSDBs mismatched" << std::endl;
-          return;
-        }
-    }
-  std::cout << "[" << Simulator::Now () << "] LSDBs matched" << std::endl;
-  ;
-  return;
-}
+const uint32_t SIM_SECONDS = 200;
 
 int
 main (int argc, char *argv[])
@@ -111,10 +90,11 @@ main (int argc, char *argv[])
   NS_LOG_INFO ("Create nodes.");
   NodeContainer c, c0, c1;
   c.Create (8);
-  for (uint32_t i = 0; i < 4;i++) {
-    c0.Add(c.Get(i));
-    c1.Add(c.Get(4 + i));
-  }
+  for (uint32_t i = 0; i < 4; i++)
+    {
+      c0.Add (c.Get (i));
+      c1.Add (c.Get (4 + i));
+    }
   std::vector<NodeContainer> allNodes;
   allNodes.emplace_back (NodeContainer (c.Get (0), c.Get (1)));
   allNodes.emplace_back (NodeContainer (c.Get (1), c.Get (2)));
@@ -124,17 +104,6 @@ main (int argc, char *argv[])
   allNodes.emplace_back (NodeContainer (c.Get (4), c.Get (6)));
   allNodes.emplace_back (NodeContainer (c.Get (5), c.Get (6)));
   allNodes.emplace_back (NodeContainer (c.Get (6), c.Get (7)));
-
-  // Prepare interface areas. Same subnets can be in different areas for alt-area
-  std::vector<std::vector<uint32_t>> areas;
-  areas.emplace_back (std::vector<uint32_t> ({0, 0}));
-  areas.emplace_back (std::vector<uint32_t> ({0, 0, 0, 0}));
-  areas.emplace_back (std::vector<uint32_t> ({0, 0, 0}));
-  areas.emplace_back (std::vector<uint32_t> ({0, 0, 0}));
-  areas.emplace_back (std::vector<uint32_t> ({1, 1, 1}));
-  areas.emplace_back (std::vector<uint32_t> ({1, 1, 1}));
-  areas.emplace_back (std::vector<uint32_t> ({1, 1, 1, 1}));
-  areas.emplace_back (std::vector<uint32_t> ({1, 1}));
 
   InternetStackHelper internet;
   internet.Install (c);
@@ -155,6 +124,7 @@ main (int argc, char *argv[])
   // Later, we add IP addresses.
 
   NS_LOG_INFO ("Assign IP Addresses.");
+  // Link Addresses
   Ipv4AddressHelper ipv4 ("10.1.1.0", "255.255.255.252");
   for (auto devices : allDevices)
     {
@@ -180,46 +150,72 @@ main (int argc, char *argv[])
   ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (30)));
   ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
 
+  // Area Addresses
+  Ipv4Mask areaMask ("255.255.255.0");
+  Ipv4AddressHelper areaIpv4 ("172.16.0.0", areaMask);
   // Install OSPF app with metrices
-  std::vector<uint32_t> emptyVec;
   ApplicationContainer ospfApp;
-  for (uint32_t i = 0; i < c.GetN (); i++)
+  for (uint32_t i = 0; i < c0.GetN (); i++)
     {
-      ospfApp.Add (ospfAppHelper.Install (c.Get (i), areas[i]));
+      auto app = DynamicCast<OspfApp> (ospfAppHelper.Install (c0.Get (i)).Get (0));
+      app->SetArea (0, areaIpv4.NewAddress (), areaMask);
+      ospfApp.Add (app);
+    }
+  areaIpv4.NewNetwork ();
+  for (uint32_t i = 0; i < c1.GetN (); i++)
+    {
+      auto app = DynamicCast<OspfApp> (ospfAppHelper.Install (c1.Get (i)).Get (0));
+      app->SetArea (1, areaIpv4.NewAddress (), areaMask);
+      ospfApp.Add (app);
     }
 
+  // ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
-  // // User Traffic
-  // uint16_t port = 9;  // well-known echo port number
-  // UdpEchoServerHelper server (port);
-  // ApplicationContainer apps = server.Install (c.Get (4));
-  // apps.Start (Seconds (1.0));
-  // apps.Stop (Seconds (SIM_SECONDS));
+  // User Traffic
+  uint16_t port = 9; // well-known echo port number
+  UdpEchoServerHelper server (port);
+  ApplicationContainer apps = server.Install (c.Get (2));
+  apps.Start (Seconds (1.0));
+  apps.Stop (Seconds (SIM_SECONDS));
 
-  // uint32_t tSize = 1024;
-  // uint32_t maxPacketCount = 200;
-  // Time interPacketInterval = Seconds (1.);
-  // UdpEchoClientHelper client (Ipv4Address("10.1.1.9"), port);
-  // client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
-  // client.SetAttribute ("Interval", TimeValue (interPacketInterval));
-  // client.SetAttribute ("PacketSize", UintegerValue (tSize));
-  // apps = client.Install (c.Get (0));
-  // apps.Start (Seconds (2.0));
-  // apps.Stop (Seconds (SIM_SECONDS));
+  uint32_t tSize = 1024;
+  uint32_t maxPacketCount = 200;
+  Time interPacketInterval = Seconds (1.);
+  UdpEchoClientHelper client (Ipv4Address ("172.16.0.3"), port);
+  client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
+  client.SetAttribute ("Interval", TimeValue (interPacketInterval));
+  client.SetAttribute ("PacketSize", UintegerValue (tSize));
+  apps = client.Install (c.Get (0));
+  apps.Start (Seconds (2.0));
+  apps.Stop (Seconds (SIM_SECONDS));
 
   // Print LSDB
   // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
-  Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (7)->GetApplication (0));
+  Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (0)->GetApplication (0));
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
-                       "route.routes");
-  Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c0);
-  Simulator::Schedule (Seconds (SIM_SECONDS - 1), &CompareLsdb, c1);
+                       "route0.routes");
+  app = DynamicCast<OspfApp> (c.Get (7)->GetApplication (0));
+  Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
+                       "route7.routes");
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareLsdb, c0);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareL1PrefixLsdb, c0);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareLsdb, c1);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareL1PrefixLsdb, c1);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareAreaLsdb, c);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareSummaryLsdb, c);
   for (int i = 0; i < 8; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
+                           "route" + std::to_string (i) + ".routes");
+
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.03), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.02), &OspfApp::PrintL1PrefixLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.01), &OspfApp::PrintAreaLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.00), &OspfApp::PrintSummaryLsdb, app);
       // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
     }
 

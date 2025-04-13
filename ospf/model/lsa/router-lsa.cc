@@ -24,12 +24,17 @@
 #include "ns3/header.h"
 #include "ns3/packet.h"
 #include "router-lsa.h"
+#include "set"
 
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("RouterLsa");
 
 NS_OBJECT_ENSURE_REGISTERED (RouterLsa);
+
+RouterLink::RouterLink () : m_linkId (0), m_linkData (0), m_type (0), m_metric (0)
+{
+}
 
 RouterLink::RouterLink (uint32_t linkId, uint32_t linkData, uint8_t type, uint16_t metric)
     : m_linkId (linkId), m_linkData (linkData), m_type (type), m_metric (metric)
@@ -72,6 +77,32 @@ RouterLsa::GetNLink ()
 {
   NS_LOG_FUNCTION (this);
   return m_links.size ();
+}
+
+std::vector<uint32_t>
+RouterLsa::GetRouterLinkData ()
+{
+  NS_LOG_FUNCTION (this);
+  std::vector<uint32_t> linkData;
+  for (auto link : m_links)
+    {
+      linkData.emplace_back (link.m_linkData);
+    }
+  return linkData;
+}
+std::vector<AreaLink>
+RouterLsa::GetCrossAreaLinks ()
+{
+  NS_LOG_FUNCTION (this);
+  std::vector<AreaLink> crossAreaLinks;
+  for (auto link : m_links)
+    {
+      if (link.m_type == 5)
+        {
+          crossAreaLinks.emplace_back (AreaLink (link.m_linkId, link.m_linkData, link.m_metric));
+        }
+    }
+  return crossAreaLinks;
 }
 
 TypeId
@@ -195,6 +226,18 @@ RouterLsa::Deserialize (Ptr<Packet> packet)
   buffer.Begin ().Write (payload, payloadSize);
   Deserialize (buffer.Begin ());
   return payloadSize;
+}
+
+Ptr<Lsa>
+RouterLsa::Copy ()
+{
+  // Not very optimized way of copying
+  Buffer buff;
+  buff.AddAtStart (GetSerializedSize ());
+  Ptr<RouterLsa> copy = Create<RouterLsa> ();
+  Serialize (buff.Begin ());
+  copy->Deserialize (buff.Begin ());
+  return copy;
 }
 
 } // namespace ns3

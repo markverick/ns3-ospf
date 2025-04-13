@@ -32,6 +32,7 @@
 #include "ns3/ospf-app-helper.h"
 #include "ns3/ospf-app.h"
 #include "ns3/random-variable-stream.h"
+#include "ns3/ospf-runtime-helper.h"
 
 #include <cassert>
 #include <fstream>
@@ -41,66 +42,21 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE ("OspfGridRandomError");
+NS_LOG_COMPONENT_DEFINE ("OspfGridNLinksError");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 const uint32_t GRID_WIDTH = 6;
 const uint32_t GRID_HEIGHT = 6;
 const uint32_t SIM_SECONDS = 1000;
+const uint32_t NUM_ERROR_LINKS = 3;
 Ptr<UniformRandomVariable> rv = CreateObject<UniformRandomVariable> ();
-
-// Fill static routes with
-void
-SetLinkDown (Ptr<NetDevice> nd)
-{
-  Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-  pem->SetRate (1.0);
-  nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
-
-void
-SetLinkError (Ptr<NetDevice> nd)
-{
-  Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-  pem->SetRate (0.005);
-  nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
-
-void
-SetLinkUp (Ptr<NetDevice> nd)
-{
-  Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-  pem->SetRate (0.0);
-  nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
-
-void
-CompareLsdb (NodeContainer nodes)
-{
-  NS_ASSERT (nodes.GetN () > 0);
-  Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
-  uint32_t hash = app->GetLsdbHash ();
-
-  for (uint32_t i = 1; i < nodes.GetN (); i++)
-    {
-      app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
-      if (hash != app->GetLsdbHash ())
-        {
-          std::cout << "[" << Simulator::Now () << "] LSDBs mismatched" << std::endl;
-          return;
-        }
-    }
-  std::cout << "[" << Simulator::Now () << "] LSDBs matched" << std::endl;
-  ;
-  return;
-}
 
 int
 main (int argc, char *argv[])
 {
   // Users may find it convenient to turn on explicit debugging
   // for selected modules; the below lines suggest how to do this
-  LogComponentEnable ("OspfGridRandomError", LOG_LEVEL_INFO);
+  LogComponentEnable ("OspfGridNLinksError", LOG_LEVEL_INFO);
   // Set up some default values for the simulation.  Use the
 
   // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
@@ -123,10 +79,6 @@ main (int argc, char *argv[])
     {
       std::cerr << "Error: " << e.what () << std::endl;
     }
-
-  // Set up random variables
-  rv->SetAttribute ("Min", DoubleValue (0.0));
-  rv->SetAttribute ("Max", DoubleValue (1.0));
 
   // Create nodes
   NS_LOG_INFO ("Create nodes.");
@@ -183,15 +135,20 @@ main (int argc, char *argv[])
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
   // Test Error
+  // Set up random variables
+  rv->SetAttribute ("Min", DoubleValue (0));
+  rv->SetAttribute ("Max", DoubleValue (ndc.GetN ()));
   for (uint32_t i = 5; i < SIM_SECONDS; i += 50)
     {
-      for (uint32_t j = 0; j < ndc.GetN (); j++)
+      std::vector<uint32_t> downLinks;
+      for (uint32_t j = 0; j < NUM_ERROR_LINKS; j++)
         {
-          if (rv->GetValue () <= 0.2)
-            {
-              Simulator::Schedule (Seconds (i), &SetLinkDown, ndc.Get (j));
-              Simulator::Schedule (Seconds (i + 50), &SetLinkUp, ndc.Get (j));
-            }
+          downLinks.emplace_back ((int) (rv->GetValue ()));
+        }
+      for (auto l : downLinks)
+        {
+          Simulator::Schedule (Seconds (i), &SetLinkDown, ndc.Get (l));
+          Simulator::Schedule (Seconds (i + 50), &SetLinkUp, ndc.Get (l));
         }
       Simulator::Schedule (Seconds (i + 49), &CompareLsdb, c);
     }

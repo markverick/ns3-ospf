@@ -18,40 +18,55 @@
  * Author: Sirapop Theeranantachaoi <stheera@g.ucla.edu>
  */
 
-#ifndef LS_ACK_H
-#define LS_ACK_H
+#ifndef AREA_LSA_H
+#define AREA_LSA_H
 
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
-#include "ospf-interface.h"
-#include "lsa-header.h"
+#include "lsa.h"
 
 namespace ns3 {
 /**
  * \ingroup ospf
  *
- * \brief LS Acknowledge Object
+ * \brief Area LSA
  */
+class AreaLink
+{
+public:
+  AreaLink (uint32_t areaId, uint32_t ipAddress, uint16_t metric);
+  uint32_t m_areaId;
+  uint32_t m_ipAddress;
+  uint16_t m_metric;
+  bool
+  operator== (const AreaLink &other) const
+  {
+    return m_areaId == other.m_areaId && m_ipAddress == other.m_ipAddress &&
+           m_metric == other.m_metric;
+  }
+  std::tuple<uint32_t, uint32_t, uint16_t>
+  Get ()
+  {
+    return std::tuple<uint32_t, uint32_t, uint16_t> (m_areaId, m_ipAddress, m_metric);
+  }
+};
 
-class LsAck : public Object
+class AreaLsa : public Lsa
 {
 public:
   /**
-   * \brief Construct a LS Acknowledge Object
+   * \brief Construct a Area LSA
    */
+  AreaLsa ();
+  AreaLsa (std::vector<AreaLink>);
+  AreaLsa (Ptr<Packet> packet);
 
-  LsAck ();
-  LsAck (std::vector<LsaHeader> lsaHeaders);
-  LsAck (Ptr<Packet> packet);
-
-  void AddLsaHeader (LsaHeader lsaHeader);
-  void ClearLsaHeaders (void);
-  bool HasLsaHeader (LsaHeader lsaHeader);
-
-  LsaHeader GetLsaHeader (uint32_t index);
-  std::vector<LsaHeader> GetLsaHeaders ();
-  uint32_t GetNLsaHeaders ();
+  void AddLink (AreaLink link);
+  AreaLink GetLink (uint32_t index);
+  std::vector<AreaLink> GetLinks ();
+  uint16_t GetNLink ();
+  void ClearLinks ();
 
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
@@ -61,11 +76,12 @@ public:
   virtual Ptr<Packet> ConstructPacket () const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
+  virtual Ptr<Lsa> Copy ();
 
 private:
-  std::vector<LsaHeader> m_lsaHeaders; //storing neighbor's router ID
+  std::vector<AreaLink> m_links;
 };
 
 } // namespace ns3
 
-#endif /* LS_ACK_H */
+#endif /* AREA_LSA_H */

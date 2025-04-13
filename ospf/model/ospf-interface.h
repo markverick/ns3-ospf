@@ -36,6 +36,7 @@
 #include "ns3/packet.h"
 #include "ns3/uinteger.h"
 #include "ns3/header.h"
+#include "ns3/router-lsa.h"
 #include "ospf-neighbor.h"
 #include "algorithm"
 
@@ -52,6 +53,9 @@ public:
 
   Ipv4Address GetAddress ();
   void SetAddress (Ipv4Address ipAddress);
+
+  Ipv4Address GetGateway ();
+  void SetGateway (Ipv4Address ipAddress);
 
   Ipv4Mask GetMask ();
   void SetMask (Ipv4Mask ipMask);
@@ -75,7 +79,7 @@ public:
 
   std::vector<Ptr<OspfNeighbor>> GetNeighbors ();
 
-  Ptr<OspfNeighbor> AddNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  void AddNeighbor (Ptr<OspfNeighbor> neighbor);
 
   Ptr<OspfNeighbor> AddNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp,
                                  uint32_t remoteAreaId, OspfNeighbor::NeighborState state);
@@ -85,13 +89,11 @@ public:
   bool IsNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   //  Vector of <neighbor's routerIds, its own interface ipAddress>
-  std::vector<std::pair<uint32_t, uint32_t>> GetNeighborLinks ();
-  std::vector<std::pair<uint32_t, uint32_t>> GetNeighborLinks (uint32_t areaId);
-  std::vector<std::pair<uint32_t, uint32_t>> GetActiveNeighborLinks ();
-  std::vector<std::pair<uint32_t, uint32_t>> GetActiveNeighborLinks (uint32_t areaId);
+  std::vector<RouterLink> GetActiveRouterLinks ();
 
 private:
   Ipv4Address m_ipAddress;
+  Ipv4Address m_gateway;
   Ipv4Mask m_ipMask;
   uint16_t m_helloInterval;
   uint32_t m_routerDeadInterval;

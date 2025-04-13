@@ -18,32 +18,52 @@
  * Author: Sirapop Theeranantachaoi <stheera@g.ucla.edu>
  */
 
-#ifndef LSA_H
-#define LSA_H
+#ifndef LS_UPDATE
+#define LS_UPDATE
 
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
-#include "ns3/packet.h"
+#include "ns3/ospf-interface.h"
+#include "ns3/lsa-header.h"
+#include "ns3/lsa.h"
 
 namespace ns3 {
 /**
  * \ingroup ospf
  *
- * \brief Generic LSA
+ * \brief LS Update Object
  */
 
-class Lsa : public Object
+class LsUpdate : public Object
 {
 public:
+  /**
+   * \brief Construct a LS Update Object
+   */
+
+  LsUpdate ();
+  LsUpdate (Ptr<Packet> packet);
+
+  void AddLsa (LsaHeader header, Ptr<Lsa> lsa);
+  void AddLsa (std::pair<LsaHeader, Ptr<Lsa>> lsa);
+  std::vector<std::pair<LsaHeader, Ptr<Lsa>>> GetLsaList ();
+  uint32_t GetNLsa ();
+
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
+  virtual void Print (std::ostream &os) const;
   virtual uint32_t GetSerializedSize (void) const;
   virtual uint32_t Serialize (Buffer::Iterator start) const;
+  virtual Ptr<Packet> ConstructPacket () const;
   virtual uint32_t Deserialize (Buffer::Iterator start);
   virtual uint32_t Deserialize (Ptr<Packet> packet);
+
+private:
+  std::vector<std::pair<LsaHeader, Ptr<Lsa>>> m_lsaList; // storing headers
+  uint32_t m_serializedSize;
 };
 
 } // namespace ns3
 
-#endif /* LSA_H */
+#endif /* LS_UPDATE */

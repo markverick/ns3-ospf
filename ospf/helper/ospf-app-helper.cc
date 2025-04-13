@@ -21,7 +21,15 @@
 #include "ns3/names.h"
 #include "ns3/ipv4-static-routing-helper.h"
 #include "ns3/ospf-app.h"
+#include "ns3/point-to-point-net-device.h"
+#include "ns3/point-to-point-channel.h"
+#include "ns3/ospf-neighbor.h"
+#include "ns3/lsa.h"
+#include "ns3/area-lsa.h"
 #include "ospf-app-helper.h"
+
+#include <map>
+#include <set>
 
 namespace ns3 {
 
@@ -62,62 +70,133 @@ OspfAppHelper::Install (Ptr<Node> n) const
   return InstallPriv (n, routing, devs);
 }
 
-ApplicationContainer
-OspfAppHelper::Install (Ptr<Node> n, std::vector<uint32_t> areas) const
+void
+OspfAppHelper::Preload (NodeContainer c)
 {
-  Ptr<Ipv4> ipv4 = n->GetObject<Ipv4> ();
-  Ipv4StaticRoutingHelper ipv4RoutingHelper;
-  Ptr<Ipv4StaticRouting> routing = ipv4RoutingHelper.GetStaticRouting (ipv4);
-  NetDeviceContainer devs;
-  for (uint32_t j = 0; j < n->GetNDevices (); j++)
-    {
-      devs.Add (n->GetDevice (j));
-    }
-  return InstallPriv (n, routing, devs, areas);
-}
-
-ApplicationContainer
-OspfAppHelper::Install (Ptr<Node> n, std::vector<uint32_t> areas,
-                        std::vector<uint32_t> metrices) const
-{
-  Ptr<Ipv4> ipv4 = n->GetObject<Ipv4> ();
-  Ipv4StaticRoutingHelper ipv4RoutingHelper;
-  Ptr<Ipv4StaticRouting> routing = ipv4RoutingHelper.GetStaticRouting (ipv4);
-  NetDeviceContainer devs;
-  for (uint32_t j = 0; j < n->GetNDevices (); j++)
-    {
-      devs.Add (n->GetDevice (j));
-    }
-  return InstallPriv (n, routing, devs, areas, metrices);
-}
-
-// Set all nodes' metrices and areas (only useful in something uniform like a grid topology)
-ApplicationContainer
-OspfAppHelper::Install (NodeContainer c, std::vector<uint32_t> areas) const
-{
-  ApplicationContainer apps;
-  Ipv4StaticRoutingHelper ipv4RoutingHelper;
+  // Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId,
+  // OspfNeighbor::NeighborState state
+  std::vector<std::pair<LsaHeader, Ptr<Lsa>>> proxiedLsaList;
+  std::map<uint32_t, std::vector<std::pair<LsaHeader, Ptr<Lsa>>>> lsaList;
+  std::map<uint32_t, std::vector<AreaLink>> areaAdj;
+  std::map<uint32_t, std::set<uint32_t>> areaMembers;
+  std::map<uint32_t, Ipv4Mask> areaMasks;
   for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
     {
-      apps.Add (Install (*i, areas));
-    }
-  return apps;
-}
+      Ptr<Node> node = *i;
+      Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+      auto app = DynamicCast<OspfApp> (node->GetApplication (0));
 
-// Set all nodes' metrices and areas with the same values
-// (only useful in something uniform like a grid topology)
-ApplicationContainer
-OspfAppHelper::Install (NodeContainer c, std::vector<uint32_t> areas,
-                        std::vector<uint32_t> metrices) const
-{
-  //
-  ApplicationContainer apps;
-  Ipv4StaticRoutingHelper ipv4RoutingHelper;
+      areaMembers[app->GetArea ()].insert (app->GetRouterId ().Get ());
+      areaMasks[app->GetArea ()] = app->GetAreaMask ();
+
+      // Neighbor Values
+      Ipv4Address remoteRouterId;
+      Ipv4Address remoteIp, selfIp;
+      uint32_t remoteAreaId;
+
+      // Router LSA and Neighbor Status
+      Ptr<RouterLsa> routerLsa = Create<RouterLsa> ();
+      auto numIf = node->GetNDevices ();
+      for (uint32_t ifIndex = 0; ifIndex < numIf; ifIndex++)
+        {
+          Ptr<NetDevice> dev = node->GetDevice (ifIndex);
+          if (!dev->IsPointToPoint ())
+            {
+              // TODO: Only support p2p for now
+              continue;
+            }
+          selfIp = ipv4->GetAddress (dev->GetIfIndex (), 0).GetAddress ();
+          Ptr<NetDevice> remoteDev;
+          auto ch = DynamicCast<PointToPointChannel> (dev->GetChannel ());
+          for (uint32_t j = 0; j < ch->GetNDevices (); j++)
+            {
+              remoteDev = ch->GetDevice (j);
+              if (remoteDev != dev)
+                {
+                  // Set as a gateway
+                  auto remoteIpv4 = remoteDev->GetNode ()->GetObject<Ipv4> ();
+                  auto remoteApp = DynamicCast<OspfApp> (remoteDev->GetNode ()->GetApplication (0));
+                  remoteRouterId = remoteApp->GetRouterId ();
+                  remoteIp = remoteIpv4->GetAddress (remoteDev->GetIfIndex (), 0).GetAddress ();
+                  remoteAreaId = remoteApp->GetArea ();
+
+                  // Add neighbor with status FULL
+                  app->AddNeighbor (ifIndex,
+                                    Create<OspfNeighbor> (remoteRouterId, remoteIp, remoteAreaId,
+                                                          OspfNeighbor::NeighborState::Full));
+                  // RouterLink (uint32_t linkId, uint32_t linkData, uint8_t type, uint16_t metric)
+                  // Router LSA
+                  if (remoteAreaId == app->GetArea ())
+                    {
+                      // Intra-area Link
+                      routerLsa->AddLink (RouterLink (remoteRouterId.Get (), selfIp.Get (), 1,
+                                                      app->GetMetric (ifIndex)));
+                    }
+                  else
+                    {
+                      // Inter-area Link
+                      routerLsa->AddLink (
+                          RouterLink (remoteAreaId, selfIp.Get (), 5, app->GetMetric (ifIndex)));
+                      areaAdj[app->GetArea ()].emplace_back (
+                          AreaLink (remoteAreaId, selfIp.Get (), app->GetMetric (ifIndex)));
+                    }
+                  break;
+                }
+            }
+        }
+      LsaHeader routerLsaHeader (std::make_tuple (LsaHeader::LsType::RouterLSAs, app->GetArea (),
+                                                  app->GetRouterId ().Get ()));
+      routerLsaHeader.SetLength (20 + routerLsa->GetSerializedSize ());
+      routerLsaHeader.SetSeqNum (1);
+      lsaList[app->GetArea ()].emplace_back (routerLsaHeader, routerLsa);
+
+      // AS External LSA
+      Ptr<AsExternalLsa> asExternalLsa = Create<AsExternalLsa> (app->GetAreaMask ().Get (), 1);
+      asExternalLsa->AddRoute (app->GetRouterId ().Get ());
+      LsaHeader asExternalLsaHeader (std::make_tuple (LsaHeader::LsType::ASExternalLSAs,
+                                                      app->GetArea (), app->GetRouterId ().Get ()));
+
+      asExternalLsaHeader.SetLength (20 + asExternalLsa->GetSerializedSize ());
+      asExternalLsaHeader.SetSeqNum (1);
+      lsaList[app->GetArea ()].emplace_back (asExternalLsaHeader, asExternalLsa);
+    }
+
+  // Proxied LSA
+  for (auto &[areaId, adj] : areaAdj)
+    {
+      Ptr<AreaLsa> areaLsa = Create<AreaLsa> ();
+      for (auto areaLink : adj)
+        {
+          areaLsa->AddLink (areaLink);
+        }
+      // Area LSA
+      LsaHeader areaLsaHeader (
+          std::make_tuple (LsaHeader::LsType::AreaLSAs, areaId, *areaMembers[areaId].begin ()));
+      areaLsaHeader.SetLength (20 + areaLsa->GetSerializedSize ());
+      areaLsaHeader.SetSeqNum (1);
+      proxiedLsaList.emplace_back (areaLsaHeader, areaLsa);
+
+      // Area Summary LSA
+      Ptr<SummaryLsa> summaryLsa = Create<SummaryLsa> (areaMasks[areaId].Get ());
+      LsaHeader summaryLsaHeader (std::make_tuple (LsaHeader::LsType::SummaryLSAsArea, areaId,
+                                                   *areaMembers[areaId].begin ()));
+      summaryLsaHeader.SetLength (20 + summaryLsa->GetSerializedSize ());
+      summaryLsaHeader.SetSeqNum (1);
+      proxiedLsaList.emplace_back (summaryLsaHeader, summaryLsa);
+    }
+  // Area Summary LSA
   for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
     {
-      apps.Add (Install (*i, areas, metrices));
+      Ptr<Node> node = *i;
+      Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+      auto app = DynamicCast<OspfApp> (node->GetApplication (0));
+      // Process area-leader LSAs
+      bool isLeader = app->GetRouterId ().Get () == *areaMembers[app->GetArea ()].begin ();
+      app->SetDoInitialize (false);
+      app->SetAreaLeader (isLeader);
+      app->InjectLsa (proxiedLsaList);
+      app->InjectLsa (lsaList[app->GetArea ()]);
     }
-  return apps;
 }
 
 Ptr<Application>
@@ -127,43 +206,10 @@ OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing,
   Ptr<OspfApp> app = m_factory.Create<OspfApp> ();
   app->SetRouting (routing);
   Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-  app->SetRouterId (ipv4->GetAddress (1, 0).GetAddress ()); //eth0
+  app->SetRouterId (
+      ipv4->GetAddress (1, 0).GetAddress ()); // default to the first interface address
   node->AddApplication (app);
   app->SetBoundNetDevices (devs);
-
-  return app;
-}
-
-Ptr<Application>
-OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs,
-                            std::vector<uint32_t> areas) const
-{
-  Ptr<OspfApp> app = m_factory.Create<OspfApp> ();
-  app->SetRouting (routing);
-  Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-  app->SetRouterId (ipv4->GetAddress (1, 0).GetAddress ()); //eth0
-  node->AddApplication (app);
-  app->SetBoundNetDevices (devs);
-  if (!areas.empty ())
-    app->SetAreas (areas);
-
-  return app;
-}
-
-Ptr<Application>
-OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing, NetDeviceContainer devs,
-                            std::vector<uint32_t> areas, std::vector<uint32_t> metrices) const
-{
-  Ptr<OspfApp> app = m_factory.Create<OspfApp> ();
-  app->SetRouting (routing);
-  Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-  app->SetRouterId (ipv4->GetAddress (1, 0).GetAddress ()); //eth0
-  node->AddApplication (app);
-  app->SetBoundNetDevices (devs);
-  if (!areas.empty ())
-    app->SetAreas (areas);
-  if (!metrices.empty ())
-    app->SetMetrices (metrices);
 
   return app;
 }

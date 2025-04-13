@@ -23,76 +23,82 @@
 #include "ns3/log.h"
 #include "ns3/header.h"
 #include "ns3/packet.h"
-#include "router-lsa.h"
-#include "ls-update.h"
+#include "summary-lsa.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("LsUpdate");
+NS_LOG_COMPONENT_DEFINE ("SummaryLsa");
 
-NS_OBJECT_ENSURE_REGISTERED (LsUpdate);
+NS_OBJECT_ENSURE_REGISTERED (SummaryLsa);
 
-LsUpdate::LsUpdate ()
+SummaryLsa::SummaryLsa ()
 {
-  m_serializedSize = 4;
 }
-LsUpdate::LsUpdate (Ptr<Packet> packet)
+
+SummaryLsa::SummaryLsa (uint32_t mask) : m_mask (mask), m_metric (0)
+{
+}
+
+SummaryLsa::SummaryLsa (uint32_t mask, uint32_t metric) : m_mask (mask), m_metric (metric)
+{
+}
+
+SummaryLsa::SummaryLsa (Ptr<Packet> packet)
 {
   Deserialize (packet);
 }
 
 void
-LsUpdate::AddLsa (LsaHeader header, Ptr<Lsa> lsa)
+SummaryLsa::SetMask (uint32_t mask)
 {
-  m_lsaList.emplace_back (header, lsa);
-  m_serializedSize += header.GetLength ();
-}
-void
-LsUpdate::AddLsa (std::pair<LsaHeader, Ptr<Lsa>> lsa)
-{
-  m_lsaList.emplace_back (lsa);
-  m_serializedSize += lsa.first.GetLength ();
-}
-
-std::vector<std::pair<LsaHeader, Ptr<Lsa>>>
-LsUpdate::GetLsaList ()
-{
-  return m_lsaList;
+  m_mask = mask;
 }
 
 uint32_t
-LsUpdate::GetNLsa ()
+SummaryLsa::GetMask ()
 {
-  return m_lsaList.size ();
+  return m_mask;
+}
+
+void
+SummaryLsa::SetMetric (uint32_t mask)
+{
+  m_mask = mask;
+}
+
+uint32_t
+SummaryLsa::GetMetric ()
+{
+  return m_mask;
 }
 
 TypeId
-LsUpdate::GetTypeId (void)
+SummaryLsa::GetTypeId (void)
 {
-  static TypeId tid = TypeId ("ns3::LsUpdate").SetGroupName ("Ospf").AddConstructor<LsUpdate> ();
+  static TypeId tid =
+      TypeId ("ns3::SummaryLsa").SetGroupName ("Ospf").AddConstructor<SummaryLsa> ();
   return tid;
 }
 TypeId
-LsUpdate::GetInstanceTypeId (void) const
+SummaryLsa::GetInstanceTypeId (void) const
 {
   NS_LOG_FUNCTION (this);
   return GetTypeId ();
 }
 void
-LsUpdate::Print (std::ostream &os) const
+SummaryLsa::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
-  os << "# LSAs: " << m_lsaList.size () << " ";
-  os << std::endl;
+  os << "mask: " << m_mask << ", metric: " << m_metric << std::endl;
 }
 uint32_t
-LsUpdate::GetSerializedSize (void) const
+SummaryLsa::GetSerializedSize (void) const
 {
-  return m_serializedSize;
+  return 12; // Assumed no TOS
 }
 
 Ptr<Packet>
-LsUpdate::ConstructPacket () const
+SummaryLsa::ConstructPacket () const
 {
   NS_LOG_FUNCTION (this);
 
@@ -105,51 +111,33 @@ LsUpdate::ConstructPacket () const
 }
 
 uint32_t
-LsUpdate::Serialize (Buffer::Iterator start) const
+SummaryLsa::Serialize (Buffer::Iterator start) const
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
-  i.WriteHtonU32 (m_lsaList.size ());
-  for (auto lsa : m_lsaList)
-    {
-      lsa.first.Serialize (i);
-      i.Next (lsa.first.GetSerializedSize ());
-      lsa.second->Serialize (i);
-      i.Next (lsa.second->GetSerializedSize ());
-    }
+
+  i.WriteHtonU32 (m_mask);
+  i.WriteHtonU32 (m_metric);
+  i.WriteHtonU32 (0); // TOS is not used
+
   return GetSerializedSize ();
 }
 
 uint32_t
-LsUpdate::Deserialize (Buffer::Iterator start)
+SummaryLsa::Deserialize (Buffer::Iterator start)
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  uint32_t numLsa = i.ReadNtohU32 ();
+  m_mask = i.ReadNtohU32 ();
+  m_metric = i.ReadNtohU32 ();
+  i.Next (4); // Skip TOS
 
-  m_serializedSize = 4;
-  for (uint32_t j = 0; j < numLsa; j++)
-    {
-      LsaHeader lsaHeader;
-      i.Next (lsaHeader.Deserialize (i));
-      if (lsaHeader.GetType () == LsaHeader::RouterLSAs)
-        {
-          Ptr<RouterLsa> lsa = Create<RouterLsa> ();
-          i.Next (lsa->Deserialize (i));
-          m_lsaList.emplace_back (lsaHeader, lsa);
-          m_serializedSize += lsaHeader.GetLength ();
-        }
-      else
-        {
-          NS_ASSERT_MSG (true, "Unsupported LSA Type");
-        }
-    }
-  return m_serializedSize;
+  return GetSerializedSize ();
 }
 
 uint32_t
-LsUpdate::Deserialize (Ptr<Packet> packet)
+SummaryLsa::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize ();
@@ -160,6 +148,18 @@ LsUpdate::Deserialize (Ptr<Packet> packet)
   buffer.Begin ().Write (payload, payloadSize);
   Deserialize (buffer.Begin ());
   return payloadSize;
+}
+
+Ptr<Lsa>
+SummaryLsa::Copy ()
+{
+  // Not very optimized way of copying
+  Buffer buff;
+  buff.AddAtStart (GetSerializedSize ());
+  Ptr<SummaryLsa> copy = Create<SummaryLsa> ();
+  Serialize (buff.Begin ());
+  copy->Deserialize (buff.Begin ());
+  return copy;
 }
 
 } // namespace ns3

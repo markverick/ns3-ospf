@@ -40,6 +40,8 @@
 #include "ns3/ospf-interface.h"
 #include "ns3/ospf-neighbor.h"
 #include "ns3/router-lsa.h"
+#include "ns3/area-lsa.h"
+#include "ns3/summary-lsa.h"
 #include "ns3/ospf-hello.h"
 #include "ns3/ospf-dbd.h"
 #include "ns3/ls-ack.h"
@@ -131,17 +133,27 @@ CopyAndIncrementSeqNumber (Ptr<Packet> lsuPayload)
 }
 
 Ptr<RouterLsa>
-ConstructRouterLsa (std::vector<std::tuple<uint32_t, uint32_t, uint32_t>> neighborLinks)
+ConstructRouterLsa (std::vector<RouterLink> neighborLinks)
 {
   // Create a Router-LSA
   Ptr<RouterLsa> routerLsa = Create<RouterLsa> (0, 0, 0);
   for (uint32_t j = 0; j < neighborLinks.size (); j++)
     {
-      auto link = neighborLinks[j];
-      routerLsa->AddLink (
-          RouterLink (std::get<0> (link), std::get<1> (link), 1, std::get<2> (link)));
+      routerLsa->AddLink (neighborLinks[j]);
     }
   return routerLsa;
+}
+
+Ptr<AreaLsa>
+ConstructAreaLsa (std::vector<AreaLink> areaLinks)
+{
+  // Create a Area-LSA
+  Ptr<AreaLsa> areaLsa = Create<AreaLsa> ();
+  for (auto link : areaLinks)
+    {
+      areaLsa->AddLink (link);
+    }
+  return areaLsa;
 }
 
 Ptr<Packet>

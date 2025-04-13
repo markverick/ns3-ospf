@@ -30,6 +30,7 @@
 #include "ns3/point-to-point-module.h"
 #include "ns3/ospf-app-helper.h"
 #include "ns3/ospf-app.h"
+#include "ns3/ospf-runtime-helper.h"
 
 #include <cassert>
 #include <fstream>
@@ -39,98 +40,23 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE ("OspfGrid");
+NS_LOG_COMPONENT_DEFINE ("OspfGridAreaNLinksError");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
-const uint32_t GRID_WIDTH = 2;
-const uint32_t GRID_HEIGHT = 10;
-const uint32_t SIM_SECONDS = 100;
-
-// Fill static routes with
-void
-SetLinkDown (Ptr<NetDevice> nd)
-{
-  Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-  pem->SetRate (1.0);
-  nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
-
-void
-SetLinkError (Ptr<NetDevice> nd)
-{
-  Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-  pem->SetRate (0.005);
-  nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
-
-void
-SetLinkUp (Ptr<NetDevice> nd)
-{
-  Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-  pem->SetRate (0.0);
-  nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
-
-void
-CompareLsdb (NodeContainer nodes)
-{
-  NS_ASSERT (nodes.GetN () > 0);
-  Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
-  uint32_t hash = app->GetLsdbHash ();
-
-  for (uint32_t i = 1; i < nodes.GetN (); i++)
-    {
-      app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
-      if (hash != app->GetLsdbHash ())
-        {
-          std::cout << "[" << Simulator::Now () << "] LSDBs mismatched" << std::endl;
-          return;
-        }
-    }
-  std::cout << "[" << Simulator::Now () << "] LSDBs matched" << std::endl;
-  ;
-  return;
-}
-
-void
-VerifyNeighbor (NodeContainer nodes)
-{
-  NS_ASSERT (nodes.GetN () > 0);
-  bool match = true;
-  for (uint32_t i = 0; i < nodes.GetN (); i++)
-    {
-      Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
-      for (auto &pair : app->GetLsdb ())
-        {
-          if (pair.second.second->GetNLink () !=
-              nodes.Get (app->GetNode ()->GetId ())->GetNDevices () - 1)
-            {
-              std::cout << "[" << Simulator::Now () << "] LSDB entry [" << Ipv4Address (pair.first)
-                        << "] of node [" << i << "] is incorrect ("
-                        << pair.second.second->GetNLink ()
-                        << " != " << nodes.Get (app->GetNode ()->GetId ())->GetNDevices () - 1
-                        << ")" << std::endl;
-              match = false;
-              for (uint32_t j = 0; j < pair.second.second->GetNLink (); j++)
-                {
-                  std::cout << "  " << Ipv4Address (pair.second.second->GetLink (j).m_linkId);
-                }
-              std::cout << std::endl;
-            }
-        }
-    }
-  if (match)
-    std::cout << "[" << Simulator::Now () << "] LSDB entries correct" << std::endl;
-  return;
-}
+const uint32_t STRIPE_WIDTH = 3;
+const uint32_t NUM_STRIPES = 3;
+const uint32_t GRID_HEIGHT = 3;
+const uint32_t GRID_WIDTH = STRIPE_WIDTH * NUM_STRIPES;
+const uint32_t SIM_SECONDS = 1000;
+const uint32_t NUM_ERROR_LINKS = 50;
 
 int
 main (int argc, char *argv[])
 {
   // Users may find it convenient to turn on explicit debugging
   // for selected modules; the below lines suggest how to do this
-  LogComponentEnable ("OspfGrid", LOG_LEVEL_INFO);
+  LogComponentEnable ("OspfGridAreaNLinksError", LOG_LEVEL_INFO);
   // Set up some default values for the simulation.  Use the
 
   // DefaultValue::Bind ("DropTailQueue::m_maxPackets", 30);
@@ -157,6 +83,7 @@ main (int argc, char *argv[])
   // Create nodes
   NS_LOG_INFO ("Create nodes.");
   NodeContainer c;
+  std::vector<NodeContainer> areaNodes (NUM_STRIPES);
   c.Create (GRID_HEIGHT * GRID_WIDTH);
 
   // Install IP Stack
@@ -179,6 +106,9 @@ main (int argc, char *argv[])
           // Vertical
           ndc.Add (p2p.Install (c.Get (i * GRID_WIDTH + j),
                                 c.Get (((i + 1) % GRID_HEIGHT) * GRID_WIDTH + j)));
+
+          // Add to area
+          areaNodes[j / STRIPE_WIDTH].Add (c.Get (i * GRID_WIDTH + j));
         }
     }
   NS_LOG_INFO ("Total Net Devices Installed: " << ndc.GetN ());
@@ -205,9 +135,60 @@ main (int argc, char *argv[])
   ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
 
   ApplicationContainer ospfApp = ospfAppHelper.Install (c);
-  // ospfAppHelper.Preload (c);
+
+  // Setting areas
+  Ipv4Mask areaMask ("255.255.255.0");
+  Ipv4AddressHelper areaIpv4 ("172.16.0.0", areaMask);
+  for (uint32_t area = 0; area < NUM_STRIPES; area++)
+    {
+      for (uint32_t i = 0; i < areaNodes[area].GetN (); i++)
+        {
+          auto node = areaNodes[area].Get (i);
+          auto app = DynamicCast<OspfApp> (node->GetApplication (0));
+          app->SetArea (area, areaIpv4.NewAddress (), areaMask);
+        }
+      areaIpv4.NewNetwork ();
+    }
+  ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
+
+  // Test Error
+  Ptr<UniformRandomVariable> rv = CreateObject<UniformRandomVariable> ();
+  rv->SetAttribute ("Min", DoubleValue (0.0));
+  rv->SetAttribute ("Max", DoubleValue (ndc.GetN ()));
+  std::set<uint32_t> downLinks;
+  for (uint32_t i = 60; i < SIM_SECONDS - 60; i += 60)
+    {
+      if (i % 120 == 0)
+        {
+          downLinks.clear ();
+          for (uint32_t j = 0; j < NUM_ERROR_LINKS; j++)
+            {
+              downLinks.insert ((int) (rv->GetValue ()));
+            }
+        }
+      for (auto l : downLinks)
+        {
+          Simulator::Schedule (Seconds (i), &SetLinkDown, ndc.Get (l));
+          Simulator::Schedule (Seconds (i + 60), &SetLinkUp, ndc.Get (l));
+        }
+      Simulator::Schedule (Seconds (i + 59), &CompareAreaLsdb, c);
+      Simulator::Schedule (Seconds (i + 59), &CompareSummaryLsdb, c);
+      for (uint32_t j = 0; j < c.GetN (); j++)
+        {
+          auto app = DynamicCast<OspfApp> (c.Get (j)->GetApplication (0));
+          // Simulator::Schedule (Seconds (i + 59), &OspfApp::PrintAreaLsdbHash, app);
+          // Simulator::Schedule (Seconds (i + 59), &OspfApp::PrintAreaLsdb, app);
+        }
+      for (auto nodes : areaNodes)
+        {
+          Simulator::Schedule (Seconds (i + 59), CompareLsdb, nodes);
+          Simulator::Schedule (Seconds (i + 59), CompareL1PrefixLsdb, nodes);
+          //   // app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
+          //   // Simulator::Schedule (Seconds (i + 59), &OspfApp::PrintLsdbHash, app);
+        }
+    }
 
   // User Traffic
   // uint16_t port = 9;  // well-known echo port number
@@ -247,16 +228,21 @@ main (int argc, char *argv[])
       // Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLsdbHash, app);
     }
   app = DynamicCast<OspfApp> (c.Get (0)->GetApplication (0));
-  Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::PrintLsdb, app);
+  // Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::PrintLsdb, app);
   Simulator::Schedule (Seconds (100), &OspfApp::PrintRouting, app, dirName, "route.routes");
 
   // Print progress
-  for (uint32_t i = 0; i < SIM_SECONDS; i += 10)
-    {
-      Simulator::Schedule (Seconds (i), &OspfApp::PrintLsdb, app);
-    }
-  Simulator::Schedule (Seconds (SIM_SECONDS), CompareLsdb, c);
-  Simulator::Schedule (Seconds (SIM_SECONDS), VerifyNeighbor, c);
+  // for (uint32_t i = 0; i < SIM_SECONDS; i += 10)
+  //   {
+  //     Simulator::Schedule (Seconds (i), &OspfApp::PrintLsdb, app);
+  //     Simulator::Schedule (Seconds (i), &OspfApp::PrintAreaLsdb, app);
+  //   }
+  //   Simulator::Schedule (Seconds (SIM_SECONDS), CompareAreaLsdb, c);
+  // for (auto nodes : areaNodes)
+  //   {
+  //     Simulator::Schedule (Seconds (SIM_SECONDS), CompareLsdb, nodes);
+  //     Simulator::Schedule (Seconds (SIM_SECONDS), VerifyNeighbor, c, nodes);
+  //   }
   // Enable Pcap
   AsciiTraceHelper ascii;
   p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));
