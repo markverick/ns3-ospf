@@ -148,7 +148,7 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
 
           // Get remote IP address
           auto dev = m_boundDevices.Get (i);
-          auto ch = DynamicCast<PointToPointChannel> (dev->GetChannel ());
+          auto ch = DynamicCast<Channel> (dev->GetChannel ());
           Ptr<NetDevice> remoteDev;
           for (uint32_t j = 0; j < ch->GetNDevices (); j++)
             {
