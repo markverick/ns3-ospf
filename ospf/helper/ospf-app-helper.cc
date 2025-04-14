@@ -107,7 +107,7 @@ OspfAppHelper::Preload (NodeContainer c)
             }
           selfIp = ipv4->GetAddress (dev->GetIfIndex (), 0).GetAddress ();
           Ptr<NetDevice> remoteDev;
-          auto ch = DynamicCast<PointToPointChannel> (dev->GetChannel ());
+          auto ch = DynamicCast<Channel> (dev->GetChannel ());
           for (uint32_t j = 0; j < ch->GetNDevices (); j++)
             {
               remoteDev = ch->GetDevice (j);

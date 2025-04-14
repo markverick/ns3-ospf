@@ -45,7 +45,7 @@ NS_LOG_COMPONENT_DEFINE ("OspfGridArea");
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
 const uint32_t STRIPE_WIDTH = 2;
-const uint32_t NUM_STRIPES = 16;
+const uint32_t NUM_STRIPES = 4;
 const uint32_t GRID_HEIGHT = 22;
 const uint32_t GRID_WIDTH = STRIPE_WIDTH * NUM_STRIPES;
 const uint32_t SIM_SECONDS = 100;
@@ -148,7 +148,7 @@ main (int argc, char *argv[])
         }
       areaIpv4.NewNetwork ();
     }
-  // ospfAppHelper.Preload (c);
+  ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
