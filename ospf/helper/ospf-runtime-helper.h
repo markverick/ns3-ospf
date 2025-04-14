@@ -4,7 +4,6 @@
 #include "ns3/node-container.h"
 #include "ns3/ospf-app.h"
 #include "ns3/network-module.h"
-#include "ns3/ospf-runtime-helper.h"
 
 namespace ns3 {
 
