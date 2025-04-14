@@ -19,6 +19,7 @@ def build(bld):
         'model/lsa/area-lsa.cc',
         'model/lsa/summary-lsa.cc',
         'helper/ospf-app-helper.cc',
+        'helper/ospf-runtime-helper.cc',
         ]
 
     module_test = bld.create_ns3_module_test_library('ospf')
