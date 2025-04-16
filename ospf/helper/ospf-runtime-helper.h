@@ -18,11 +18,11 @@ void VerifyNeighbor (NodeContainer allNodes, NodeContainer nodes);
 
 void CompareLsdb (NodeContainer nodes);
 
-void CompareL1PrefixLsdb (NodeContainer nodes);
+void CompareL1SummaryLsdb (NodeContainer nodes);
 
 void CompareAreaLsdb (NodeContainer nodes);
 
-void CompareSummaryLsdb (NodeContainer nodes);
+void CompareL2SummaryLsdb (NodeContainer nodes);
 
 } // namespace ns3
 

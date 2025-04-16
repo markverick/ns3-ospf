@@ -165,8 +165,10 @@ LsaHeader::LsTypeToString (LsType type) const
       return "AS-external-LSAs";
     case AreaLSAs:
       return "Area-LSAs";
-    case SummaryLSAsArea:
-      return "Summary-LSAs (Area)";
+    case L1SummaryLSAs:
+      return "Summary-LSAs (Intra-Area)";
+    case L2SummaryLSAs:
+      return "Summary-LSAs (Inter-Area)";
     default:
       return "Unrecognized LSA Type";
     };

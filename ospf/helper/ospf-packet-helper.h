@@ -41,7 +41,7 @@
 #include "ns3/ospf-neighbor.h"
 #include "ns3/router-lsa.h"
 #include "ns3/area-lsa.h"
-#include "ns3/summary-lsa.h"
+#include "ns3/l2-summary-lsa.h"
 #include "ns3/ospf-hello.h"
 #include "ns3/ospf-dbd.h"
 #include "ns3/ls-ack.h"

@@ -38,6 +38,7 @@
 #include "ns3/network-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/ospf-app-helper.h"
+#include "ns3/ospf-runtime-helper.h"
 #include "ns3/ospf-app.h"
 
 #include <cassert>
@@ -53,22 +54,6 @@ NS_LOG_COMPONENT_DEFINE ("OspfFourNode");
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
 const uint32_t SIM_SECONDS = 100;
-
-void
-SetLinkDown (Ptr<NetDevice> nd)
-{
-  Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-  pem->SetRate (1.0);
-  nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
-
-void
-SetLinkUp (Ptr<NetDevice> nd)
-{
-  Ptr<RateErrorModel> pem = CreateObject<RateErrorModel> ();
-  pem->SetRate (0.0);
-  nd->SetAttribute ("ReceiveErrorModel", PointerValue (pem));
-}
 
 int
 main (int argc, char *argv[])

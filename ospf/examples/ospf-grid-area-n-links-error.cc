@@ -137,17 +137,15 @@ main (int argc, char *argv[])
   ApplicationContainer ospfApp = ospfAppHelper.Install (c);
 
   // Setting areas
-  Ipv4Mask areaMask ("255.255.255.0");
-  Ipv4AddressHelper areaIpv4 ("172.16.0.0", areaMask);
   for (uint32_t area = 0; area < NUM_STRIPES; area++)
     {
       for (uint32_t i = 0; i < areaNodes[area].GetN (); i++)
         {
           auto node = areaNodes[area].Get (i);
           auto app = DynamicCast<OspfApp> (node->GetApplication (0));
-          app->SetArea (area, areaIpv4.NewAddress (), areaMask);
+          app->SetArea (area);
+          app->AddReachableAddress (0, app->GetRouterId (), Ipv4Mask ("255.255.255.253"));
         }
-      areaIpv4.NewNetwork ();
     }
   ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
@@ -174,7 +172,7 @@ main (int argc, char *argv[])
           Simulator::Schedule (Seconds (i + 60), &SetLinkUp, ndc.Get (l));
         }
       Simulator::Schedule (Seconds (i + 59), &CompareAreaLsdb, c);
-      Simulator::Schedule (Seconds (i + 59), &CompareSummaryLsdb, c);
+      Simulator::Schedule (Seconds (i + 59), &CompareL2SummaryLsdb, c);
       for (uint32_t j = 0; j < c.GetN (); j++)
         {
           auto app = DynamicCast<OspfApp> (c.Get (j)->GetApplication (0));
@@ -184,7 +182,7 @@ main (int argc, char *argv[])
       for (auto nodes : areaNodes)
         {
           Simulator::Schedule (Seconds (i + 59), CompareLsdb, nodes);
-          Simulator::Schedule (Seconds (i + 59), CompareL1PrefixLsdb, nodes);
+          Simulator::Schedule (Seconds (i + 59), CompareL1SummaryLsdb, nodes);
           //   // app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
           //   // Simulator::Schedule (Seconds (i + 59), &OspfApp::PrintLsdbHash, app);
         }

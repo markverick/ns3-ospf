@@ -161,7 +161,7 @@ main (int argc, char *argv[])
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (ospfAppHelper.Install (c.Get (i)).Get (0));
       app->SetMetrices (metrices[i]);
-      app->AddReachableAddress (0, advertisedIpv4.NewAddress (), mask);
+      app->AddAllReachableAddresses (0);
       ospfApp.Add (app);
     }
 
@@ -192,7 +192,7 @@ main (int argc, char *argv[])
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
-      Simulator::Schedule (Seconds (SIM_SECONDS - 0.9), &OspfApp::PrintL1PrefixLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 0.9), &OspfApp::PrintL1SummaryLsdb, app);
       // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                            std::to_string (i) + ".routes");

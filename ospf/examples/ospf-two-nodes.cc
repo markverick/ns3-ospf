@@ -154,7 +154,7 @@ main (int argc, char *argv[])
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintL1PrefixLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintL1SummaryLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                            "n" + std::to_string (i) + ".routes");
     }

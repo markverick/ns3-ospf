@@ -23,98 +23,82 @@
 #include "ns3/log.h"
 #include "ns3/header.h"
 #include "ns3/packet.h"
-#include "as-external-lsa.h"
+#include "l1-summary-lsa.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("AsExternalLsa");
+NS_LOG_COMPONENT_DEFINE ("L1SummaryLsa");
 
-NS_OBJECT_ENSURE_REGISTERED (AsExternalLsa);
+NS_OBJECT_ENSURE_REGISTERED (L1SummaryLsa);
 
-ExternalRoute::ExternalRoute (uint32_t address) : m_address (address), m_routeTag (0)
-{
-}
-ExternalRoute::ExternalRoute (uint32_t address, uint32_t routeTag)
-    : m_address (address), m_routeTag (routeTag)
-{
-}
-AsExternalLsa::AsExternalLsa () : m_mask (0), m_metric (0)
-{
-}
-AsExternalLsa::AsExternalLsa (uint32_t mask, uint32_t metric) : m_mask (mask), m_metric (metric)
+L1SummaryLsa::L1SummaryLsa ()
 {
 }
 
-AsExternalLsa::AsExternalLsa (Ptr<Packet> packet)
+L1SummaryLsa::L1SummaryLsa (Ptr<Packet> packet)
 {
   Deserialize (packet);
 }
 
 void
-AsExternalLsa::SetMask (uint32_t mask)
-{
-  m_mask = mask;
-}
-
-uint32_t
-AsExternalLsa::GetMask (void)
-{
-  return m_mask;
-}
-
-void
-AsExternalLsa::AddRoute (ExternalRoute route)
+L1SummaryLsa::AddRoute (SummaryRoute route)
 {
   m_routes.emplace_back (route);
 }
 
-ExternalRoute
-AsExternalLsa::GetRoute (uint32_t index)
+SummaryRoute
+L1SummaryLsa::GetRoute (uint32_t index)
 {
   NS_ASSERT_MSG (index >= 0 && index < m_routes.size (), "Invalid route index");
   return m_routes[index];
 }
 
+std::vector<SummaryRoute>
+L1SummaryLsa::GetRoutes ()
+{
+  return m_routes;
+}
+
 void
-AsExternalLsa::ClearRoutes ()
+L1SummaryLsa::ClearRoutes ()
 {
   m_routes.clear ();
 }
 
 uint16_t
-AsExternalLsa::GetNRoutes ()
+L1SummaryLsa::GetNRoutes ()
 {
   NS_LOG_FUNCTION (this);
   return m_routes.size ();
 }
 
 TypeId
-AsExternalLsa::GetTypeId (void)
+L1SummaryLsa::GetTypeId (void)
 {
   static TypeId tid =
-      TypeId ("ns3::AsExternalLsa").SetGroupName ("Ospf").AddConstructor<AsExternalLsa> ();
+      TypeId ("ns3::L1SummaryLsa").SetGroupName ("Ospf").AddConstructor<L1SummaryLsa> ();
   return tid;
 }
 TypeId
-AsExternalLsa::GetInstanceTypeId (void) const
+L1SummaryLsa::GetInstanceTypeId (void) const
 {
   NS_LOG_FUNCTION (this);
   return GetTypeId ();
 }
 void
-AsExternalLsa::Print (std::ostream &os) const
+L1SummaryLsa::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
   os << "# external routes: " << m_routes.size () << std::endl;
 }
 uint32_t
-AsExternalLsa::GetSerializedSize (void) const
+L1SummaryLsa::GetSerializedSize (void) const
 {
-  return 12 + m_routes.size () * 8; // Assumed no TOS
+  return 4 + m_routes.size () * 12; // Assumed no TOS
 }
 
 Ptr<Packet>
-AsExternalLsa::ConstructPacket () const
+L1SummaryLsa::ConstructPacket () const
 {
   NS_LOG_FUNCTION (this);
 
@@ -127,45 +111,43 @@ AsExternalLsa::ConstructPacket () const
 }
 
 uint32_t
-AsExternalLsa::Serialize (Buffer::Iterator start) const
+L1SummaryLsa::Serialize (Buffer::Iterator start) const
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  i.WriteHtonU32 (m_mask);
-  i.WriteHtonU32 (m_metric);
-  uint32_t routeNum = m_routes.size ();
-  i.WriteHtonU32 (routeNum);
-  for (uint32_t j = 0; j < m_routes.size (); j++)
+  i.WriteHtonU32 (m_routes.size ());
+  for (auto route : m_routes)
     {
-      i.WriteHtonU32 (m_routes[j].m_address);
-      i.WriteHtonU32 (m_routes[j].m_routeTag);
+      i.WriteHtonU32 (route.m_address);
+      i.WriteHtonU32 (route.m_mask);
+      i.WriteHtonU32 (route.m_metric);
     }
+
   return GetSerializedSize ();
 }
 
 uint32_t
-AsExternalLsa::Deserialize (Buffer::Iterator start)
+L1SummaryLsa::Deserialize (Buffer::Iterator start)
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  m_routes.clear ();
-  m_mask = i.ReadNtohU32 ();
-  m_metric = i.ReadNtohU32 ();
   uint32_t routeNum = i.ReadNtohU32 ();
-
+  uint32_t addr, mask, metric;
   for (uint32_t j = 0; j < routeNum; j++)
     {
-      uint32_t addr = i.ReadNtohU32 ();
-      uint32_t routeTag = i.ReadNtohU32 ();
-      m_routes.emplace_back (ExternalRoute (addr, routeTag));
+      addr = i.ReadNtohU32 ();
+      mask = i.ReadNtohU32 ();
+      metric = i.ReadNtohU32 ();
+      m_routes.emplace_back (SummaryRoute (addr, mask, metric));
     }
+
   return GetSerializedSize ();
 }
 
 uint32_t
-AsExternalLsa::Deserialize (Ptr<Packet> packet)
+L1SummaryLsa::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize ();
@@ -179,12 +161,12 @@ AsExternalLsa::Deserialize (Ptr<Packet> packet)
 }
 
 Ptr<Lsa>
-AsExternalLsa::Copy ()
+L1SummaryLsa::Copy ()
 {
   // Not very optimized way of copying
   Buffer buff;
   buff.AddAtStart (GetSerializedSize ());
-  Ptr<AsExternalLsa> copy = Create<AsExternalLsa> ();
+  Ptr<L1SummaryLsa> copy = Create<L1SummaryLsa> ();
   Serialize (buff.Begin ());
   copy->Deserialize (buff.Begin ());
   return copy;

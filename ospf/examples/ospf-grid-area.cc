@@ -136,17 +136,15 @@ main (int argc, char *argv[])
   ApplicationContainer ospfApp = ospfAppHelper.Install (c);
 
   // Setting areas
-  Ipv4Mask areaMask ("255.255.255.0");
-  Ipv4AddressHelper areaIpv4 ("172.16.0.0", areaMask);
   for (uint32_t area = 0; area < NUM_STRIPES; area++)
     {
       for (uint32_t i = 0; i < areaNodes[area].GetN (); i++)
         {
           auto node = areaNodes[area].Get (i);
           auto app = DynamicCast<OspfApp> (node->GetApplication (0));
-          app->SetArea (area, areaIpv4.NewAddress (), areaMask);
+          app->SetArea (area);
+          app->AddReachableAddress (0, app->GetRouterId (), Ipv4Mask ("255.255.255.253"));
         }
-      areaIpv4.NewNetwork ();
     }
   ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
@@ -202,11 +200,11 @@ main (int argc, char *argv[])
   for (auto nodes : areaNodes)
     {
       Simulator::Schedule (Seconds (SIM_SECONDS), CompareLsdb, nodes);
-      Simulator::Schedule (Seconds (SIM_SECONDS), CompareL1PrefixLsdb, nodes);
+      Simulator::Schedule (Seconds (SIM_SECONDS), CompareL1SummaryLsdb, nodes);
       Simulator::Schedule (Seconds (SIM_SECONDS), VerifyNeighbor, c, nodes);
     }
   Simulator::Schedule (Seconds (SIM_SECONDS), CompareAreaLsdb, c);
-  Simulator::Schedule (Seconds (SIM_SECONDS), CompareSummaryLsdb, c);
+  Simulator::Schedule (Seconds (SIM_SECONDS), CompareL2SummaryLsdb, c);
   // Enable Pcap
   AsciiTraceHelper ascii;
   p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));

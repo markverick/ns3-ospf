@@ -18,37 +18,36 @@
  * Author: Sirapop Theeranantachaoi <stheera@g.ucla.edu>
  */
 
-#ifndef SUMMARY_LSA_H
-#define SUMMARY_LSA_H
+#ifndef L1_SUMMARY_LSA_H
+#define L1_SUMMARY_LSA_H
 
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
+#include "l2-summary-lsa.h"
 #include "lsa.h"
 
 namespace ns3 {
 /**
  * \ingroup ospf
  *
- * \brief Summary LSA
+ * \brief AS External LSA
  */
 
-class SummaryLsa : public Lsa
+class L1SummaryLsa : public Lsa
 {
 public:
   /**
    * \brief Construct a Summary LSA
    */
-  SummaryLsa ();
-  SummaryLsa (uint32_t mask);
-  SummaryLsa (uint32_t mask, uint32_t metric);
-  SummaryLsa (Ptr<Packet> packet);
+  L1SummaryLsa ();
+  L1SummaryLsa (Ptr<Packet> packet);
 
-  void SetMask (uint32_t mask);
-  uint32_t GetMask ();
-
-  void SetMetric (uint32_t metric);
-  uint32_t GetMetric ();
+  void AddRoute (SummaryRoute route);
+  SummaryRoute GetRoute (uint32_t index);
+  std::vector<SummaryRoute> GetRoutes ();
+  uint16_t GetNRoutes ();
+  void ClearRoutes ();
 
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
@@ -61,10 +60,9 @@ public:
   virtual Ptr<Lsa> Copy ();
 
 private:
-  uint32_t m_mask;
-  uint32_t m_metric;
+  std::vector<SummaryRoute> m_routes;
 };
 
 } // namespace ns3
 
-#endif /* SUMMARY_LSA_H */
+#endif /* L1_SUMMARY_LSA_H */

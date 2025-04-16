@@ -138,9 +138,11 @@ main (int argc, char *argv[])
   Ipv4AddressHelper areaIpv4 ("172.16.0.0", areaMask);
   auto app0 = DynamicCast<OspfApp> (c.Get (0)->GetApplication (0));
   auto app1 = DynamicCast<OspfApp> (c.Get (1)->GetApplication (0));
-  app0->SetArea (0, areaIpv4.NewAddress (), areaMask);
+  app0->SetArea (0);
+  app0->AddReachableAddress (0, areaIpv4.NewAddress (), areaMask);
   areaIpv4.NewNetwork ();
-  app1->SetArea (1, areaIpv4.NewAddress (), areaMask);
+  app1->SetArea (1);
+  app1->AddReachableAddress (0, areaIpv4.NewAddress (), areaMask);
 
   apps.Start (Seconds (2.0));
   apps.Stop (Seconds (SIM_SECONDS));
@@ -151,7 +153,7 @@ main (int argc, char *argv[])
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintL1PrefixLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintL1SummaryLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintAreaLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                            "n" + std::to_string (i) + ".routes");

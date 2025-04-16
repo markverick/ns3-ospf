@@ -23,82 +23,72 @@
 #include "ns3/log.h"
 #include "ns3/header.h"
 #include "ns3/packet.h"
-#include "summary-lsa.h"
+#include "l2-summary-lsa.h"
 
 namespace ns3 {
 
-NS_LOG_COMPONENT_DEFINE ("SummaryLsa");
+NS_LOG_COMPONENT_DEFINE ("L2SummaryLsa");
 
-NS_OBJECT_ENSURE_REGISTERED (SummaryLsa);
+NS_OBJECT_ENSURE_REGISTERED (L2SummaryLsa);
 
-SummaryLsa::SummaryLsa ()
+SummaryRoute::SummaryRoute (uint32_t address, uint32_t mask, uint32_t metric)
+    : m_address (address), m_mask (mask), m_metric (metric)
+{
+}
+L2SummaryLsa::L2SummaryLsa ()
 {
 }
 
-SummaryLsa::SummaryLsa (uint32_t mask) : m_mask (mask), m_metric (0)
-{
-}
-
-SummaryLsa::SummaryLsa (uint32_t mask, uint32_t metric) : m_mask (mask), m_metric (metric)
-{
-}
-
-SummaryLsa::SummaryLsa (Ptr<Packet> packet)
+L2SummaryLsa::L2SummaryLsa (Ptr<Packet> packet)
 {
   Deserialize (packet);
 }
 
 void
-SummaryLsa::SetMask (uint32_t mask)
+L2SummaryLsa::AddRoute (SummaryRoute route)
 {
-  m_mask = mask;
+  m_routes.emplace_back (route);
+}
+
+std::vector<SummaryRoute>
+L2SummaryLsa::GetRoutes ()
+{
+  return m_routes;
 }
 
 uint32_t
-SummaryLsa::GetMask ()
+L2SummaryLsa::GetNRoute ()
 {
-  return m_mask;
-}
-
-void
-SummaryLsa::SetMetric (uint32_t mask)
-{
-  m_mask = mask;
-}
-
-uint32_t
-SummaryLsa::GetMetric ()
-{
-  return m_mask;
+  return m_routes.size ();
 }
 
 TypeId
-SummaryLsa::GetTypeId (void)
+L2SummaryLsa::GetTypeId (void)
 {
   static TypeId tid =
-      TypeId ("ns3::SummaryLsa").SetGroupName ("Ospf").AddConstructor<SummaryLsa> ();
+      TypeId ("ns3::L2SummaryLsa").SetGroupName ("Ospf").AddConstructor<L2SummaryLsa> ();
   return tid;
 }
 TypeId
-SummaryLsa::GetInstanceTypeId (void) const
+L2SummaryLsa::GetInstanceTypeId (void) const
 {
   NS_LOG_FUNCTION (this);
   return GetTypeId ();
 }
 void
-SummaryLsa::Print (std::ostream &os) const
+L2SummaryLsa::Print (std::ostream &os) const
 {
   NS_LOG_FUNCTION (this << &os);
-  os << "mask: " << m_mask << ", metric: " << m_metric << std::endl;
+  os << "# routes: " << m_routes.size () << std::endl;
 }
 uint32_t
-SummaryLsa::GetSerializedSize (void) const
+L2SummaryLsa::GetSerializedSize (void) const
 {
-  return 12; // Assumed no TOS
+  return 4 + m_routes.size () * 12;
 }
 
 Ptr<Packet>
-SummaryLsa::ConstructPacket () const
+L2SummaryLsa::ConstructPacket () const
 {
   NS_LOG_FUNCTION (this);
 
@@ -111,33 +101,43 @@ SummaryLsa::ConstructPacket () const
 }
 
 uint32_t
-SummaryLsa::Serialize (Buffer::Iterator start) const
+L2SummaryLsa::Serialize (Buffer::Iterator start) const
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  i.WriteHtonU32 (m_mask);
-  i.WriteHtonU32 (m_metric);
-  i.WriteHtonU32 (0); // TOS is not used
+  i.WriteHtonU32 (m_routes.size ());
+  for (auto route : m_routes)
+    {
+      i.WriteHtonU32 (route.m_address);
+      i.WriteHtonU32 (route.m_mask);
+      i.WriteHtonU32 (route.m_metric);
+    }
 
   return GetSerializedSize ();
 }
 
 uint32_t
-SummaryLsa::Deserialize (Buffer::Iterator start)
+L2SummaryLsa::Deserialize (Buffer::Iterator start)
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  m_mask = i.ReadNtohU32 ();
-  m_metric = i.ReadNtohU32 ();
-  i.Next (4); // Skip TOS
+  uint32_t routeNum = i.ReadNtohU32 ();
+  uint32_t addr, mask, metric;
+  for (uint32_t j = 0; j < routeNum; j++)
+    {
+      addr = i.ReadNtohU32 ();
+      mask = i.ReadNtohU32 ();
+      metric = i.ReadNtohU32 ();
+      m_routes.emplace_back (SummaryRoute (addr, mask, metric));
+    }
 
   return GetSerializedSize ();
 }
 
 uint32_t
-SummaryLsa::Deserialize (Ptr<Packet> packet)
+L2SummaryLsa::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize ();
@@ -151,12 +151,12 @@ SummaryLsa::Deserialize (Ptr<Packet> packet)
 }
 
 Ptr<Lsa>
-SummaryLsa::Copy ()
+L2SummaryLsa::Copy ()
 {
   // Not very optimized way of copying
   Buffer buff;
   buff.AddAtStart (GetSerializedSize ());
-  Ptr<SummaryLsa> copy = Create<SummaryLsa> ();
+  Ptr<L2SummaryLsa> copy = Create<L2SummaryLsa> ();
   Serialize (buff.Begin ());
   copy->Deserialize (buff.Begin ());
   return copy;

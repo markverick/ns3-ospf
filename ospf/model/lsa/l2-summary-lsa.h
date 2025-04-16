@@ -18,8 +18,8 @@
  * Author: Sirapop Theeranantachaoi <stheera@g.ucla.edu>
  */
 
-#ifndef AS_EXTERNAL_LSA_H
-#define AS_EXTERNAL_LSA_H
+#ifndef L2_SUMMARY_LSA_H
+#define L2_SUMMARY_LSA_H
 
 #include "ns3/object.h"
 #include "ns3/header.h"
@@ -27,42 +27,34 @@
 #include "lsa.h"
 
 namespace ns3 {
+class SummaryRoute
+{
+public:
+  SummaryRoute ();
+  // Type 1: linkId = Remote Router ID, linkData = Self interface IP
+  SummaryRoute (uint32_t address, uint32_t mask, uint32_t metric);
+  uint32_t m_address;
+  uint32_t m_mask;
+  uint32_t m_metric;
+};
 /**
  * \ingroup ospf
  *
- * \brief AS External LSA
+ * \brief Summary LSA
  */
-class ExternalRoute
-{
-public:
-  ExternalRoute ();
-  ExternalRoute (uint32_t address);
 
-  ExternalRoute (uint32_t address, uint32_t routeTag);
-  uint32_t m_address;
-  uint32_t m_routeTag;
-};
-
-class AsExternalLsa : public Lsa
+class L2SummaryLsa : public Lsa
 {
 public:
   /**
    * \brief Construct a Summary LSA
    */
-  AsExternalLsa ();
-  AsExternalLsa (uint32_t mask, uint32_t metric);
-  AsExternalLsa (Ptr<Packet> packet);
+  L2SummaryLsa ();
+  L2SummaryLsa (Ptr<Packet> packet);
 
-  void SetMask (uint32_t mask);
-  uint32_t GetMask ();
-
-  void SetMetric (uint32_t metric);
-  uint32_t GetMetric ();
-
-  void AddRoute (ExternalRoute route);
-  ExternalRoute GetRoute (uint32_t index);
-  uint16_t GetNRoutes ();
-  void ClearRoutes ();
+  void AddRoute (SummaryRoute route);
+  std::vector<SummaryRoute> GetRoutes ();
+  uint32_t GetNRoute ();
 
   static TypeId GetTypeId (void);
   virtual TypeId GetInstanceTypeId (void) const;
@@ -75,12 +67,9 @@ public:
   virtual Ptr<Lsa> Copy ();
 
 private:
-  std::vector<ExternalRoute> m_routes;
-  uint32_t m_mask;
-  uint32_t m_metric;
-  // TODO: Support bitE
+  std::vector<SummaryRoute> m_routes;
 };
 
 } // namespace ns3
 
-#endif /* AS_EXTERNAL_LSA_H */
+#endif /* L2_SUMMARY_LSA_H */

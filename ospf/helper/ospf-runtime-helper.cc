@@ -81,23 +81,23 @@ CompareLsdb (NodeContainer nodes)
 }
 
 void
-CompareL1PrefixLsdb (NodeContainer nodes)
+CompareL1SummaryLsdb (NodeContainer nodes)
 {
   NS_ASSERT (nodes.GetN () > 0);
   Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
-  uint32_t hash = app->GetL1PrefixLsdbHash ();
+  uint32_t hash = app->GetL1SummaryLsdbHash ();
 
   for (uint32_t i = 1; i < nodes.GetN (); i++)
     {
       app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
-      if (hash != app->GetL1PrefixLsdbHash ())
+      if (hash != app->GetL1SummaryLsdbHash ())
         {
-          std::cout << "[" << Simulator::Now () << "] AS External LSDBs mismatched" << std::endl;
+          std::cout << "[" << Simulator::Now () << "] L1 Summary LSDBs mismatched" << std::endl;
           return;
         }
     }
   std::cout << "[" << Simulator::Now ()
-            << "] AS External LSDBs matched: " << app->GetL1PrefixLsdb ().size () << std::endl;
+            << "] L1 Summary LSDBs matched: " << app->GetL1SummaryLsdb ().size () << std::endl;
 
   return;
 }
@@ -125,23 +125,23 @@ CompareAreaLsdb (NodeContainer nodes)
 }
 
 void
-CompareSummaryLsdb (NodeContainer nodes)
+CompareL2SummaryLsdb (NodeContainer nodes)
 {
   NS_ASSERT (nodes.GetN () > 0);
   Ptr<OspfApp> app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
-  uint32_t hash = app->GetSummaryLsdbHash ();
+  uint32_t hash = app->GetL2SummaryLsdbHash ();
 
   for (uint32_t i = 1; i < nodes.GetN (); i++)
     {
       app = DynamicCast<OspfApp> (nodes.Get (i)->GetApplication (0));
-      if (hash != app->GetSummaryLsdbHash ())
+      if (hash != app->GetL2SummaryLsdbHash ())
         {
-          std::cout << "[" << Simulator::Now () << "] Summary LSDBs mismatched" << std::endl;
+          std::cout << "[" << Simulator::Now () << "] L2 Summary LSDBs mismatched" << std::endl;
           return;
         }
     }
   std::cout << "[" << Simulator::Now ()
-            << "] Summary LSDBs matched: " << app->GetSummaryLsdb ().size () << std::endl;
+            << "] L2 Summary LSDBs matched: " << app->GetL2SummaryLsdb ().size () << std::endl;
 
   return;
 }

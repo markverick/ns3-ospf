@@ -35,9 +35,9 @@
 #include "ns3/ls-update.h"
 #include "ns3/lsa-header.h"
 #include "ns3/router-lsa.h"
-#include "ns3/as-external-lsa.h"
+#include "ns3/l1-summary-lsa.h"
 #include "ns3/area-lsa.h"
-#include "ns3/summary-lsa.h"
+#include "ns3/l2-summary-lsa.h"
 #include "next-hop.h"
 #include "ospf-interface.h"
 #include "unordered_map"
@@ -83,10 +83,17 @@ public:
 
   /**
    * \brief Add reachable address and mask
+   * \param ifIndex interface to bind
    * \param address address assigned to the ID
    * \param mask the area prefix mask
    */
   void AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask);
+
+  /**
+   * \brief Add IPs from all interfaces to the ifIndex interface
+   * \param ifIndex interface to bind
+   */
+  void AddAllReachableAddresses (uint32_t ifIndex);
 
   /**
    * \brief Remove reachable address and mask
@@ -98,10 +105,8 @@ public:
   /**
    * \brief Set inteface areas.
    * \param area the area ID
-   * \param address address assigned to the ID
-   * \param mask the area prefix mask
    */
-  void SetArea (uint32_t area, Ipv4Address address, Ipv4Mask mask);
+  void SetArea (uint32_t area);
 
   /**
    * \brief Get inteface areas.
@@ -155,9 +160,9 @@ public:
    * \brief Get LSDB; only use for testing/debugging
    */
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>> GetLsdb ();
-  std::map<uint32_t, std::pair<LsaHeader, Ptr<AsExternalLsa>>> GetL1PrefixLsdb ();
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<L1SummaryLsa>>> GetL1SummaryLsdb ();
   std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> GetAreaLsdb ();
-  std::map<uint32_t, std::pair<LsaHeader, Ptr<SummaryLsa>>> GetSummaryLsdb ();
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<L2SummaryLsa>>> GetL2SummaryLsdb ();
   /**
    * \brief Print Router LSDB
    */
@@ -165,7 +170,7 @@ public:
   /**
    * \brief Print AS External LSDB
    */
-  void PrintL1PrefixLsdb ();
+  void PrintL1SummaryLsdb ();
   /**
    * \brief Print AreaLSDB
    */
@@ -173,7 +178,7 @@ public:
   /**
    * \brief Print SummaryLSDB
    */
-  void PrintSummaryLsdb ();
+  void PrintL2SummaryLsdb ();
 
   /**
    * \brief Print LSDB.
@@ -197,7 +202,7 @@ public:
    * \brief Get AS External LSDB hash for comparison.
    * \return Router LSDB hash
    */
-  uint32_t GetL1PrefixLsdbHash ();
+  uint32_t GetL1SummaryLsdbHash ();
 
   /**
    * \brief Get Area LSDB hash for comparison.
@@ -209,7 +214,7 @@ public:
    * \brief Get Summary LSDB hash for comparison.
    * \return Summary LSDB hash
    */
-  uint32_t GetSummaryLsdbHash ();
+  uint32_t GetL2SummaryLsdbHash ();
 
   /**
    * \brief Print LSDB hash.
@@ -386,7 +391,7 @@ private:
    * \param lsaHeader LSA Header
    * \param asExternalLsa AS External LSA Payload
    */
-  void ProcessAsExternalLsa (LsaHeader lsaHeader, Ptr<AsExternalLsa> asExternalLsa);
+  void ProcessL1SummaryLsa (LsaHeader lsaHeader, Ptr<L1SummaryLsa> asExternalLsa);
   /**
    * \brief Process Router-LSA during Full.
    * \param lsaHeader LSA Header
@@ -404,7 +409,7 @@ private:
    * \param lsaHeader LSA Header
    * \param summaryLsa Area Summary LSA Payload
    */
-  void ProcessAreaSummaryLsa (LsaHeader lsaHeader, Ptr<SummaryLsa> summaryLsa);
+  void ProcessL2SummaryLsa (LsaHeader lsaHeader, Ptr<L2SummaryLsa> summaryLsa);
   /**
    * \brief Process LS Acknowledge as a response for LS Update during Full.
    * \param ipHeader IPv4 Header
@@ -418,7 +423,7 @@ private:
    * \brief Generate local Router-LSA based on adjacencies (Full)
    * \return Router-LSA for this router
    */
-  Ptr<AsExternalLsa> GetAsExternalLsa ();
+  Ptr<L1SummaryLsa> GetL1SummaryLsa ();
   /**
    * \brief Generate local Router-LSA based on adjacencies (Full)
    * \return Router-LSA for this router
@@ -433,7 +438,7 @@ private:
    * \brief Generate Summary Area-LSA for its area
    * \return Summary-LSA containing all prefixes in the areas
    */
-  Ptr<SummaryLsa> GetSummaryLsa ();
+  Ptr<L2SummaryLsa> GetL2SummaryLsa ();
   /**
    * \brief Generate local Router-LSA based on adjacencies (Full), filtered by areaId
    * \param areaId Area ID to filter
@@ -451,7 +456,7 @@ private:
   /**
    * \brief Recompute Area Summary-LSA, increment its Sequence Number, and inject to Area LSDB
    */
-  void RecomputeSummaryLsa ();
+  void RecomputeL2SummaryLsa ();
   /**
    * \brief Update routing table based on shortest paths and prefixes
    */
@@ -616,16 +621,16 @@ private:
   // L1 LSDB
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>
       m_routerLsdb; // LSDB for each remote router ID
-  std::map<uint32_t, std::pair<LsaHeader, Ptr<AsExternalLsa>>>
-      m_asExternalLsdb; // LSDB for each remote router ID
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<L1SummaryLsa>>>
+      m_l1SummaryLsdb; // LSDB for each remote router ID
   std::unordered_map<uint32_t, std::pair<uint32_t, NextHop>>
       m_nextHopToShortestBorderRouter; // next hop
   std::vector<uint32_t> m_advertisingPrefixes;
 
   // L2 LSDB
   std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> m_areaLsdb; // LSDB for each remote area ID
-  std::map<uint32_t, std::pair<LsaHeader, Ptr<SummaryLsa>>>
-      m_summaryLsdb; // LSDB for summary prefixes
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<L2SummaryLsa>>>
+      m_l2SummaryLsdb; // LSDB for summary prefixes
 
   /// Callbacks for tracing the packet Tx events
   TracedCallback<Ptr<const Packet>> m_txTrace;

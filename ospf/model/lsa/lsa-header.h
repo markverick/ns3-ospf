@@ -65,7 +65,8 @@ public:
     SummaryLSAsASBR = 0x4,
     ASExternalLSAs = 0x5,
     AreaLSAs = 0x6,
-    SummaryLSAsArea = 0x7
+    L1SummaryLSAs = 0x7,
+    L2SummaryLSAs = 0x8
   };
 
   /**

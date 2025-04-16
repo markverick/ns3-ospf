@@ -151,21 +151,20 @@ main (int argc, char *argv[])
   ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
 
   // Area Addresses
-  Ipv4Mask areaMask ("255.255.255.0");
-  Ipv4AddressHelper areaIpv4 ("172.16.0.0", areaMask);
   // Install OSPF app with metrices
   ApplicationContainer ospfApp;
   for (uint32_t i = 0; i < c0.GetN (); i++)
     {
       auto app = DynamicCast<OspfApp> (ospfAppHelper.Install (c0.Get (i)).Get (0));
-      app->SetArea (0, areaIpv4.NewAddress (), areaMask);
+      app->SetArea (0);
+      app->AddAllReachableAddresses (0);
       ospfApp.Add (app);
     }
-  areaIpv4.NewNetwork ();
   for (uint32_t i = 0; i < c1.GetN (); i++)
     {
       auto app = DynamicCast<OspfApp> (ospfAppHelper.Install (c1.Get (i)).Get (0));
-      app->SetArea (1, areaIpv4.NewAddress (), areaMask);
+      app->SetArea (1);
+      app->AddAllReachableAddresses (0);
       ospfApp.Add (app);
     }
 
@@ -183,7 +182,8 @@ main (int argc, char *argv[])
   uint32_t tSize = 1024;
   uint32_t maxPacketCount = 200;
   Time interPacketInterval = Seconds (1.);
-  UdpEchoClientHelper client (Ipv4Address ("172.16.0.3"), port);
+  auto dst = DynamicCast<OspfApp> (ospfApp.Get (2))->GetRouterId ();
+  UdpEchoClientHelper client (dst, port);
   client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
   client.SetAttribute ("Interval", TimeValue (interPacketInterval));
   client.SetAttribute ("PacketSize", UintegerValue (tSize));
@@ -200,11 +200,11 @@ main (int argc, char *argv[])
   Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                        "route7.routes");
   Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareLsdb, c0);
-  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareL1PrefixLsdb, c0);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareL1SummaryLsdb, c0);
   Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareLsdb, c1);
-  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareL1PrefixLsdb, c1);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareL1SummaryLsdb, c1);
   Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareAreaLsdb, c);
-  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareSummaryLsdb, c);
+  Simulator::Schedule (Seconds (SIM_SECONDS - 0.5), &CompareL2SummaryLsdb, c);
   for (int i = 0; i < 8; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
@@ -213,9 +213,9 @@ main (int argc, char *argv[])
                            "route" + std::to_string (i) + ".routes");
 
       Simulator::Schedule (Seconds (SIM_SECONDS - 1.03), &OspfApp::PrintLsdb, app);
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1.02), &OspfApp::PrintL1PrefixLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.02), &OspfApp::PrintL1SummaryLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1.01), &OspfApp::PrintAreaLsdb, app);
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1.00), &OspfApp::PrintSummaryLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 1.00), &OspfApp::PrintL2SummaryLsdb, app);
       // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName);
     }
 

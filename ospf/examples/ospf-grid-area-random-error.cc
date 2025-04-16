@@ -136,17 +136,15 @@ main (int argc, char *argv[])
   ApplicationContainer ospfApp = ospfAppHelper.Install (c);
 
   // Setting areas
-  Ipv4Mask areaMask ("255.255.255.0");
-  Ipv4AddressHelper areaIpv4 ("172.16.0.0", areaMask);
   for (uint32_t area = 0; area < NUM_STRIPES; area++)
     {
       for (uint32_t i = 0; i < areaNodes[area].GetN (); i++)
         {
           auto node = areaNodes[area].Get (i);
           auto app = DynamicCast<OspfApp> (node->GetApplication (0));
-          app->SetArea (area, areaIpv4.NewAddress (), areaMask);
+          app->SetArea (area);
+          app->AddReachableAddress (0, app->GetRouterId (), Ipv4Mask ("255.255.255.253"));
         }
-      areaIpv4.NewNetwork ();
     }
   ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));

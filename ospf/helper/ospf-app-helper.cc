@@ -151,14 +151,15 @@ OspfAppHelper::Preload (NodeContainer c)
       lsaList[app->GetArea ()].emplace_back (routerLsaHeader, routerLsa);
 
       // AS External LSA
-      Ptr<AsExternalLsa> asExternalLsa = Create<AsExternalLsa> (app->GetAreaMask ().Get (), 1);
-      asExternalLsa->AddRoute (app->GetRouterId ().Get ());
-      LsaHeader asExternalLsaHeader (std::make_tuple (LsaHeader::LsType::ASExternalLSAs,
-                                                      app->GetArea (), app->GetRouterId ().Get ()));
+      Ptr<L1SummaryLsa> l1SummaryLsa = Create<L1SummaryLsa> ();
+      l1SummaryLsa->AddRoute (
+          SummaryRoute (app->GetRouterId ().Get (), app->GetAreaMask ().Get (), 1));
+      LsaHeader l1SummaryLsaHeader (std::make_tuple (LsaHeader::LsType::L1SummaryLSAs,
+                                                     app->GetArea (), app->GetRouterId ().Get ()));
 
-      asExternalLsaHeader.SetLength (20 + asExternalLsa->GetSerializedSize ());
-      asExternalLsaHeader.SetSeqNum (1);
-      lsaList[app->GetArea ()].emplace_back (asExternalLsaHeader, asExternalLsa);
+      l1SummaryLsaHeader.SetLength (20 + l1SummaryLsa->GetSerializedSize ());
+      l1SummaryLsaHeader.SetSeqNum (1);
+      lsaList[app->GetArea ()].emplace_back (l1SummaryLsaHeader, l1SummaryLsa);
     }
 
   // Proxied LSA
@@ -176,15 +177,8 @@ OspfAppHelper::Preload (NodeContainer c)
       areaLsaHeader.SetSeqNum (1);
       proxiedLsaList.emplace_back (areaLsaHeader, areaLsa);
 
-      // Area Summary LSA
-      Ptr<SummaryLsa> summaryLsa = Create<SummaryLsa> (areaMasks[areaId].Get ());
-      LsaHeader summaryLsaHeader (std::make_tuple (LsaHeader::LsType::SummaryLSAsArea, areaId,
-                                                   *areaMembers[areaId].begin ()));
-      summaryLsaHeader.SetLength (20 + summaryLsa->GetSerializedSize ());
-      summaryLsaHeader.SetSeqNum (1);
-      proxiedLsaList.emplace_back (summaryLsaHeader, summaryLsa);
+      // TODO: Preload L2 area summary
     }
-  // Area Summary LSA
   for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
     {
       Ptr<Node> node = *i;
