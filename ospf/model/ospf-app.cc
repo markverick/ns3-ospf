@@ -170,6 +170,20 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
 }
 
 void
+OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask)
+{
+  Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
+  ipv4->AddAddress (0, Ipv4InterfaceAddress (address, mask));
+}
+
+void
+OspfApp::RemoveReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask)
+{
+  Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
+  ipv4->RemoveAddress (0, address);
+}
+
+void
 OspfApp::SetArea (uint32_t area, Ipv4Address address, Ipv4Mask mask)
 {
   Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
@@ -857,7 +871,6 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
   if (neighbor->GetState () == OspfNeighbor::Init)
     {
       // Advance to ExStart if it's bidirectional (TODO: two-way for broadcast networks)
-      NS_LOG_INFO ("Interface " << ifIndex << " is stuck at init");
       if (hello->IsNeighbor (m_routerId.Get ()))
         {
           NS_LOG_INFO ("Interface " << ifIndex << " is now bi-directional");
@@ -865,6 +878,10 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
           // Send DBD to negotiate master/slave and DD seq num, starting with self as a Master
           neighbor->SetDDSeqNum (m_randomVariableSeq->GetInteger ());
           NegotiateDbd (ifIndex, neighbor, true);
+        }
+      else
+        {
+          NS_LOG_INFO ("Interface " << ifIndex << " is still  init, waiting for two-way");
         }
     }
 }
@@ -1445,7 +1462,19 @@ OspfApp::GetAsExternalLsa ()
 {
   // Hardcoded masks and prefixes to be node's IP
   Ptr<AsExternalLsa> asExternalLsa = Create<AsExternalLsa> (m_areaMask.Get (), 1);
-  asExternalLsa->AddRoute (m_routerId.Get ());
+  auto ipv4 = GetNode ()->GetObject<Ipv4> ();
+  // Advertise local addresses
+  uint32_t numAddr = ipv4->GetNAddresses (0);
+  for (uint32_t i = 1; i < numAddr; i++)
+    {
+      // Skip the local host
+      if (ipv4->GetAddress (0, i).GetAddress ().IsLocalhost ())
+        {
+          continue;
+        }
+      Ipv4Address addr = ipv4->GetAddress (0, i).GetAddress ();
+      asExternalLsa->AddRoute (addr.Get ());
+    }
   return asExternalLsa;
 }
 // Generate Local Router LSA with all areas

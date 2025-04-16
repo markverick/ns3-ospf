@@ -82,6 +82,20 @@ public:
   void SetBoundNetDevices (NetDeviceContainer devs);
 
   /**
+   * \brief Add reachable address and mask
+   * \param address address assigned to the ID
+   * \param mask the area prefix mask
+   */
+  void AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask);
+
+  /**
+   * \brief Remove reachable address and mask
+   * \param address address assigned to the ID
+   * \param mask the area prefix mask
+   */
+  void RemoveReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask);
+
+  /**
    * \brief Set inteface areas.
    * \param area the area ID
    * \param address address assigned to the ID

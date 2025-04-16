@@ -155,10 +155,13 @@ main (int argc, char *argv[])
 
   // Install OSPF app with metrices
   ApplicationContainer ospfApp;
+  Ipv4Mask mask ("255.255.255.0");
+  Ipv4AddressHelper advertisedIpv4 ("172.16.0.0", mask);
   for (uint32_t i = 0; i < c.GetN (); i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (ospfAppHelper.Install (c.Get (i)).Get (0));
       app->SetMetrices (metrices[i]);
+      app->AddReachableAddress (0, advertisedIpv4.NewAddress (), mask);
       ospfApp.Add (app);
     }
 
@@ -189,6 +192,7 @@ main (int argc, char *argv[])
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
+      Simulator::Schedule (Seconds (SIM_SECONDS - 0.9), &OspfApp::PrintL1PrefixLsdb, app);
       // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                            std::to_string (i) + ".routes");
