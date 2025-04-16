@@ -175,14 +175,14 @@ main (int argc, char *argv[])
   // User Traffic
   uint16_t port = 9; // well-known echo port number
   UdpEchoServerHelper server (port);
-  ApplicationContainer apps = server.Install (c.Get (2));
+  ApplicationContainer apps = server.Install (c.Get (4));
   apps.Start (Seconds (1.0));
   apps.Stop (Seconds (SIM_SECONDS));
 
   uint32_t tSize = 1024;
   uint32_t maxPacketCount = 200;
   Time interPacketInterval = Seconds (1.);
-  auto dst = DynamicCast<OspfApp> (ospfApp.Get (2))->GetRouterId ();
+  auto dst = DynamicCast<OspfApp> (ospfApp.Get (4))->GetRouterId ();
   UdpEchoClientHelper client (dst, port);
   client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
   client.SetAttribute ("Interval", TimeValue (interPacketInterval));
