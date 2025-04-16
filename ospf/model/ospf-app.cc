@@ -684,11 +684,11 @@ OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address (originRo
 void
 OspfApp::SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor)
 {
-  NS_LOG_FUNCTION (this << ifIndex << neighbor->GetIpAddress ());
-  auto socket = m_sockets[ifIndex];
+  NS_LOG_FUNCTION (this << ifIndex << m_lsaAddress);
+  auto socket = m_lsaSockets[ifIndex];
   m_txTrace (packet);
 
-  socket->SendTo (packet, 0, InetSocketAddress (neighbor->GetIpAddress ()));
+  socket->SendTo (packet, 0, InetSocketAddress (m_lsaAddress));
   // NS_LOG_INFO ("Packet sent to via interface " << ifIndex << " : " << m_ospfInterfaces[ifIndex]->GetAddress());
 }
 
