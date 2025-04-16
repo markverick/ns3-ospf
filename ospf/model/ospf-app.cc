@@ -192,6 +192,21 @@ OspfApp::AddAllReachableAddresses (uint32_t ifIndex)
 }
 
 void
+OspfApp::ClearReachableAddresses (uint32_t ifIndex)
+{
+  Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
+  while (ipv4->GetNAddresses (ifIndex))
+    {
+      uint32_t addrIndex = ipv4->GetNAddresses (ifIndex) - 1;
+      if (ipv4->GetAddress (ifIndex, addrIndex).GetAddress ().IsLocalhost ())
+        {
+          break;
+        }
+      ipv4->RemoveAddress (ifIndex, addrIndex);
+    }
+}
+
+void
 OspfApp::RemoveReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask)
 {
   Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();

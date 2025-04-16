@@ -91,9 +91,15 @@ public:
 
   /**
    * \brief Add IPs from all interfaces to the ifIndex interface
-   * \param ifIndex interface to bind
+   * \param ifIndex interface index
    */
   void AddAllReachableAddresses (uint32_t ifIndex);
+
+  /**
+   * \brief Remove addresses from the interface until empty or hitting localhost
+   * \param ifIndex interface index
+   */
+  void ClearReachableAddresses (uint32_t ifIndex);
 
   /**
    * \brief Remove reachable address and mask
