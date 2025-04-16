@@ -44,9 +44,9 @@ NS_LOG_COMPONENT_DEFINE ("OspfGridArea");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
-const uint32_t STRIPE_WIDTH = 2;
-const uint32_t NUM_STRIPES = 4;
-const uint32_t GRID_HEIGHT = 22;
+const uint32_t STRIPE_WIDTH = 1;
+const uint32_t NUM_STRIPES = 3;
+const uint32_t GRID_HEIGHT = 1;
 const uint32_t GRID_WIDTH = STRIPE_WIDTH * NUM_STRIPES;
 const uint32_t SIM_SECONDS = 100;
 
@@ -68,7 +68,7 @@ main (int argc, char *argv[])
   cmd.Parse (argc, argv);
 
   // Create results folder
-  std::filesystem::path dirName = "results/ospf-grid";
+  std::filesystem::path dirName = "results/ospf-grid-area";
 
   try
     {
@@ -186,9 +186,9 @@ main (int argc, char *argv[])
       // Simulator::Schedule(Seconds(30), &OspfApp::PrintLsdbHash, app);
       // Simulator::Schedule(Seconds(80), &OspfApp::PrintLsdbHash, app);
       // Simulator::Schedule(Seconds(SIM_SECONDS), &OspfApp::PrintLsdbHash, app);
+      Simulator::Schedule (Seconds (100), &OspfApp::PrintRouting, app, dirName,
+                           std::to_string (i) + ".routes");
     }
-  app = DynamicCast<OspfApp> (c.Get (2)->GetApplication (0));
-  Simulator::Schedule (Seconds (100), &OspfApp::PrintRouting, app, dirName, "route.routes");
 
   // Print LSDBs
   // Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::PrintLsdb, app);

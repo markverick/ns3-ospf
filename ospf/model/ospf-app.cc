@@ -372,7 +372,7 @@ OspfApp::PrintL2SummaryLsdb ()
 {
   if (m_l2SummaryLsdb.empty ())
     return;
-  std::cout << "==== [ " << m_routerId << " : " << m_areaId << "] Area Summary LSDB"
+  std::cout << "==== [ " << m_routerId << " : " << m_areaId << "] L2 Summary LSDB"
             << " =====" << std::endl;
   for (auto &pair : m_l2SummaryLsdb)
     {
@@ -1698,34 +1698,31 @@ OspfApp::UpdateRouting ()
       auto n = m_l1SummaryLsdb[remoteRouterId].second->GetNRoutes ();
       for (auto i = 0; i < n; i++)
         {
-          for (auto neighbor : m_ospfInterfaces[nextHop.ifIndex]->GetNeighbors ())
-            {
-              m_routing->AddHostRouteTo (
-                  Ipv4Address (m_l1SummaryLsdb[remoteRouterId].second->GetRoute (i).m_address),
-                  neighbor->GetIpAddress (), nextHop.ifIndex, nextHop.metric);
-            }
+          m_routing->AddHostRouteTo (
+              Ipv4Address (m_l1SummaryLsdb[remoteRouterId].second->GetRoute (i).m_address),
+              nextHop.ipAddress, nextHop.ifIndex, nextHop.metric);
         }
     }
 
+  // Fill in the routing table
   for (auto &[remoteAreaId, l2NextHop] : m_l2NextHop)
     {
+      if (remoteAreaId == m_areaId)
+        continue;
       if (m_l2SummaryLsdb.find (remoteAreaId) == m_l2SummaryLsdb.end ())
         {
           continue;
         }
       auto header = m_l2SummaryLsdb[remoteAreaId].first;
       auto lsa = m_l2SummaryLsdb[remoteAreaId].second;
-      auto nextHop = m_nextHopToShortestBorderRouter[remoteAreaId].second;
-
+      auto nextHop = m_nextHopToShortestBorderRouter[l2NextHop.first].second;
+      nextHop.metric += l2NextHop.second;
       // Ipv4Address network = Ipv4Address(header.GetAdvertisingRouter()).CombineMask (lsa->GetMask());
       for (auto route : lsa->GetRoutes ())
         {
-          for (auto neighbor : m_ospfInterfaces[nextHop.ifIndex]->GetNeighbors ())
-            {
-              m_routing->AddNetworkRouteTo (Ipv4Address (route.m_address), Ipv4Mask (route.m_mask),
-                                            neighbor->GetIpAddress (), nextHop.ifIndex,
-                                            nextHop.metric + route.m_metric);
-            }
+          m_routing->AddNetworkRouteTo (Ipv4Address (route.m_address), Ipv4Mask (route.m_mask),
+                                        nextHop.ipAddress, nextHop.ifIndex,
+                                        nextHop.metric + route.m_metric);
         }
     }
 }
@@ -1858,7 +1855,7 @@ OspfApp::UpdateL1ShortestPath ()
         {
           auto lsaHeader = m_routerLsdb[m_routerId.Get ()].first;
           auto routerLsa = m_routerLsdb[m_routerId.Get ()].second;
-          for (uint32_t i = 0; i < m_ospfInterfaces.size (); i++)
+          for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
             {
               for (auto neighbor : m_ospfInterfaces[i]->GetNeighbors ())
                 {
@@ -1951,8 +1948,7 @@ OspfApp::UpdateL2ShortestPath ()
         {
           // NS_LOG_DEBUG ("Add route: " << Ipv4Address (routerLsa.second->GetLink (i).m_linkData)
           // << ", " << ifIndex << ", " << distanceTo[areaId]);
-          m_l2NextHop[remoteAreaId] =
-              std::make_pair (areaLsa.second->GetLink (i).m_areaId, distanceTo[remoteAreaId]);
+          m_l2NextHop[remoteAreaId] = std::make_pair (v, distanceTo[remoteAreaId]);
         }
     }
   UpdateRouting ();
