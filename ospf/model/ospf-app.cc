@@ -174,6 +174,7 @@ OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask ma
 {
   Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
   ipv4->AddAddress (0, Ipv4InterfaceAddress (address, mask));
+  RecomputeL1SummaryLsa ();
 }
 
 void
@@ -187,6 +188,7 @@ OspfApp::AddAllReachableAddresses (uint32_t ifIndex)
       ipv4->AddAddress (0, Ipv4InterfaceAddress (m_ospfInterfaces[i]->GetAddress (),
                                                  m_ospfInterfaces[i]->GetMask ()));
     }
+  RecomputeL1SummaryLsa ();
 }
 
 void
@@ -559,15 +561,7 @@ OspfApp::StartApplication (void)
   if (m_doInitialize)
     {
       // Create AS External LSA from Router ID for L1 routing prefix
-      Ptr<L1SummaryLsa> lsExternalLsa = GetL1SummaryLsa ();
-      auto lsaKey =
-          std::make_tuple (LsaHeader::LsType::L1SummaryLSAs, m_routerId.Get (), m_routerId.Get ());
-      m_seqNumbers[lsaKey] = 1;
-
-      LsaHeader lsaHeader (lsaKey);
-      lsaHeader.SetLength (20 + lsExternalLsa->GetSerializedSize ());
-      lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
-      m_l1SummaryLsdb[m_routerId.Get ()] = std::make_pair (lsaHeader, lsExternalLsa);
+      RecomputeL1SummaryLsa ();
       m_isAreaLeader = false;
       // Will begin as an area leader if noone will
       if (m_enableAreaProxy)
@@ -1553,6 +1547,35 @@ OspfApp::RecomputeRouterLsa ()
 
   // Update routing according to the updated LSDB
   UpdateL1ShortestPath ();
+}
+
+void
+OspfApp::RecomputeL1SummaryLsa ()
+{
+  NS_LOG_FUNCTION (this);
+
+  auto lsaKey =
+      std::make_tuple (LsaHeader::LsType::L1SummaryLSAs, m_routerId.Get (), m_routerId.Get ());
+  // Initialize seq number to zero if new
+  if (m_seqNumbers.find (lsaKey) == m_seqNumbers.end ())
+    {
+      m_seqNumbers[lsaKey] = 0;
+    }
+
+  // Increment a seq number
+  m_seqNumbers[lsaKey]++;
+
+  // Construct its router LSA
+  Ptr<L1SummaryLsa> l1SummaryLsa = GetL1SummaryLsa ();
+
+  // Assign routerLsa to its router LSDB
+  LsaHeader lsaHeader (lsaKey);
+  lsaHeader.SetLength (20 + l1SummaryLsa->GetSerializedSize ());
+  lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
+  m_l1SummaryLsdb[m_routerId.Get ()] = std::make_pair (lsaHeader, l1SummaryLsa);
+
+  // Update routing according to the updated LSDB
+  UpdateRouting ();
 }
 
 // Recompute Area LSA

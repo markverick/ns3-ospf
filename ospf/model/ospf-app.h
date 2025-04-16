@@ -450,11 +450,15 @@ private:
    */
   void RecomputeRouterLsa ();
   /**
+   * \brief Recompute L1 Summary-LSA, increment its Sequence Number, and inject to L1 Summary LSDB
+   */
+  void RecomputeL1SummaryLsa ();
+  /**
    * \brief Recompute local Area-LSA, increment its Sequence Number, and inject to Area LSDB
    */
   void RecomputeAreaLsa ();
   /**
-   * \brief Recompute Area Summary-LSA, increment its Sequence Number, and inject to Area LSDB
+   * \brief Recompute Area Summary-LSA, increment its Sequence Number, and inject to L2 Summary LSDB
    */
   void RecomputeL2SummaryLsa ();
   /**
