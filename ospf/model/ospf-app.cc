@@ -868,6 +868,10 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
   else
     {
       neighbor = ospfInterface->GetNeighbor (remoteRouterId, remoteIp);
+      if (neighbor == nullptr)
+        {
+          return;
+        }
       // Check if received Hello has different area ID
       if (neighbor->GetArea () != ospfHeader.GetArea ())
         {
@@ -1139,6 +1143,10 @@ OspfApp::HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
   Ptr<OspfNeighbor> neighbor =
       interface->GetNeighbor (Ipv4Address (ospfHeader.GetRouterId ()), ipHeader.GetSource ());
 
+  if (neighbor == nullptr)
+    {
+      return;
+    }
   if (neighbor->GetState () < OspfNeighbor::Loading)
     {
       NS_LOG_WARN ("Received LSR when the state is not at least Loading");
@@ -1228,6 +1236,10 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
   Ptr<OspfNeighbor> neighbor =
       interface->GetNeighbor (Ipv4Address (ospfHeader.GetRouterId ()), ipHeader.GetSource ());
 
+  if (neighbor == nullptr)
+    {
+      return;
+    }
   NS_ASSERT_MSG (neighbor != nullptr, "Neighbor does not exist");
   uint32_t advertisingRouter = lsaHeader.GetAdvertisingRouter ();
   uint16_t seqNum = lsaHeader.GetSeqNum ();
@@ -1329,6 +1341,10 @@ OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
   Ptr<OspfNeighbor> neighbor =
       interface->GetNeighbor (Ipv4Address (ospfHeader.GetRouterId ()), ipHeader.GetSource ());
   auto lsaHeaders = lsAck->GetLsaHeaders ();
+  if (neighbor == nullptr)
+    {
+      return;
+    }
   NS_LOG_FUNCTION (this << ifIndex << lsaHeaders.size ());
 
   for (auto lsaHeader : lsaHeaders)
@@ -1960,6 +1976,10 @@ OspfApp::HelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
                        Ipv4Address remoteRouterId, Ipv4Address remoteIp)
 {
   auto neighbor = ospfInterface->GetNeighbor (remoteRouterId, remoteIp);
+  if (neighbor == nullptr)
+    {
+      return;
+    }
   NS_ASSERT (neighbor != nullptr);
   // Set the interface to down, which keeps hello going
   AdvanceToDown (ifIndex, neighbor);
