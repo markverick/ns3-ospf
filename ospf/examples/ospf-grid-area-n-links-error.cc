@@ -44,8 +44,8 @@ NS_LOG_COMPONENT_DEFINE ("OspfGridAreaNLinksError");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
-const uint32_t STRIPE_WIDTH = 3;
-const uint32_t NUM_STRIPES = 3;
+const uint32_t STRIPE_WIDTH = 2;
+const uint32_t NUM_STRIPES = 4;
 const uint32_t GRID_HEIGHT = 3;
 const uint32_t GRID_WIDTH = STRIPE_WIDTH * NUM_STRIPES;
 const uint32_t SIM_SECONDS = 1000;
@@ -147,7 +147,7 @@ main (int argc, char *argv[])
           app->AddReachableAddress (0, app->GetRouterId (), Ipv4Mask ("255.255.255.253"));
         }
     }
-  ospfAppHelper.Preload (c);
+  // ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
@@ -156,15 +156,12 @@ main (int argc, char *argv[])
   rv->SetAttribute ("Min", DoubleValue (0.0));
   rv->SetAttribute ("Max", DoubleValue (ndc.GetN ()));
   std::set<uint32_t> downLinks;
-  for (uint32_t i = 60; i < SIM_SECONDS - 60; i += 60)
+  for (uint32_t i = 60; i < SIM_SECONDS; i += 120)
     {
-      if (i % 120 == 0)
+      downLinks.clear ();
+      for (uint32_t j = 0; j < NUM_ERROR_LINKS; j++)
         {
-          downLinks.clear ();
-          for (uint32_t j = 0; j < NUM_ERROR_LINKS; j++)
-            {
-              downLinks.insert ((int) (rv->GetValue ()));
-            }
+          downLinks.insert ((int) (rv->GetValue ()));
         }
       for (auto l : downLinks)
         {
@@ -173,6 +170,8 @@ main (int argc, char *argv[])
         }
       Simulator::Schedule (Seconds (i + 59), &CompareAreaLsdb, c);
       Simulator::Schedule (Seconds (i + 59), &CompareL2SummaryLsdb, c);
+      Simulator::Schedule (Seconds (i + 119), &CompareAreaLsdb, c);
+      Simulator::Schedule (Seconds (i + 119), &CompareL2SummaryLsdb, c);
       for (uint32_t j = 0; j < c.GetN (); j++)
         {
           auto app = DynamicCast<OspfApp> (c.Get (j)->GetApplication (0));
@@ -183,6 +182,8 @@ main (int argc, char *argv[])
         {
           Simulator::Schedule (Seconds (i + 59), CompareLsdb, nodes);
           Simulator::Schedule (Seconds (i + 59), CompareL1SummaryLsdb, nodes);
+          Simulator::Schedule (Seconds (i + 119), CompareLsdb, nodes);
+          Simulator::Schedule (Seconds (i + 119), CompareL1SummaryLsdb, nodes);
           //   // app = DynamicCast<OspfApp> (nodes.Get (0)->GetApplication (0));
           //   // Simulator::Schedule (Seconds (i + 59), &OspfApp::PrintLsdbHash, app);
         }

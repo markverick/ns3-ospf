@@ -565,7 +565,7 @@ OspfApp::StartApplication (void)
         }
       unicastSocket->SetAllowBroadcast (true);
       unicastSocket->SetAttribute ("Protocol", UintegerValue (89));
-      lsaSocket->SetIpTtl (1); // Only allow local hop
+      unicastSocket->SetIpTtl (1); // Only allow local hop
       unicastSocket->BindToNetDevice (m_boundDevices.Get (i));
       unicastSocket->SetRecvCallback (MakeCallback (&OspfApp::HandleRead, this));
       m_sockets.emplace_back (unicastSocket);
@@ -684,11 +684,11 @@ OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address (originRo
 void
 OspfApp::SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor)
 {
-  NS_LOG_FUNCTION (this << ifIndex << m_lsaAddress);
-  auto socket = m_lsaSockets[ifIndex];
+  NS_LOG_FUNCTION (this << ifIndex << neighbor->GetIpAddress ());
+  auto socket = m_sockets[ifIndex];
   m_txTrace (packet);
 
-  socket->SendTo (packet, 0, InetSocketAddress (m_lsaAddress));
+  socket->SendTo (packet, 0, InetSocketAddress (neighbor->GetIpAddress ()));
   // NS_LOG_INFO ("Packet sent to via interface " << ifIndex << " : " << m_ospfInterfaces[ifIndex]->GetAddress());
 }
 
@@ -704,9 +704,14 @@ OspfApp::SendToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> pa
       return;
     }
   SendToNeighbor (ifIndex, packet, neighbor);
-  auto event = Simulator::Schedule (interval, &OspfApp::SendToNeighborInterval, this, interval,
-                                    ifIndex, packet, neighbor);
-  neighbor->BindTimeout (event);
+  if (neighbor->GetState () >= OspfNeighbor::TwoWay) {
+      auto event = Simulator::Schedule (interval, &OspfApp::SendToNeighborInterval, this, interval,
+                                        ifIndex, packet, neighbor);
+      neighbor->BindTimeout (event);
+    return;
+  } else {
+    neighbor->RemoveTimeout ();
+  }
 }
 
 void

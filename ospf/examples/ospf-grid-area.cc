@@ -44,9 +44,9 @@ NS_LOG_COMPONENT_DEFINE ("OspfGridArea");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
-const uint32_t STRIPE_WIDTH = 1;
+const uint32_t STRIPE_WIDTH = 2;
 const uint32_t NUM_STRIPES = 3;
-const uint32_t GRID_HEIGHT = 1;
+const uint32_t GRID_HEIGHT = 6;
 const uint32_t GRID_WIDTH = STRIPE_WIDTH * NUM_STRIPES;
 const uint32_t SIM_SECONDS = 100;
 
