@@ -539,6 +539,7 @@ OspfApp::StartApplication (void)
       helloSocket->Connect (helloSocketAddress);
       helloSocket->SetAllowBroadcast (true);
       helloSocket->SetAttribute ("Protocol", UintegerValue (89));
+      helloSocket->SetIpTtl (1);
       helloSocket->BindToNetDevice (m_boundDevices.Get (i));
       helloSocket->SetRecvCallback (MakeCallback (&OspfApp::HandleRead, this));
       m_helloSockets.emplace_back (helloSocket);
@@ -666,29 +667,29 @@ OspfApp::SendHello ()
 }
 
 void
-OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address (originRouterId))
+OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteIp)
 {
-  if (m_lsaSockets.empty ())
+  if (m_sockets.empty ())
     return;
 
   Address ackSocketAddress;
-  auto socket = m_lsaSockets[ifIndex];
+  auto socket = m_sockets[ifIndex];
   socket->GetSockName (ackSocketAddress);
   m_txTrace (ackPacket);
 
-  socket->SendTo (ackPacket, 0, InetSocketAddress (m_lsaAddress)); // TODO: Change to unicast later
-  NS_LOG_INFO ("LS Ack sent via interface " << ifIndex << " : "
-                                            << m_ospfInterfaces[ifIndex]->GetAddress ());
+  socket->SendTo (ackPacket, 0, InetSocketAddress (remoteIp));
+  NS_LOG_INFO ("LS Ack sent via interface " << ifIndex << " : " << remoteIp);
 }
 
 void
 OspfApp::SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor)
 {
-  NS_LOG_FUNCTION (this << ifIndex << neighbor->GetIpAddress ());
+  NS_LOG_FUNCTION (this << m_routerId << ifIndex << neighbor->GetRouterId ()
+                        << neighbor->GetIpAddress () << neighbor->GetState ());
   auto socket = m_sockets[ifIndex];
   m_txTrace (packet);
 
-  socket->SendTo (packet, 0, InetSocketAddress (neighbor->GetIpAddress ()));
+  socket->SendTo (packet->Copy (), 0, InetSocketAddress (neighbor->GetIpAddress ()));
   // NS_LOG_INFO ("Packet sent to via interface " << ifIndex << " : " << m_ospfInterfaces[ifIndex]->GetAddress());
 }
 
@@ -704,14 +705,17 @@ OspfApp::SendToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> pa
       return;
     }
   SendToNeighbor (ifIndex, packet, neighbor);
-  if (neighbor->GetState () >= OspfNeighbor::TwoWay) {
+  if (neighbor->GetState () >= OspfNeighbor::TwoWay)
+    {
       auto event = Simulator::Schedule (interval, &OspfApp::SendToNeighborInterval, this, interval,
                                         ifIndex, packet, neighbor);
       neighbor->BindTimeout (event);
-    return;
-  } else {
-    neighbor->RemoveTimeout ();
-  }
+      return;
+    }
+  else
+    {
+      neighbor->RemoveTimeout ();
+    }
 }
 
 void
@@ -1243,12 +1247,20 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
 
   if (neighbor == nullptr)
     {
+      NS_LOG_WARN ("LSA dropped due to missing neighbor");
       return;
     }
-  NS_ASSERT_MSG (neighbor != nullptr, "Neighbor does not exist");
+
   uint32_t advertisingRouter = lsaHeader.GetAdvertisingRouter ();
   uint16_t seqNum = lsaHeader.GetSeqNum ();
   LsaHeader::LsaKey lsaKey = lsaHeader.GetKey ();
+
+  // Filter out L2 LSA across the area (only happens in multi-access broadcast)
+  if (neighbor->GetArea () != m_areaId && (lsaHeader.GetType () == LsaHeader::RouterLSAs ||
+                                           lsaHeader.GetType () == LsaHeader::L1SummaryLSAs))
+    {
+      return;
+    }
 
   auto ackPacket = ConstructLSAckPacket (m_routerId, m_areaId, lsaHeader);
 
@@ -1257,7 +1269,7 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
   if (advertisingRouter == m_routerId.Get ())
     {
       NS_LOG_INFO ("LSU is dropped, received LSU has originated here");
-      SendAck (ifIndex, ackPacket, neighbor->GetRouterId ());
+      SendAck (ifIndex, ackPacket, neighbor->GetIpAddress ());
       return;
     }
 
@@ -1285,7 +1297,7 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     }
   if (!isLsrSatisfied)
     {
-      SendAck (ifIndex, ackPacket, neighbor->GetRouterId ());
+      SendAck (ifIndex, ackPacket, neighbor->GetIpAddress ());
     }
   // If the sequence number equals or less than that of the last packet received from the
   // originating router, the packet is dropped and ACK is sent.
@@ -1297,7 +1309,7 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
       // NS_LOG_DEBUG ("Sending ACK [" << ackPacket->GetSize () << "] from " << m_routerId
       //                               << " to interface " << ifIndex);
 
-      SendAck (ifIndex, ackPacket, neighbor->GetRouterId ());
+      SendAck (ifIndex, ackPacket, neighbor->GetIpAddress ());
       return;
     }
 
@@ -1348,6 +1360,9 @@ OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
   auto lsaHeaders = lsAck->GetLsaHeaders ();
   if (neighbor == nullptr)
     {
+      NS_LOG_WARN ("LS Ack dropped due to missing neighbor ("
+                   << Ipv4Address (ospfHeader.GetRouterId ()) << "," << ipHeader.GetSource ()
+                   << ")");
       return;
     }
   NS_LOG_FUNCTION (this << ifIndex << lsaHeaders.size ());
@@ -1983,9 +1998,9 @@ OspfApp::HelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
   auto neighbor = ospfInterface->GetNeighbor (remoteRouterId, remoteIp);
   if (neighbor == nullptr)
     {
+      NS_LOG_WARN ("Hello timeout doesn't get triggered due to missing neighbor");
       return;
     }
-  NS_ASSERT (neighbor != nullptr);
   // Set the interface to down, which keeps hello going
   AdvanceToDown (ifIndex, neighbor);
   NS_LOG_DEBUG ("Interface " << ospfInterface->GetAddress () << " has removed routerId: "
