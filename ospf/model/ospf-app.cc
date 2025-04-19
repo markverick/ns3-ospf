@@ -165,6 +165,10 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
                 }
             }
         }
+      else
+        {
+          ospfInterface->SetGateway (Ipv4Address::GetBroadcast ());
+        }
       m_ospfInterfaces.emplace_back (ospfInterface);
     }
 }
@@ -556,6 +560,7 @@ OspfApp::StartApplication (void)
       lsaSocket->SetAttribute ("Protocol", UintegerValue (89));
       lsaSocket->SetIpTtl (1);
       lsaSocket->BindToNetDevice (m_boundDevices.Get (i));
+      lsaSocket->SetRecvCallback (MakeCallback (&OspfApp::HandleRead, this));
       m_lsaSockets.emplace_back (lsaSocket);
 
       // For unicast, such as LSA retransmission, bind to local address
@@ -651,7 +656,7 @@ OspfApp::SendHello ()
           m_txTraceWithAddresses (p, helloSocketAddress,
                                   InetSocketAddress (Ipv4Address::ConvertFrom (m_helloAddress)));
         }
-      socket->SendTo (p, 0, InetSocketAddress (Ipv4Address::ConvertFrom (m_helloAddress)));
+      socket->Send (p, 0);
       if (Ipv4Address::IsMatchingType (m_helloAddress))
         {
           NS_LOG_INFO ("At time " << Simulator::Now ().As (Time::S) << " client sent "
@@ -684,13 +689,21 @@ OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteIp)
 void
 OspfApp::SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor)
 {
-  NS_LOG_FUNCTION (this << m_routerId << ifIndex << neighbor->GetRouterId ()
+  NS_LOG_FUNCTION (this << m_routerId << ifIndex << neighbor->GetIpAddress ()
                         << neighbor->GetIpAddress () << neighbor->GetState ());
   auto socket = m_sockets[ifIndex];
   m_txTrace (packet);
 
-  socket->SendTo (packet->Copy (), 0, InetSocketAddress (neighbor->GetIpAddress ()));
-  // NS_LOG_INFO ("Packet sent to via interface " << ifIndex << " : " << m_ospfInterfaces[ifIndex]->GetAddress());
+  if (m_boundDevices.Get (ifIndex)->IsPointToPoint ())
+    {
+      socket->SendTo (packet->Copy (), 0, InetSocketAddress (neighbor->GetIpAddress ()));
+    }
+  else
+    {
+      m_lsaSockets[ifIndex]->SendTo (packet->Copy (), 0, InetSocketAddress (m_lsaAddress));
+    }
+
+  // NS_LOG_INFO ("Packet sent to via interface " << ifIndex << " : " << neighbor->GetIpAddress ());
 }
 
 void
@@ -1295,10 +1308,6 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
             }
         }
     }
-  if (!isLsrSatisfied)
-    {
-      SendAck (ifIndex, ackPacket, neighbor->GetIpAddress ());
-    }
   // If the sequence number equals or less than that of the last packet received from the
   // originating router, the packet is dropped and ACK is sent.
   if (seqNum <= m_seqNumbers[lsaKey])
@@ -1311,6 +1320,10 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
 
       SendAck (ifIndex, ackPacket, neighbor->GetIpAddress ());
       return;
+    }
+  if (!isLsrSatisfied)
+    {
+      SendAck (ifIndex, ackPacket, neighbor->GetIpAddress ());
     }
 
   m_seqNumbers[lsaKey] = seqNum;
