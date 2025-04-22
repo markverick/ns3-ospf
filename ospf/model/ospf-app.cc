@@ -581,19 +581,15 @@ OspfApp::StartApplication (void)
     }
   // Start sending Hello
   ScheduleTransmitHello (Seconds (0.));
-
-  if (m_doInitialize)
+  // Create AS External LSA from Router ID for L1 routing prefix
+  RecomputeL1SummaryLsa ();
+  m_isAreaLeader = false;
+  // Will begin as an area leader if noone will
+  if (m_enableAreaProxy)
     {
-      // Create AS External LSA from Router ID for L1 routing prefix
-      RecomputeL1SummaryLsa ();
-      m_isAreaLeader = false;
-      // Will begin as an area leader if noone will
-      if (m_enableAreaProxy)
-        {
-          m_areaLeaderBeginTimer =
-              Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
-                                   &OspfApp::AreaLeaderBegin, this);
-        }
+      m_areaLeaderBeginTimer =
+          Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
+                                &OspfApp::AreaLeaderBegin, this);
     }
 }
 
@@ -1267,7 +1263,7 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     }
 
   uint32_t advertisingRouter = lsaHeader.GetAdvertisingRouter ();
-  uint16_t seqNum = lsaHeader.GetSeqNum ();
+  uint32_t seqNum = lsaHeader.GetSeqNum ();
   LsaHeader::LsaKey lsaKey = lsaHeader.GetKey ();
 
   // Filter out L2 LSA across the area (only happens in multi-access broadcast)
@@ -1324,13 +1320,20 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
         {
           SendAck (ifIndex, ackPacket, neighbor->GetIpAddress ());
         }
+
+      // Remove lsaKey from retx queue
+      neighbor->RemoveKeyedTimeout (lsaKey);
       return;
     }
   else if (seqNum > m_seqNumbers[lsaKey])
     {
+      NS_LOG_INFO("Installing new LSA: " << seqNum << " > " << m_seqNumbers[lsaKey]);
       // New LSA
       // Process LSA and update its Seq num
       ProcessLsa (lsaHeader, lsa);
+
+      // Remove lsaKey from retx queue
+      neighbor->RemoveKeyedTimeout (lsaKey);
 
       // Flood the network
       Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();

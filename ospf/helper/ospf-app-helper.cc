@@ -123,7 +123,7 @@ OspfAppHelper::Preload (NodeContainer c)
                   // Add neighbor with status FULL
                   app->AddNeighbor (ifIndex,
                                     Create<OspfNeighbor> (remoteRouterId, remoteIp, remoteAreaId,
-                                                          OspfNeighbor::NeighborState::Full));
+                                                          OspfNeighbor::NeighborState::Init));
                   // RouterLink (uint32_t linkId, uint32_t linkData, uint8_t type, uint16_t metric)
                   // Router LSA
                   if (remoteAreaId == app->GetArea ())
@@ -144,7 +144,7 @@ OspfAppHelper::Preload (NodeContainer c)
                 }
             }
         }
-      LsaHeader routerLsaHeader (std::make_tuple (LsaHeader::LsType::RouterLSAs, app->GetArea (),
+      LsaHeader routerLsaHeader (std::make_tuple (LsaHeader::LsType::RouterLSAs, app->GetRouterId ().Get (),
                                                   app->GetRouterId ().Get ()));
       routerLsaHeader.SetLength (20 + routerLsa->GetSerializedSize ());
       routerLsaHeader.SetSeqNum (1);
@@ -155,7 +155,7 @@ OspfAppHelper::Preload (NodeContainer c)
       l1SummaryLsa->AddRoute (
           SummaryRoute (app->GetRouterId ().Get (), app->GetAreaMask ().Get (), 1));
       LsaHeader l1SummaryLsaHeader (std::make_tuple (LsaHeader::LsType::L1SummaryLSAs,
-                                                     app->GetArea (), app->GetRouterId ().Get ()));
+                                   app->GetRouterId ().Get (), app->GetRouterId ().Get ()));
 
       l1SummaryLsaHeader.SetLength (20 + l1SummaryLsa->GetSerializedSize ());
       l1SummaryLsaHeader.SetSeqNum (1);
