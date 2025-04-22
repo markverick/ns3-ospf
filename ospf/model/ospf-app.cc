@@ -1344,7 +1344,7 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
         }
       return;
     }
-  else
+  else if (!isLsrSatisfied)
     {
       // Stale LSA
       // Unicast an LSU containing the new LSA to the neighbor
