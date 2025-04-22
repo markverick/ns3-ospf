@@ -426,6 +426,11 @@ private:
 
   // Link State Advertisement
   /**
+   * \brief Fetch LSA by an LSA Key from LSDB 
+   * \return LSA
+   */
+  std::pair<LsaHeader, Ptr<Lsa>> FetchLsa (LsaHeader::LsaKey lsaKey);
+  /**
    * \brief Generate local Router-LSA based on adjacencies (Full)
    * \return Router-LSA for this router
    */
@@ -473,9 +478,19 @@ private:
   void UpdateRouting ();
 
   /**
+   * \brief Schedule to update shortest paths and prefixes for L1
+   */
+  void ScheduleUpdateL1ShortestPath ();
+
+  /**
    * \brief Update shortest paths and prefixes for L1
    */
   void UpdateL1ShortestPath ();
+
+  /**
+   * \brief Schedule to update shortest paths and prefixes for L2
+   */
+  void ScheduleUpdateL2ShortestPath ();
 
   /**
    * \brief Update shortest paths and prefixes for L2
@@ -615,6 +630,7 @@ private:
   Ptr<Ipv4StaticRouting> m_routing; // !< Routing table
   std::unordered_map<uint32_t, NextHop> m_l1NextHop; //!< Next Hopto routers
   std::unordered_map<uint32_t, std::vector<uint32_t>> m_l1Addresses; //!< Addresses for L1 routers
+  Time m_shortestPathUpdateDelay; // !< Shortest path before shortest path calculation
 
   // Area
   std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
@@ -636,11 +652,13 @@ private:
   std::unordered_map<uint32_t, std::pair<uint32_t, NextHop>>
       m_nextHopToShortestBorderRouter; // next hop
   std::vector<uint32_t> m_advertisingPrefixes;
+  EventId m_updateL1ShortestPathTimeout; // timeout to update the L1 shortest path
 
   // L2 LSDB
   std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> m_areaLsdb; // LSDB for each remote area ID
   std::map<uint32_t, std::pair<LsaHeader, Ptr<L2SummaryLsa>>>
       m_l2SummaryLsdb; // LSDB for summary prefixes
+  EventId m_updateL2ShortestPathTimeout; // timeout to update the L2 shortest path
 
   /// Callbacks for tracing the packet Tx events
   TracedCallback<Ptr<const Packet>> m_txTrace;
