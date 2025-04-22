@@ -782,7 +782,7 @@ OspfApp::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
       auto neighbors = m_ospfInterfaces[i]->GetNeighbors ();
       for (auto neighbor : neighbors)
         {
-          if (neighbor->GetState () < OspfNeighbor::Full)
+          if (neighbor->GetState () < OspfNeighbor::TwoWay)
             {
               continue;
             }
@@ -1983,7 +1983,7 @@ OspfApp::UpdateL1ShortestPath ()
             {
               for (auto neighbor : m_ospfInterfaces[i]->GetNeighbors ())
                 {
-                  if (neighbor->GetState () < OspfNeighbor::Full)
+                  if (neighbor->GetState () < OspfNeighbor::TwoWay)
                     {
                       continue;
                     }
