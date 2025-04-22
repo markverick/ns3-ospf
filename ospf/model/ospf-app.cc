@@ -1321,7 +1321,10 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     {
       // TODO: Check age and replace if outdated
       // std::cout << "recv seqNum: "<< seqNum << ", stored seqNum: " << m_seqNumbers[lsaKey] << std::endl;
-      NS_LOG_INFO ("LSU is dropped and ACK is sent: " << seqNum << " == " << m_seqNumbers[lsaKey]);
+      NS_LOG_INFO ("LSU " << lsaHeader.LsTypeToString (lsaHeader.GetType ())
+                          << " is dropped and ACK is sent: " << seqNum
+                          << " == " << m_seqNumbers[lsaKey]);
+      // NS_LOG_INFO ("  Advertising Router " << Ipv4Address(lsaHeader.GetAdvertisingRouter ()) << " vs " << Ipv4Address(FetchLsa (lsaKey).first.GetAdvertisingRouter ()) << " Area ID: " << lsaHeader.GetLsId ());
       // Send direct ACK once receiving duplicated sequence number
       // NS_LOG_DEBUG ("Sending ACK [" << ackPacket->GetSize () << "] from " << m_routerId
       //                               << " to interface " << ifIndex);
@@ -1428,7 +1431,7 @@ OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
             }
           else
             {
-              NS_LOG_INFO ("Key: " << lsaHeader.GetAdvertisingRouter ()
+              NS_LOG_INFO ("Key: " << Ipv4Address (lsaHeader.GetAdvertisingRouter ())
                                    << " does not exist in the retx timer");
             }
         }
