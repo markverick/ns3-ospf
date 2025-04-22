@@ -144,8 +144,8 @@ OspfAppHelper::Preload (NodeContainer c)
                 }
             }
         }
-      LsaHeader routerLsaHeader (std::make_tuple (LsaHeader::LsType::RouterLSAs, app->GetRouterId ().Get (),
-                                                  app->GetRouterId ().Get ()));
+      LsaHeader routerLsaHeader (std::make_tuple (
+          LsaHeader::LsType::RouterLSAs, app->GetRouterId ().Get (), app->GetRouterId ().Get ()));
       routerLsaHeader.SetLength (20 + routerLsa->GetSerializedSize ());
       routerLsaHeader.SetSeqNum (1);
       lsaList[app->GetArea ()].emplace_back (routerLsaHeader, routerLsa);
@@ -155,7 +155,8 @@ OspfAppHelper::Preload (NodeContainer c)
       l1SummaryLsa->AddRoute (
           SummaryRoute (app->GetRouterId ().Get (), app->GetAreaMask ().Get (), 1));
       LsaHeader l1SummaryLsaHeader (std::make_tuple (LsaHeader::LsType::L1SummaryLSAs,
-                                   app->GetRouterId ().Get (), app->GetRouterId ().Get ()));
+                                                     app->GetRouterId ().Get (),
+                                                     app->GetRouterId ().Get ()));
 
       l1SummaryLsaHeader.SetLength (20 + l1SummaryLsa->GetSerializedSize ());
       l1SummaryLsaHeader.SetSeqNum (1);

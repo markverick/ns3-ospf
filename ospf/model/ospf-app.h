@@ -500,21 +500,16 @@ private:
   // Hello Protocol
   /**
    * \brief A timeout event for Hello, triggered after not receiving Hello for RouterDeadInterval
-   * \param ospfInterface OSPF Interface
-   * \param remoteRouterId Destination router ID
-   * \param remoteIp Destination IP address
+   * \param ifIndex Interface index
+   * \param neighbor Ospf neighbor
    */
-  void HelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface, Ipv4Address remoteRouterId,
-                     Ipv4Address remoteIp);
+  void HelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
   /**
    * \brief Refresh the Hello timeout, triggered after receiving Hello.
    * \param ifIndex Interface index
-   * \param ospfInterface OSPF Interface TODO: Redundant
-   * \param remoteRouterId Destination router ID
-   * \param remoteIp Destination IP address
+   * \param neighbor OSPF neighbor
    */
-  void RefreshHelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
-                            Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+  void RefreshHelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
   // Down
   /**
@@ -619,7 +614,8 @@ private:
   Time m_helloInterval; //!< Hello Interval
   Ipv4Address m_helloAddress; //!< Address of multicast hello message
   std::vector<Time> m_lastHelloReceived; //!< Times of last hello received
-  std::vector<EventId> m_helloTimeouts; //!< Timeout Events of not receiving Hello
+  std::vector<std::map<uint32_t, EventId>>
+      m_helloTimeouts; //!< Timeout Events of not receiving Hello, per interface, per neighbor
   Time m_routerDeadInterval; //!< Router Dead Interval for Hello to become Down
   EventId m_helloEvent; //!< Event to send the next hello packet
 

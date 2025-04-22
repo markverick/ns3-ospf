@@ -589,7 +589,7 @@ OspfApp::StartApplication (void)
     {
       m_areaLeaderBeginTimer =
           Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
-                                &OspfApp::AreaLeaderBegin, this);
+                               &OspfApp::AreaLeaderBegin, this);
     }
 }
 
@@ -597,9 +597,13 @@ void
 OspfApp::StopApplication ()
 {
   NS_LOG_FUNCTION (this);
-  for (auto timer : m_helloTimeouts)
+  for (auto timeouts : m_helloTimeouts)
     {
-      timer.Remove ();
+      for (auto timer : timeouts)
+        {
+          timer.second.Remove ();
+        }
+      timeouts.clear ();
     }
   for (uint32_t i = 1; i < m_sockets.size (); i++)
     {
@@ -734,7 +738,8 @@ void
 OspfApp::SendToNeighborKeyedInterval (Time interval, uint32_t ifIndex, Ptr<Packet> packet,
                                       Ptr<OspfNeighbor> neighbor, LsaHeader::LsaKey lsaKey)
 {
-  NS_LOG_FUNCTION (this << ifIndex << neighbor->GetIpAddress ());
+  NS_LOG_FUNCTION (this << ifIndex << neighbor->GetIpAddress () << std::get<0> (lsaKey)
+                        << std::get<1> (lsaKey) << std::get<2> (lsaKey));
   // No sockets to send
   if (m_sockets.empty ())
     return;
@@ -777,6 +782,10 @@ OspfApp::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
       auto neighbors = m_ospfInterfaces[i]->GetNeighbors ();
       for (auto neighbor : neighbors)
         {
+          if (neighbor->GetState () < OspfNeighbor::Full)
+            {
+              continue;
+            }
           // Flood L1 LSAs to neighbors within the same area
           if (neighbor->GetArea () != this->m_areaId &&
               (lsu->GetLsaList ()[0].first.GetType () == LsaHeader::RouterLSAs ||
@@ -909,7 +918,7 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
 
   // Refresh last received hello time to Now()
   neighbor->RefreshLastHelloReceived ();
-  RefreshHelloTimeout (ifIndex, ospfInterface, remoteRouterId, remoteIp);
+  RefreshHelloTimeout (ifIndex, neighbor);
 
   // Advance to two-way/exstart
   if (neighbor->GetState () == OspfNeighbor::Init)
@@ -1327,7 +1336,7 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     }
   else if (seqNum > m_seqNumbers[lsaKey])
     {
-      NS_LOG_INFO("Installing new LSA: " << seqNum << " > " << m_seqNumbers[lsaKey]);
+      NS_LOG_INFO ("Installing new LSA: " << seqNum << " > " << m_seqNumbers[lsaKey]);
       // New LSA
       // Process LSA and update its Seq num
       ProcessLsa (lsaHeader, lsa);
@@ -1912,6 +1921,10 @@ OspfApp::UpdateL1ShortestPath ()
           auto neighbors = m_ospfInterfaces[i]->GetNeighbors ();
           for (auto n : neighbors)
             {
+              if (n->GetState () < OspfNeighbor::Full)
+                {
+                  continue;
+                }
               if (n->GetRouterId ().Get () == v)
                 {
                   ifIndex = i;
@@ -1970,6 +1983,10 @@ OspfApp::UpdateL1ShortestPath ()
             {
               for (auto neighbor : m_ospfInterfaces[i]->GetNeighbors ())
                 {
+                  if (neighbor->GetState () < OspfNeighbor::Full)
+                    {
+                      continue;
+                    }
                   if (neighbor->GetArea () != m_areaId)
                     {
                       if (m_nextHopToShortestBorderRouter.find (neighbor->GetArea ()) ==
@@ -2079,33 +2096,32 @@ OspfApp::UpdateL2ShortestPath ()
 
 // Hello Protocol
 void
-OspfApp::HelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
-                       Ipv4Address remoteRouterId, Ipv4Address remoteIp)
+OspfApp::HelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
-  auto neighbor = ospfInterface->GetNeighbor (remoteRouterId, remoteIp);
-  if (neighbor == nullptr)
-    {
-      NS_LOG_WARN ("Hello timeout doesn't get triggered due to missing neighbor");
-      return;
-    }
-  // Set the interface to down, which keeps hello going
+  // Set the interface to down
   AdvanceToDown (ifIndex, neighbor);
-  NS_LOG_DEBUG ("Interface " << ospfInterface->GetAddress () << " has removed routerId: "
-                             << remoteRouterId << ", remoteIp" << remoteIp << " neighbors");
+
+  NS_LOG_DEBUG ("Interface " << ifIndex << " has removed routerId: " << neighbor->GetRouterId ()
+                             << ", remoteIp" << neighbor->GetIpAddress () << " neighbors");
+
+  // Remove the neighbor for scalability (TODO: delay the removal)
+  m_ospfInterfaces[ifIndex]->RemoveNeighbor (neighbor->GetRouterId (), neighbor->GetIpAddress ());
 }
 
 void
-OspfApp::RefreshHelloTimeout (uint32_t ifIndex, Ptr<OspfInterface> ospfInterface,
-                              Ipv4Address remoteRouterId, Ipv4Address remoteIp)
+OspfApp::RefreshHelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
+  uint32_t remoteIp = neighbor->GetIpAddress ().Get ();
   // Refresh the timer
-  if (m_helloTimeouts[ifIndex].IsRunning ())
+  if (m_helloTimeouts[ifIndex].find (remoteIp) == m_helloTimeouts[ifIndex].end () ||
+      m_helloTimeouts[ifIndex][remoteIp].IsRunning ())
     {
-      m_helloTimeouts[ifIndex].Remove ();
+      m_helloTimeouts[ifIndex][remoteIp].Remove ();
     }
-  m_helloTimeouts[ifIndex] = Simulator::Schedule (
-      Seconds (ospfInterface->GetRouterDeadInterval ()) + Seconds (m_randomVariable->GetValue ()),
-      &OspfApp::HelloTimeout, this, ifIndex, ospfInterface, remoteRouterId, remoteIp);
+  m_helloTimeouts[ifIndex][remoteIp] =
+      Simulator::Schedule (Seconds (m_ospfInterfaces[ifIndex]->GetRouterDeadInterval ()) +
+                               Seconds (m_randomVariable->GetValue ()),
+                           &OspfApp::HelloTimeout, this, ifIndex, neighbor);
 }
 
 // Down
