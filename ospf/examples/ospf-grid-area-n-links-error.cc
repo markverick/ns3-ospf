@@ -156,17 +156,27 @@ main (int argc, char *argv[])
   rv->SetAttribute ("Min", DoubleValue (0.0));
   rv->SetAttribute ("Max", DoubleValue (ndc.GetN ()));
   std::set<uint32_t> downLinks;
+  for (uint32_t j = 0; j < c.GetN (); j++)
+    {
+      auto app = DynamicCast<OspfApp> (c.Get (j)->GetApplication (0));
+      Simulator::Schedule (Seconds (59), &OspfApp::PrintLsdb, app);
+      // Simulator::Schedule (Seconds (i + 59), &OspfApp::PrintAreaLsdb, app);
+    }
   for (uint32_t i = 60; i < SIM_SECONDS; i += 120)
     {
       downLinks.clear ();
       for (uint32_t j = 0; j < NUM_ERROR_LINKS; j++)
         {
-          downLinks.insert ((int) (rv->GetValue ()));
+          uint32_t l = (int) (rv->GetValue ());
+          // if (l % 2) l--; // enforce symmetry
+          downLinks.insert (l);
         }
       for (auto l : downLinks)
         {
           Simulator::Schedule (Seconds (i), &SetLinkDown, ndc.Get (l));
+          // Simulator::Schedule (Seconds (i), &SetLinkDown, ndc.Get (l + 1));
           Simulator::Schedule (Seconds (i + 60), &SetLinkUp, ndc.Get (l));
+          // Simulator::Schedule (Seconds (i + 60), &SetLinkUp, ndc.Get (l + 1));
         }
       Simulator::Schedule (Seconds (i + 59), &CompareAreaLsdb, c);
       Simulator::Schedule (Seconds (i + 59), &CompareL2SummaryLsdb, c);
@@ -175,7 +185,8 @@ main (int argc, char *argv[])
       for (uint32_t j = 0; j < c.GetN (); j++)
         {
           auto app = DynamicCast<OspfApp> (c.Get (j)->GetApplication (0));
-          // Simulator::Schedule (Seconds (i + 59), &OspfApp::PrintAreaLsdbHash, app);
+          // Simulator::Schedule (Seconds (i + 59), &OspfApp::PrintLsdb, app);
+          // Simulator::Schedule (Seconds (i + 119), &OspfApp::PrintLsdb, app);
           // Simulator::Schedule (Seconds (i + 59), &OspfApp::PrintAreaLsdb, app);
         }
       for (auto nodes : areaNodes)

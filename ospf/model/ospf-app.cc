@@ -897,10 +897,6 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
   else
     {
       neighbor = ospfInterface->GetNeighbor (remoteRouterId, remoteIp);
-      if (neighbor == nullptr)
-        {
-          return;
-        }
       // Check if received Hello has different area ID
       if (neighbor->GetArea () != ospfHeader.GetArea ())
         {
@@ -910,6 +906,7 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
         }
     }
 
+  // At this point, the state must be at least Init.
   if (neighbor->GetState () == OspfNeighbor::Down)
     {
       NS_LOG_INFO ("Re-added timed out interface " << ifIndex);
@@ -918,23 +915,36 @@ OspfApp::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
 
   // Refresh last received hello time to Now()
   neighbor->RefreshLastHelloReceived ();
-  RefreshHelloTimeout (ifIndex, neighbor);
 
-  // Advance to two-way/exstart
-  if (neighbor->GetState () == OspfNeighbor::Init)
+  // If the neighbor contains its router ID
+  if (hello->IsNeighbor (m_routerId.Get ()))
     {
-      // Advance to ExStart if it's bidirectional (TODO: two-way for broadcast networks)
-      if (hello->IsNeighbor (m_routerId.Get ()))
+      // Two-way hello
+      // Reset dead timeout
+      RefreshHelloTimeout (ifIndex, neighbor);
+
+      // Advance to two-way/exstart
+      if (neighbor->GetState () == OspfNeighbor::Init)
         {
+          // Advance to ExStart (skipped DR/BDR)
           NS_LOG_INFO ("Interface " << ifIndex << " is now bi-directional");
           neighbor->SetState (OspfNeighbor::ExStart);
           // Send DBD to negotiate master/slave and DD seq num, starting with self as a Master
           neighbor->SetDDSeqNum (m_randomVariableSeq->GetInteger ());
           NegotiateDbd (ifIndex, neighbor, true);
         }
+    }
+  else
+    {
+      // One-way hello
+      if (neighbor->GetState () == OspfNeighbor::Init)
+        {
+          NS_LOG_INFO ("Interface " << ifIndex << " stays INIT");
+        }
       else
         {
-          NS_LOG_INFO ("Interface " << ifIndex << " is still  init, waiting for two-way");
+          NS_LOG_INFO ("Interface " << ifIndex << " falls back to INIT");
+          FallbackToInit (ifIndex, neighbor);
         }
     }
 }
@@ -967,7 +977,7 @@ OspfApp::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
     {
       if (neighbor->GetState () > OspfNeighbor::ExStart)
         {
-          NS_LOG_INFO ("DBD Dropped. Negotiation has already done");
+          NS_LOG_INFO ("DBD Dropped. Negotiation has already done " << neighbor->GetState ());
           return;
         }
       // Receive Negotiate DBD
@@ -1362,15 +1372,17 @@ OspfApp::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader
   else if (!isLsrSatisfied)
     {
       // Stale LSA
-      // Unicast an LSU containing the new LSA to the neighbor
       NS_LOG_WARN ("Received stale LSA " << seqNum << " < " << m_seqNumbers[lsaKey]);
-      Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
-      lsUpdate->AddLsa (FetchLsa (lsaKey));
-      Ptr<Packet> packet = lsUpdate->ConstructPacket ();
-      EncapsulateOspfPacket (packet, m_routerId, interface->GetArea (),
-                             OspfHeader::OspfType::OspfLSUpdate);
-      SendToNeighborKeyedInterval (m_rxmtInterval + Seconds (m_randomVariable->GetValue ()),
-                                   ifIndex, packet, neighbor, lsaKey);
+      // Just send ACK
+      SendAck (ifIndex, ackPacket, neighbor->GetIpAddress ());
+      //// Unicast an LSU containing the new LSA to the neighbor
+      // Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
+      // lsUpdate->AddLsa (FetchLsa (lsaKey));
+      // Ptr<Packet> packet = lsUpdate->ConstructPacket ();
+      // EncapsulateOspfPacket (packet, m_routerId, interface->GetArea (),
+      //                        OspfHeader::OspfType::OspfLSUpdate);
+      // SendToNeighborKeyedInterval (m_rxmtInterval + Seconds (m_randomVariable->GetValue ()),
+      //                              ifIndex, packet, neighbor, lsaKey);
     }
 }
 
@@ -1411,6 +1423,14 @@ OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHead
   if (neighbor == nullptr)
     {
       NS_LOG_WARN ("LS Ack dropped due to missing neighbor ("
+                   << Ipv4Address (ospfHeader.GetRouterId ()) << "," << ipHeader.GetSource ()
+                   << ")");
+      return;
+    }
+
+  if (neighbor->GetState () < OspfNeighbor::Exchange)
+    {
+      NS_LOG_WARN ("LS Ack dropped since the neighbor hasn't started exchange ("
                    << Ipv4Address (ospfHeader.GetRouterId ()) << "," << ipHeader.GetSource ()
                    << ")");
       return;
@@ -2102,7 +2122,7 @@ void
 OspfApp::HelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   // Set the interface to down
-  AdvanceToDown (ifIndex, neighbor);
+  FallbackToDown (ifIndex, neighbor);
 
   NS_LOG_DEBUG ("Interface " << ifIndex << " has removed routerId: " << neighbor->GetRouterId ()
                              << ", remoteIp" << neighbor->GetIpAddress () << " neighbors");
@@ -2127,9 +2147,24 @@ OspfApp::RefreshHelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
                            &OspfApp::HelloTimeout, this, ifIndex, neighbor);
 }
 
+// Init
+void
+OspfApp::FallbackToInit (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
+{
+  NS_LOG_INFO ("Move to Init");
+  // TODO: Defer router lsa update to when the link is fully down
+  neighbor->SetState (OspfNeighbor::Init);
+  RecomputeRouterLsa ();
+  Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
+  lsUpdate->AddLsa (m_routerLsdb[m_routerId.Get ()]);
+  neighbor->RemoveTimeout ();
+  neighbor->ClearKeyedTimeouts ();
+  FloodLsu (0, lsUpdate);
+}
+
 // Down
 void
-OspfApp::AdvanceToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
+OspfApp::FallbackToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   NS_LOG_INFO ("Hello timeout. Move to Down");
   neighbor->SetState (OspfNeighbor::Down);

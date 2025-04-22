@@ -521,7 +521,20 @@ private:
    * \param ifIndex Interface index
    * \param neighbor OSPF neighbor
    */
-  void AdvanceToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+  void FallbackToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
+
+  // Init
+  /**
+   * \brief Move the neighbor state to Init.
+   * 
+   * Move the neighbor state to Init, flooding LSAs to update
+   * its neighbors TODO: Defer the Router-LSA update and flooding
+   * until it stops receiving two-way Hello within dead interval.
+   * 
+   * \param ifIndex Interface index
+   * \param neighbor OSPF neighbor
+   */
+  void FallbackToInit (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
   // ExStart
   /**

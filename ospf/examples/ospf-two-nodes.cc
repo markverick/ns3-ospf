@@ -38,6 +38,7 @@
 #include "ns3/network-module.h"
 #include "ns3/point-to-point-module.h"
 #include "ns3/ospf-app-helper.h"
+#include "ns3/ospf-runtime-helper.h"
 #include "ns3/ospf-app.h"
 
 #include <cassert>
@@ -52,7 +53,7 @@ NS_LOG_COMPONENT_DEFINE ("OspfTwoNode");
 
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
-const uint32_t SIM_SECONDS = 70;
+const uint32_t SIM_SECONDS = 180;
 
 int
 main (int argc, char *argv[])
@@ -127,34 +128,44 @@ main (int argc, char *argv[])
   ApplicationContainer ospfApp = ospfAppHelper.Install (c);
   // ospfAppHelper.Preload (c);
 
+  // Set error
+  Simulator::Schedule (Seconds (60), &SetLinkDown, d0d1.Get (0));
+  Simulator::Schedule (Seconds (60), &SetLinkDown, d0d1.Get (1));
+  Simulator::Schedule (Seconds (120), &SetLinkUp, d0d1.Get (0));
+  Simulator::Schedule (Seconds (120), &SetLinkUp, d0d1.Get (1));
+
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
   // User Traffic
-  uint16_t port = 9; // well-known echo port number
-  UdpEchoServerHelper server (port);
-  ApplicationContainer apps = server.Install (c.Get (1));
-  apps.Start (Seconds (1.0));
-  apps.Stop (Seconds (SIM_SECONDS));
+  // uint16_t port = 9; // well-known echo port number
+  // UdpEchoServerHelper server (port);
+  // ApplicationContainer apps = server.Install (c.Get (1));
+  // apps.Start (Seconds (1.0));
+  // apps.Stop (Seconds (SIM_SECONDS));
 
-  uint32_t tSize = 1024;
-  uint32_t maxPacketCount = 200;
-  Time interPacketInterval = Seconds (1.);
-  UdpEchoClientHelper client (Ipv4Address ("10.1.1.9"), port);
-  client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
-  client.SetAttribute ("Interval", TimeValue (interPacketInterval));
-  client.SetAttribute ("PacketSize", UintegerValue (tSize));
-  apps = client.Install (c.Get (0));
-  apps.Start (Seconds (2.0));
-  apps.Stop (Seconds (SIM_SECONDS));
+  // uint32_t tSize = 1024;
+  // uint32_t maxPacketCount = 200;
+  // Time interPacketInterval = Seconds (1.);
+  // UdpEchoClientHelper client (Ipv4Address ("10.1.1.9"), port);
+  // client.SetAttribute ("MaxPackets", UintegerValue (maxPacketCount));
+  // client.SetAttribute ("Interval", TimeValue (interPacketInterval));
+  // client.SetAttribute ("PacketSize", UintegerValue (tSize));
+  // apps = client.Install (c.Get (0));
+  // apps.Start (Seconds (2.0));
+  // apps.Stop (Seconds (SIM_SECONDS));
 
   // Print LSDB
   // Simulator::Schedule(Seconds(SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
   for (int i = 0; i < 2; i++)
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (c.Get (i)->GetApplication (0));
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintLsdb, app);
-      Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintL1SummaryLsdb, app);
+      Simulator::Schedule (Seconds (59), &OspfApp::PrintLsdb, app);
+      // Simulator::Schedule (Seconds (59), &OspfApp::PrintL1SummaryLsdb, app);
+      Simulator::Schedule (Seconds (119), &OspfApp::PrintLsdb, app);
+      // Simulator::Schedule (Seconds (119), &OspfApp::PrintL1SummaryLsdb, app);
+      Simulator::Schedule (Seconds (179), &OspfApp::PrintLsdb, app);
+      // Simulator::Schedule (Seconds (179), &OspfApp::PrintL1SummaryLsdb, app);
       Simulator::Schedule (Seconds (SIM_SECONDS - 1), &OspfApp::PrintRouting, app, dirName,
                            "n" + std::to_string (i) + ".routes");
     }
