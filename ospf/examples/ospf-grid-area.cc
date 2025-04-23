@@ -45,8 +45,8 @@ NS_LOG_COMPONENT_DEFINE ("OspfGridArea");
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
 const uint32_t STRIPE_WIDTH = 2;
-const uint32_t NUM_STRIPES = 8;
-const uint32_t GRID_HEIGHT = 22;
+const uint32_t NUM_STRIPES = 3;
+const uint32_t GRID_HEIGHT = 3;
 const uint32_t GRID_WIDTH = STRIPE_WIDTH * NUM_STRIPES;
 const uint32_t SIM_SECONDS = 100;
 
@@ -141,12 +141,14 @@ main (int argc, char *argv[])
       for (uint32_t i = 0; i < areaNodes[area].GetN (); i++)
         {
           auto node = areaNodes[area].Get (i);
+          auto nodeId = node->GetId ();
           auto app = DynamicCast<OspfApp> (node->GetApplication (0));
           app->SetArea (area);
-          // app->ImportLsdb (dirName, std::to_string (i) + ".lsdb");
-          Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::ExportLsdb, app, dirName,
-                               std::to_string (i) + ".lsdb");
           app->AddReachableAddress (0, app->GetRouterId (), Ipv4Mask ("255.255.255.253"));
+          app->ImportOspf (dirName, std::to_string (nodeId) + ".lsdb",
+                           std::to_string (nodeId) + ".neighbors");
+          // Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::ExportOspf, app, dirName,
+          //                      std::to_string (nodeId) + ".lsdb", std::to_string (nodeId) + ".neighbors");
         }
     }
   // ospfAppHelper.Preload (c);

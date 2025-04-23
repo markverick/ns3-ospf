@@ -243,18 +243,46 @@ public:
 
   // Import Export
   /**
+   * \brief Export both LSDB and neighbors in one-go.
+   * \param dirName directory name
+   * \param lsdbName lsdb file name
+   * \param neighborName neighbor file name
+  */
+  void ExportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName);
+  /**
    * \brief Export LSDB.
    * \param dirName directory name
-   * \param dirName file name
+   * \param filename file name
   */
   void ExportLsdb (std::filesystem::path dirName, std::string filename);
 
   /**
+   * \brief Export neighbor information.
+   * \param dirName directory name
+   * \param filename file name
+  */
+  void ExportNeighbors (std::filesystem::path dirName, std::string filename);
+
+  /**
+   * \brief Export both LSDB and neighbors in one-go.
+   * \param dirName directory name
+   * \param lsdbName lsdb file name
+   * \param neighborName neighbor file name
+  */
+  void ImportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName);
+  /**
   * \brief Import LSDB.
   * \param dirName directory name
-  * \param dirName file name
+  * \param filename file name
  */
   void ImportLsdb (std::filesystem::path dirName, std::string filename);
+
+  /**
+  * \brief Import neighbor information.
+  * \param dirName directory name
+  * \param filename file name
+ */
+  void ImportNeighbors (std::filesystem::path dirName, std::string filename);
 
 protected:
   virtual void DoDispose (void);

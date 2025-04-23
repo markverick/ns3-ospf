@@ -109,7 +109,7 @@ OspfApp::OspfApp ()
 
 OspfApp::~OspfApp ()
 {
-  NS_LOG_FUNCTION (this);
+  // NS_LOG_FUNCTION (this);
   m_sockets.clear ();
   m_lsaSockets.clear ();
   m_helloSockets.clear ();
@@ -507,7 +507,7 @@ OspfApp::PrintAreaLsdbHash ()
 void
 OspfApp::DoDispose (void)
 {
-  NS_LOG_FUNCTION (this);
+  // NS_LOG_FUNCTION (this);
   Application::DoDispose ();
 }
 
@@ -581,8 +581,12 @@ OspfApp::StartApplication (void)
     }
   // Start sending Hello
   ScheduleTransmitHello (Seconds (0.));
-  // Create AS External LSA from Router ID for L1 routing prefix
-  RecomputeL1SummaryLsa ();
+
+  if (m_doInitialize)
+    {
+      // Create AS External LSA from Router ID for L1 routing prefix
+      RecomputeL1SummaryLsa ();
+    }
   m_isAreaLeader = false;
   // Will begin as an area leader if noone will
   if (m_enableAreaProxy)
@@ -2152,7 +2156,14 @@ void
 OspfApp::FallbackToInit (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   NS_LOG_INFO ("Move to Init");
-  // TODO: Defer router lsa update to when the link is fully down
+  if (neighbor->GetState () == OspfNeighbor::Full)
+    {
+      // Defer router lsa update until when the link is fully down
+      neighbor->SetState (OspfNeighbor::Init);
+      neighbor->RemoveTimeout ();
+      neighbor->ClearKeyedTimeouts ();
+      return;
+    }
   neighbor->SetState (OspfNeighbor::Init);
   RecomputeRouterLsa ();
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
@@ -2356,8 +2367,15 @@ OspfApp::InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList)
 
 // Import Export
 void
+OspfApp::ExportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName)
+{
+  ExportLsdb (dirName, lsdbName);
+  ExportNeighbors (dirName, neighborName);
+}
+void
 OspfApp::ExportLsdb (std::filesystem::path dirName, std::string filename)
 {
+  // Export LSDBs
   // Pack it in a giant LS Update
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
   for (auto &[lsId, lsa] : m_routerLsdb)
@@ -2402,8 +2420,67 @@ OspfApp::ExportLsdb (std::filesystem::path dirName, std::string filename)
 }
 
 void
+OspfApp::ExportNeighbors (std::filesystem::path dirName, std::string filename)
+{
+  // Export Neighbor Information
+  // Serialize neighbors
+  Buffer buffer;
+  uint32_t totalNeighbors = 0;
+  uint32_t serializedSize = 4; // number of interfaces
+  for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
+    {
+      serializedSize += 4; // number of neighbors
+      serializedSize +=
+          m_ospfInterfaces[i]->GetNeighbors ().size () * 12; // each neighbor is 12 bytes
+      totalNeighbors += m_ospfInterfaces[i]->GetNeighbors ().size ();
+    }
+  buffer.AddAtEnd (serializedSize);
+  Buffer::Iterator it = buffer.Begin ();
+
+  it.WriteHtonU32 (m_ospfInterfaces.size () - 1);
+  for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
+    {
+      it.WriteHtonU32 (m_ospfInterfaces[i]->GetNeighbors ().size ());
+      for (auto n : m_ospfInterfaces[i]->GetNeighbors ())
+        {
+          it.WriteHtonU32 (n->GetRouterId ().Get ());
+          it.WriteHtonU32 (n->GetIpAddress ().Get ());
+          it.WriteHtonU32 (n->GetArea ());
+        }
+    }
+
+  // Convert buffer to vector<uint8_t>
+  std::vector<uint8_t> data (buffer.GetSize ());
+  it = buffer.Begin ();
+  it.Read (data.data (), buffer.GetSize ());
+
+  // Write neighbors to the file
+  std::string fullname = dirName / filename;
+  std::ofstream outFile (fullname);
+  if (!outFile)
+    {
+      std::cerr << "Failed to open file for writing neighbor information: " << fullname
+                << std::endl;
+      return;
+    }
+  outFile.write (reinterpret_cast<const char *> (data.data ()), data.size ());
+  outFile.close ();
+  std::cout << "Exported " << totalNeighbors << " neighbors : " << data.size () << " bytes to "
+            << fullname << std::endl;
+}
+
+void
+OspfApp::ImportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName)
+{
+  ImportLsdb (dirName, lsdbName);
+  ImportNeighbors (dirName, neighborName);
+  m_doInitialize = false;
+}
+
+void
 OspfApp::ImportLsdb (std::filesystem::path dirName, std::string filename)
 {
+  // Import LSDBs
   std::string fullname = dirName / filename;
   std::ifstream inFile (fullname, std::ios::binary);
   if (!inFile)
@@ -2430,29 +2507,61 @@ OspfApp::ImportLsdb (std::filesystem::path dirName, std::string filename)
 
   for (auto &[lsaHeader, lsa] : lsUpdate->GetLsaList ())
     {
-      auto lsId = lsaHeader.GetLsId ();
-      switch (lsaHeader.GetType ())
-        {
-        case LsaHeader::RouterLSAs:
-          m_routerLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<RouterLsa> (lsa));
-          break;
-        case LsaHeader::L1SummaryLSAs:
-          m_l1SummaryLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<L1SummaryLsa> (lsa));
-          break;
-        case LsaHeader::AreaLSAs:
-          m_areaLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<AreaLsa> (lsa));
-          break;
-        case LsaHeader::L2SummaryLSAs:
-          m_l2SummaryLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<L2SummaryLsa> (lsa));
-          break;
-        default:
-          std::cerr << "Unsupported LSA Type" << std::endl;
-        }
-      m_seqNumbers[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
+      ProcessLsa (lsaHeader, lsa);
     }
 
   std::cout << "Imported " << lsUpdate->GetNLsa () << " LSAs : " << data.size () << " bytes from "
             << fullname << std::endl;
 }
+void
+OspfApp::ImportNeighbors (std::filesystem::path dirName, std::string filename)
+{
+  // Import Neighbor Information
+  std::string fullname = dirName / filename;
+  std::ifstream inFile (fullname, std::ios::binary);
+  if (!inFile)
+    {
+      std::cerr << "Failed to open file for reading neighbor information: " << fullname
+                << std::endl;
+      return;
+    }
 
+  // Read file into vector
+  std::vector<uint8_t> data ((std::istreambuf_iterator<char> (inFile)),
+                             std::istreambuf_iterator<char> ());
+
+  // Create buffer and allocate space
+  Buffer buffer;
+  buffer.AddAtEnd (data.size ());
+
+  // Write data into buffer
+  auto it = buffer.Begin ();
+  it.Write (data.data (), data.size ());
+
+  it = buffer.Begin ();
+  uint32_t nInterfaces = it.ReadNtohU32 ();
+  NS_ASSERT_MSG (nInterfaces + 1 == m_ospfInterfaces.size (),
+                 "Numbers of bound interfaces do not match");
+
+  uint32_t nNeighbors, routerId, ipAddress, areaId, totalNeighbors = 0;
+  for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
+    {
+      nNeighbors = it.ReadNtohU32 ();
+      totalNeighbors += nNeighbors;
+      for (uint32_t j = 0; j < nNeighbors; j++)
+        {
+          routerId = it.ReadNtohU32 ();
+          ipAddress = it.ReadNtohU32 ();
+          areaId = it.ReadNtohU32 ();
+          auto neighbor = Create<OspfNeighbor> (Ipv4Address (routerId), Ipv4Address (ipAddress),
+                                                areaId, OspfNeighbor::Full);
+          neighbor->RefreshLastHelloReceived ();
+          RefreshHelloTimeout (i, neighbor);
+          m_ospfInterfaces[i]->AddNeighbor (neighbor);
+        }
+    }
+
+  std::cout << "Imported " << totalNeighbors << " neighbors : " << data.size () << " bytes from "
+            << fullname << std::endl;
+}
 } // Namespace ns3
