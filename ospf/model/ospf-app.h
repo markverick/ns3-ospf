@@ -241,6 +241,21 @@ public:
   */
   void InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList);
 
+  // Import Export
+  /**
+   * \brief Export LSDB.
+   * \param dirName directory name
+   * \param dirName file name
+  */
+  void ExportLsdb (std::filesystem::path dirName, std::string filename);
+
+  /**
+  * \brief Import LSDB.
+  * \param dirName directory name
+  * \param dirName file name
+ */
+  void ImportLsdb (std::filesystem::path dirName, std::string filename);
+
 protected:
   virtual void DoDispose (void);
 

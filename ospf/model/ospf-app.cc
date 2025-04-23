@@ -2354,4 +2354,105 @@ OspfApp::InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList)
     }
 }
 
+// Import Export
+void
+OspfApp::ExportLsdb (std::filesystem::path dirName, std::string filename)
+{
+  // Pack it in a giant LS Update
+  Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
+  for (auto &[lsId, lsa] : m_routerLsdb)
+    {
+      lsUpdate->AddLsa (lsa);
+    }
+  for (auto &[lsId, lsa] : m_l1SummaryLsdb)
+    {
+      lsUpdate->AddLsa (lsa);
+    }
+  for (auto &[lsId, lsa] : m_areaLsdb)
+    {
+      lsUpdate->AddLsa (lsa);
+    }
+  for (auto &[lsId, lsa] : m_l2SummaryLsdb)
+    {
+      lsUpdate->AddLsa (lsa);
+    }
+
+  // Serialize into a buffer
+  Buffer buffer;
+  buffer.AddAtEnd (lsUpdate->GetSerializedSize ());
+  lsUpdate->Serialize (buffer.Begin ());
+
+  // Convert buffer to vector<uint8_t>
+  std::vector<uint8_t> data (buffer.GetSize ());
+  auto it = buffer.Begin ();
+  it.Read (data.data (), buffer.GetSize ());
+
+  // Write LSU to the file
+  std::string fullname = dirName / filename;
+  std::ofstream outFile (fullname);
+  if (!outFile)
+    {
+      std::cerr << "Failed to open file for writing LSDB: " << fullname << std::endl;
+      return;
+    }
+  outFile.write (reinterpret_cast<const char *> (data.data ()), data.size ());
+  outFile.close ();
+  std::cout << "Exported " << lsUpdate->GetNLsa () << " LSAs : " << data.size () << " bytes to "
+            << fullname << std::endl;
+}
+
+void
+OspfApp::ImportLsdb (std::filesystem::path dirName, std::string filename)
+{
+  std::string fullname = dirName / filename;
+  std::ifstream inFile (fullname, std::ios::binary);
+  if (!inFile)
+    {
+      std::cerr << "Failed to open file for reading LSDB: " << fullname << std::endl;
+      return;
+    }
+
+  // Read file into vector
+  std::vector<uint8_t> data ((std::istreambuf_iterator<char> (inFile)),
+                             std::istreambuf_iterator<char> ());
+
+  // Create buffer and allocate space
+  Buffer buffer;
+  buffer.AddAtEnd (data.size ());
+
+  // Write data into buffer
+  auto it = buffer.Begin ();
+  it.Write (data.data (), data.size ());
+
+  Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
+
+  lsUpdate->Deserialize (buffer.Begin ());
+
+  for (auto &[lsaHeader, lsa] : lsUpdate->GetLsaList ())
+    {
+      auto lsId = lsaHeader.GetLsId ();
+      switch (lsaHeader.GetType ())
+        {
+        case LsaHeader::RouterLSAs:
+          m_routerLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<RouterLsa> (lsa));
+          break;
+        case LsaHeader::L1SummaryLSAs:
+          m_l1SummaryLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<L1SummaryLsa> (lsa));
+          break;
+        case LsaHeader::AreaLSAs:
+          m_areaLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<AreaLsa> (lsa));
+          break;
+        case LsaHeader::L2SummaryLSAs:
+          m_l2SummaryLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<L2SummaryLsa> (lsa));
+          break;
+        default:
+          std::cerr << "Unsupported LSA Type" << std::endl;
+        }
+      m_seqNumbers[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
+    }
+
+  std::cout << "Imported " << lsUpdate->GetNLsa () << " LSAs : " << data.size () << " bytes from "
+            << fullname << std::endl;
+}
+
 } // Namespace ns3
