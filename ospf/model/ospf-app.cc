@@ -594,6 +594,11 @@ OspfApp::StartApplication (void)
                                    &OspfApp::AreaLeaderBegin, this);
         }
     }
+  else
+    {
+      UpdateL1ShortestPath ();
+      UpdateL2ShortestPath ();
+    }
   // Will begin as an area leader if noone will
 }
 
@@ -689,14 +694,8 @@ OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteIp)
   socket->GetSockName (ackSocketAddress);
   m_txTrace (ackPacket);
 
-  if (m_boundDevices.Get (ifIndex)->IsPointToPoint ())
-    {
-      socket->SendTo (ackPacket, 0, InetSocketAddress (remoteIp));
-    }
-  else
-    {
-      m_lsaSockets[ifIndex]->SendTo (ackPacket, 0, InetSocketAddress (m_lsaAddress));
-    }
+  socket->SendTo (ackPacket, 0, InetSocketAddress (remoteIp));
+
   NS_LOG_INFO ("LS Ack sent via interface " << ifIndex << " : " << remoteIp);
 }
 
@@ -708,14 +707,7 @@ OspfApp::SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor>
   auto socket = m_sockets[ifIndex];
   m_txTrace (packet);
 
-  if (m_boundDevices.Get (ifIndex)->IsPointToPoint ())
-    {
-      socket->SendTo (packet->Copy (), 0, InetSocketAddress (neighbor->GetIpAddress ()));
-    }
-  else
-    {
-      m_lsaSockets[ifIndex]->SendTo (packet->Copy (), 0, InetSocketAddress (m_lsaAddress));
-    }
+  socket->SendTo (packet->Copy (), 0, InetSocketAddress (neighbor->GetIpAddress ()));
 
   // NS_LOG_INFO ("Packet sent to via interface " << ifIndex << " : " << neighbor->GetIpAddress ());
 }
@@ -834,6 +826,16 @@ OspfApp::HandleRead (Ptr<Socket> socket)
   packet->RemoveHeader (ipHeader);
 
   packet->RemoveHeader (ospfHeader);
+
+  // Drop irrelevant packets in multi-access
+  if (ipHeader.GetDestination () != m_lsaAddress && ipHeader.GetDestination () != m_helloAddress)
+    {
+      if (ipHeader.GetDestination () !=
+          m_ospfInterfaces[socket->GetBoundNetDevice ()->GetIfIndex ()]->GetAddress ())
+        {
+          return;
+        }
+    }
 
   Ipv4Address remoteRouterId;
   // NS_LOG_INFO("Packet Type: " << socket->GetBoundNetDevice ()->GetIfIndex () << " " << ospfHeader.GetArea () << ospfHeader.GetRouterId () << ospfHeader.GetType ());
@@ -1515,7 +1517,10 @@ OspfApp::ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
         }
       else
         {
-          AreaLeaderEnd ();
+          if (m_isAreaLeader)
+            {
+              AreaLeaderEnd ();
+            }
         }
     }
 
@@ -1950,6 +1955,7 @@ OspfApp::UpdateL1ShortestPath ()
 
       // Find the next hop's IP and interface index
       uint32_t ifIndex = 0;
+      Ipv4Address ipAddress;
       for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
         {
           auto neighbors = m_ospfInterfaces[i]->GetNeighbors ();
@@ -1962,6 +1968,7 @@ OspfApp::UpdateL1ShortestPath ()
               if (n->GetRouterId ().Get () == v)
                 {
                   ifIndex = i;
+                  ipAddress = n->GetIpAddress ();
                   break;
                 }
             }
@@ -1971,15 +1978,7 @@ OspfApp::UpdateL1ShortestPath ()
       NS_ASSERT (ifIndex > 0);
 
       // Fill in the next hop and prefixes data
-      for (uint32_t i = 0; i < routerLsa.second->GetNLink (); i++)
-        {
-          // NS_LOG_DEBUG ("Add route: " << Ipv4Address (routerLsa.second->GetLink (i).m_linkData)
-          // << ", " << ifIndex << ", " << distanceTo[remoteRouterId]);
-          m_l1NextHop[remoteRouterId] = NextHop (ifIndex, routerLsa.second->GetLink (i).m_linkData,
-                                                 distanceTo[remoteRouterId]);
-          // m_routing->AddHostRouteTo (Ipv4Address (routerLsa.second->GetLink (i).m_linkData),
-          //                            ifIndex, distanceTo[remoteRouterId]);
-        }
+      m_l1NextHop[remoteRouterId] = NextHop (ifIndex, ipAddress, distanceTo[remoteRouterId]);
     }
   if (m_enableAreaProxy)
     {
@@ -2000,10 +1999,11 @@ OspfApp::UpdateL1ShortestPath ()
               if (m_nextHopToShortestBorderRouter.find (link.m_areaId) ==
                       m_nextHopToShortestBorderRouter.end () ||
                   m_nextHopToShortestBorderRouter[link.m_areaId].second.metric >
-                      m_l1NextHop[remoteRouterId].metric)
+                      m_l1NextHop[remoteRouterId].metric + link.m_metric)
                 {
                   m_nextHopToShortestBorderRouter[link.m_areaId] =
                       std::make_pair (remoteRouterId, m_l1NextHop[remoteRouterId]);
+                  m_nextHopToShortestBorderRouter[link.m_areaId].second.metric += link.m_metric;
                 }
             }
         }
@@ -2346,6 +2346,7 @@ void
 OspfApp::AreaLeaderEnd ()
 {
   NS_LOG_FUNCTION (this);
+  m_isAreaLeader = false;
   // TODO: Area Leader Logic -- stop flooding Area-LSA and Summary-LSA-Area
 }
 
