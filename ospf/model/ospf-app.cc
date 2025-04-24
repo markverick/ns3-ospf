@@ -689,7 +689,14 @@ OspfApp::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteIp)
   socket->GetSockName (ackSocketAddress);
   m_txTrace (ackPacket);
 
-  socket->SendTo (ackPacket, 0, InetSocketAddress (remoteIp));
+  if (m_boundDevices.Get (ifIndex)->IsPointToPoint ())
+    {
+      socket->SendTo (ackPacket, 0, InetSocketAddress (remoteIp));
+    }
+  else
+    {
+      m_lsaSockets[ifIndex]->SendTo (ackPacket, 0, InetSocketAddress (m_lsaAddress));
+    }
   NS_LOG_INFO ("LS Ack sent via interface " << ifIndex << " : " << remoteIp);
 }
 
