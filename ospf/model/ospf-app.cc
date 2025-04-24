@@ -2156,14 +2156,7 @@ void
 OspfApp::FallbackToInit (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   NS_LOG_INFO ("Move to Init");
-  if (neighbor->GetState () == OspfNeighbor::Full)
-    {
-      // Defer router lsa update until when the link is fully down
-      neighbor->SetState (OspfNeighbor::Init);
-      neighbor->RemoveTimeout ();
-      neighbor->ClearKeyedTimeouts ();
-      return;
-    }
+  // TODO: Defer router lsa update until when the link is fully down
   neighbor->SetState (OspfNeighbor::Init);
   RecomputeRouterLsa ();
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
