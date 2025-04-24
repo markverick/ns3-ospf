@@ -45,8 +45,8 @@ NS_LOG_COMPONENT_DEFINE ("OspfGridArea");
 Ipv4Address ospfHelloAddress ("224.0.0.5");
 
 const uint32_t STRIPE_WIDTH = 2;
-const uint32_t NUM_STRIPES = 3;
-const uint32_t GRID_HEIGHT = 3;
+const uint32_t NUM_STRIPES = 36;
+const uint32_t GRID_HEIGHT = 22;
 const uint32_t GRID_WIDTH = STRIPE_WIDTH * NUM_STRIPES;
 const uint32_t SIM_SECONDS = 100;
 
@@ -146,9 +146,10 @@ main (int argc, char *argv[])
           app->SetArea (area);
           app->AddReachableAddress (0, app->GetRouterId (), Ipv4Mask ("255.255.255.253"));
           app->ImportOspf (dirName, std::to_string (nodeId) + ".lsdb",
-                           std::to_string (nodeId) + ".neighbors");
+                           std::to_string (nodeId) + ".neighbors",
+                           std::to_string (nodeId) + ".meta");
           // Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::ExportOspf, app, dirName,
-          //                      std::to_string (nodeId) + ".lsdb", std::to_string (nodeId) + ".neighbors");
+          //                      std::to_string (nodeId) + ".lsdb", std::to_string (nodeId) + ".neighbors", std::to_string (nodeId) + ".meta");
         }
     }
   // ospfAppHelper.Preload (c);
@@ -211,8 +212,8 @@ main (int argc, char *argv[])
   Simulator::Schedule (Seconds (SIM_SECONDS), CompareAreaLsdb, c);
   Simulator::Schedule (Seconds (SIM_SECONDS), CompareL2SummaryLsdb, c);
   // Enable Pcap
-  AsciiTraceHelper ascii;
-  p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));
+  // AsciiTraceHelper ascii;
+  // p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));
   p2p.EnablePcapAll (dirName / "pcap");
 
   // Flow Monitor

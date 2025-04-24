@@ -586,15 +586,15 @@ OspfApp::StartApplication (void)
     {
       // Create AS External LSA from Router ID for L1 routing prefix
       RecomputeL1SummaryLsa ();
+      if (m_enableAreaProxy)
+        {
+          m_isAreaLeader = false;
+          m_areaLeaderBeginTimer =
+              Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
+                                   &OspfApp::AreaLeaderBegin, this);
+        }
     }
-  m_isAreaLeader = false;
   // Will begin as an area leader if noone will
-  if (m_enableAreaProxy)
-    {
-      m_areaLeaderBeginTimer =
-          Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
-                               &OspfApp::AreaLeaderBegin, this);
-    }
 }
 
 void
@@ -2367,8 +2367,10 @@ OspfApp::InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList)
 
 // Import Export
 void
-OspfApp::ExportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName)
+OspfApp::ExportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName,
+                     std::string metaName)
 {
+  ExportMetadata (dirName, metaName);
   ExportLsdb (dirName, lsdbName);
   ExportNeighbors (dirName, neighborName);
 }
@@ -2470,8 +2472,41 @@ OspfApp::ExportNeighbors (std::filesystem::path dirName, std::string filename)
 }
 
 void
-OspfApp::ImportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName)
+OspfApp::ExportMetadata (std::filesystem::path dirName, std::string filename)
 {
+  // Export additional Information
+  // Serialize neighbors
+  Buffer buffer;
+  uint32_t serializedSize = 4; // isLeader
+  buffer.AddAtEnd (serializedSize);
+  Buffer::Iterator it = buffer.Begin ();
+
+  it.WriteHtonU32 (m_isAreaLeader);
+
+  // Convert buffer to vector<uint8_t>
+  std::vector<uint8_t> data (buffer.GetSize ());
+  it = buffer.Begin ();
+  it.Read (data.data (), buffer.GetSize ());
+
+  // Write neighbors to the file
+  std::string fullname = dirName / filename;
+  std::ofstream outFile (fullname);
+  if (!outFile)
+    {
+      std::cerr << "Failed to open file for writing neighbor information: " << fullname
+                << std::endl;
+      return;
+    }
+  outFile.write (reinterpret_cast<const char *> (data.data ()), data.size ());
+  outFile.close ();
+  std::cout << "Exported metadata of " << data.size () << " bytes to " << fullname << std::endl;
+}
+
+void
+OspfApp::ImportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName,
+                     std::string metaName)
+{
+  ImportMetadata (dirName, metaName);
   ImportLsdb (dirName, lsdbName);
   ImportNeighbors (dirName, neighborName);
   m_doInitialize = false;
@@ -2507,7 +2542,25 @@ OspfApp::ImportLsdb (std::filesystem::path dirName, std::string filename)
 
   for (auto &[lsaHeader, lsa] : lsUpdate->GetLsaList ())
     {
-      ProcessLsa (lsaHeader, lsa);
+      auto lsId = lsaHeader.GetLsId ();
+      switch (lsaHeader.GetType ())
+        {
+        case LsaHeader::RouterLSAs:
+          m_routerLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<RouterLsa> (lsa));
+          break;
+        case LsaHeader::L1SummaryLSAs:
+          m_l1SummaryLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<L1SummaryLsa> (lsa));
+          break;
+        case LsaHeader::AreaLSAs:
+          m_areaLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<AreaLsa> (lsa));
+          break;
+        case LsaHeader::L2SummaryLSAs:
+          m_l2SummaryLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<L2SummaryLsa> (lsa));
+          break;
+        default:
+          std::cerr << "Unsupported LSA Type" << std::endl;
+        }
+      m_seqNumbers[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
     }
 
   std::cout << "Imported " << lsUpdate->GetNLsa () << " LSAs : " << data.size () << " bytes from "
@@ -2563,5 +2616,36 @@ OspfApp::ImportNeighbors (std::filesystem::path dirName, std::string filename)
 
   std::cout << "Imported " << totalNeighbors << " neighbors : " << data.size () << " bytes from "
             << fullname << std::endl;
+}
+
+void
+OspfApp::ImportMetadata (std::filesystem::path dirName, std::string filename)
+{
+  // Import Additional Information
+  std::string fullname = dirName / filename;
+  std::ifstream inFile (fullname, std::ios::binary);
+  if (!inFile)
+    {
+      std::cerr << "Failed to open file for reading additional information: " << fullname
+                << std::endl;
+      return;
+    }
+
+  // Read file into vector
+  std::vector<uint8_t> data ((std::istreambuf_iterator<char> (inFile)),
+                             std::istreambuf_iterator<char> ());
+
+  // Create buffer and allocate space
+  Buffer buffer;
+  buffer.AddAtEnd (data.size ());
+
+  // Write data into buffer
+  auto it = buffer.Begin ();
+  it.Write (data.data (), data.size ());
+
+  it = buffer.Begin ();
+  m_isAreaLeader = it.ReadNtohU32 ();
+
+  std::cout << "Imported metadata of " << data.size () << " bytes from " << fullname << std::endl;
 }
 } // Namespace ns3

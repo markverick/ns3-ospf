@@ -248,7 +248,8 @@ public:
    * \param lsdbName lsdb file name
    * \param neighborName neighbor file name
   */
-  void ExportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName);
+  void ExportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName,
+                   std::string metaName);
   /**
    * \brief Export LSDB.
    * \param dirName directory name
@@ -264,12 +265,20 @@ public:
   void ExportNeighbors (std::filesystem::path dirName, std::string filename);
 
   /**
+   * \brief Export additional information such as area leader.
+   * \param dirName directory name
+   * \param filename file name
+  */
+  void ExportMetadata (std::filesystem::path dirName, std::string filename);
+
+  /**
    * \brief Export both LSDB and neighbors in one-go.
    * \param dirName directory name
    * \param lsdbName lsdb file name
    * \param neighborName neighbor file name
   */
-  void ImportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName);
+  void ImportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName,
+                   std::string metaName);
   /**
   * \brief Import LSDB.
   * \param dirName directory name
@@ -283,6 +292,13 @@ public:
   * \param filename file name
  */
   void ImportNeighbors (std::filesystem::path dirName, std::string filename);
+
+  /**
+    * \brief Import additional information such as area leader.
+    * \param dirName directory name
+    * \param filename file name
+  */
+  void ImportMetadata (std::filesystem::path dirName, std::string filename);
 
 protected:
   virtual void DoDispose (void);
