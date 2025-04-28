@@ -1480,6 +1480,17 @@ OspfApp::ProcessL1SummaryLsa (LsaHeader lsaHeader, Ptr<L1SummaryLsa> l1SummaryLs
   NS_LOG_FUNCTION (this);
   m_l1SummaryLsdb[lsId] = std::make_pair (lsaHeader, l1SummaryLsa);
 
+  if (m_enableAreaProxy)
+    {
+      // Update local L2 Summary LSDB entry if there's a change in L1 prefixes
+      // This will flood L2 LSA if self is the area leader
+      if (m_isAreaLeader)
+        {
+          RecomputeL2SummaryLsa ();
+          return;
+        }
+    }
+
   // Update routing table
   UpdateRouting ();
 }
@@ -1501,14 +1512,10 @@ OspfApp::ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
           RecomputeAreaLsa ();
         }
 
-      // Reset area leadership begin timer if it's a leader (lowest router ID)
-      if (m_areaLeaderBeginTimer.IsRunning ())
-        {
-          m_areaLeaderBeginTimer.Remove ();
-        }
+      // Start leadership begin timer if it's a leader (lowest router ID)
       if (m_routerLsdb.begin ()->first == m_routerId.Get ())
         {
-          if (!m_isAreaLeader)
+          if (!m_isAreaLeader && !m_areaLeaderBeginTimer.IsRunning ())
             {
               m_areaLeaderBeginTimer = Simulator::Schedule (
                   m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
@@ -1517,6 +1524,10 @@ OspfApp::ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
         }
       else
         {
+          if (m_areaLeaderBeginTimer.IsRunning ())
+            {
+              m_areaLeaderBeginTimer.Remove ();
+            }
           if (m_isAreaLeader)
             {
               AreaLeaderEnd ();
