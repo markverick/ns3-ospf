@@ -16,9 +16,12 @@ See the LICENSE file for more details.
 
 ## Overview
 ### What's currently implemented 
-- Basic OSPF functionality for point-to-point routers
+- Basic OSPF functionality for point-to-point routers and multi-access networks
 - Data synchronization and flooding procedures
 - Area Proxy implementation (RFC 9666) for OSPF
+- LSA separation between router reachability and prefix advertisement (Similar to OSPFv3)
+- Prefix Injection
+- Import/Export functionality of the OSPF state (LSA, neighbor, leadership)
 
 ### Major Simplifications
 - Link State Updates subject to flooding contain only one Link State Advertisement (LSA) each.
@@ -28,7 +31,7 @@ See the LICENSE file for more details.
 - Inter-AS routing is not implemented.
 
 ### Current Limitations
-- Broadcast networks are not supported.
+- Does not implement Designated Router (DR) and Backup Designated Router (BDR).
 - Network devices added after the OSPF application starts are not dynamically registered.
 
 ## Instruction
