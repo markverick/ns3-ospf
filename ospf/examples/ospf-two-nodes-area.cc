@@ -139,10 +139,12 @@ main (int argc, char *argv[])
   auto app0 = DynamicCast<OspfApp> (c.Get (0)->GetApplication (0));
   auto app1 = DynamicCast<OspfApp> (c.Get (1)->GetApplication (0));
   app0->SetArea (0);
-  app0->AddReachableAddress (0, areaIpv4.NewAddress (), areaMask);
+  Ipv4Address addr = areaIpv4.NewAddress ();
+  app0->AddReachableAddress (0, addr.CombineMask (areaMask), areaMask, addr, 0);
   areaIpv4.NewNetwork ();
   app1->SetArea (1);
-  app1->AddReachableAddress (0, areaIpv4.NewAddress (), areaMask);
+  addr = areaIpv4.NewAddress ();
+  app1->AddReachableAddress (0, addr.CombineMask (areaMask), areaMask, addr, 0);
 
   apps.Start (Seconds (2.0));
   apps.Stop (Seconds (SIM_SECONDS));

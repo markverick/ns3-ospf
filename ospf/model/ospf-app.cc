@@ -177,10 +177,20 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
 }
 
 void
+OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address dest, Ipv4Mask mask,
+                              Ipv4Address gateway, uint32_t metric)
+{
+  // Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
+  // ipv4->AddAddress (0, Ipv4InterfaceAddress (dest, mask));
+  // std::cout << "Inject: " << ifIndex << ", " << dest << ", " << mask << ", " << gateway << ", " << metric << std::endl;
+  m_externalRoutes.emplace_back (ifIndex, dest, mask, gateway, metric);
+  RecomputeL1SummaryLsa ();
+}
+
+void
 OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask)
 {
-  Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
-  ipv4->AddAddress (0, Ipv4InterfaceAddress (address, mask));
+  m_externalRoutes.emplace_back (ifIndex, address, mask, Ipv4Address::GetAny (), 0);
   RecomputeL1SummaryLsa ();
 }
 
@@ -192,8 +202,9 @@ OspfApp::AddAllReachableAddresses (uint32_t ifIndex)
     {
       if (ifIndex == i)
         continue;
-      ipv4->AddAddress (0, Ipv4InterfaceAddress (m_ospfInterfaces[i]->GetAddress (),
-                                                 m_ospfInterfaces[i]->GetMask ()));
+      AddReachableAddress (
+          ifIndex, m_ospfInterfaces[i]->GetAddress ().CombineMask (m_ospfInterfaces[i]->GetMask ()),
+          m_ospfInterfaces[i]->GetMask (), m_ospfInterfaces[i]->GetAddress (), 0);
     }
   RecomputeL1SummaryLsa ();
 }
@@ -1643,17 +1654,9 @@ OspfApp::GetL1SummaryLsa ()
   Ptr<L1SummaryLsa> l1SummaryLsa = Create<L1SummaryLsa> ();
   auto ipv4 = GetNode ()->GetObject<Ipv4> ();
   // Advertise local addresses
-  uint32_t numAddr = ipv4->GetNAddresses (0);
-  for (uint32_t i = 1; i < numAddr; i++)
+  for (auto &[ifIndex, dest, mask, addr, metric] : m_externalRoutes)
     {
-      // Skip the local host
-      if (ipv4->GetAddress (0, i).GetAddress ().IsLocalhost ())
-        {
-          continue;
-        }
-      Ipv4Address addr = ipv4->GetAddress (0, i).GetAddress ();
-      Ipv4Mask mask = ipv4->GetAddress (0, i).GetMask ();
-      l1SummaryLsa->AddRoute (SummaryRoute (addr.Get (), mask.Get (), 1));
+      l1SummaryLsa->AddRoute (SummaryRoute (dest.Get (), mask.Get (), metric));
     }
   return l1SummaryLsa;
 }
@@ -1847,6 +1850,16 @@ OspfApp::UpdateRouting ()
     {
       m_routing->RemoveRoute (m_boundDevices.GetN ());
     }
+
+  std::map<std::pair<uint32_t, uint32_t>, std::tuple<Ipv4Address, uint32_t, uint32_t>> bestDest,
+      l2BestDest;
+  // Fill in local routes
+  for (auto &[ifIndex, dest, mask, addr, metric] : m_externalRoutes)
+    {
+      bestDest[std::make_pair (dest.Get (), mask.Get ())] =
+          std::make_tuple (Ipv4Address::GetZero (), ifIndex, metric);
+    }
+
   for (auto &[remoteRouterId, nextHop] : m_l1NextHop)
     {
       if (m_l1SummaryLsdb.find (remoteRouterId) == m_l1SummaryLsdb.end ())
@@ -1856,13 +1869,25 @@ OspfApp::UpdateRouting ()
       auto n = m_l1SummaryLsdb[remoteRouterId].second->GetNRoutes ();
       for (auto i = 0; i < n; i++)
         {
-          m_routing->AddHostRouteTo (
-              Ipv4Address (m_l1SummaryLsdb[remoteRouterId].second->GetRoute (i).m_address),
-              nextHop.ipAddress, nextHop.ifIndex, nextHop.metric);
+          auto mask = Ipv4Mask (m_l1SummaryLsdb[remoteRouterId].second->GetRoute (i).m_mask);
+          auto dest = Ipv4Address (m_l1SummaryLsdb[remoteRouterId].second->GetRoute (i).m_address);
+          auto key = std::make_pair (dest.CombineMask (mask).Get (), mask.Get ());
+          if (bestDest.find (key) == bestDest.end () ||
+              nextHop.metric < std::get<2> (bestDest[key]))
+            {
+              // TODO: Do ECMP
+              bestDest[key] = std::make_tuple (nextHop.ipAddress, nextHop.ifIndex, nextHop.metric);
+            }
         }
     }
-
-  // Fill in the routing table
+  // Fill L1 in the routing table
+  for (auto &[key, value] : bestDest)
+    {
+      auto &[dest, mask] = key;
+      auto &[addr, ifIndex, metric] = value;
+      m_routing->AddNetworkRouteTo (Ipv4Address (dest), Ipv4Mask (mask), addr, ifIndex, metric);
+    }
+  // Fill L2 in the routing table (less priority)
   for (auto &[remoteAreaId, l2NextHop] : m_l2NextHop)
     {
       if (remoteAreaId == m_areaId)
@@ -1878,10 +1903,27 @@ OspfApp::UpdateRouting ()
       // Ipv4Address network = Ipv4Address(header.GetAdvertisingRouter()).CombineMask (lsa->GetMask());
       for (auto route : lsa->GetRoutes ())
         {
-          m_routing->AddNetworkRouteTo (Ipv4Address (route.m_address), Ipv4Mask (route.m_mask),
-                                        nextHop.ipAddress, nextHop.ifIndex,
-                                        nextHop.metric + route.m_metric);
+          auto mask = Ipv4Mask (route.m_mask);
+          auto dest = Ipv4Address (route.m_address);
+          auto key = std::make_pair (dest.CombineMask (mask).Get (), mask.Get ());
+          // Don't compete with L1
+          if (bestDest.find (key) != bestDest.end ())
+            continue;
+          if (l2BestDest.find (key) == l2BestDest.end () ||
+              nextHop.metric + route.m_metric < std::get<2> (l2BestDest[key]))
+            {
+              // TODO: Do ECMP
+              l2BestDest[key] = std::make_tuple (nextHop.ipAddress, nextHop.ifIndex,
+                                                 nextHop.metric + route.m_metric);
+            }
         }
+    }
+  // Fill L2 in the routing table
+  for (auto &[key, value] : l2BestDest)
+    {
+      auto &[dest, mask] = key;
+      auto &[addr, ifIndex, metric] = value;
+      m_routing->AddNetworkRouteTo (Ipv4Address (dest), Ipv4Mask (mask), addr, ifIndex, metric);
     }
 }
 void

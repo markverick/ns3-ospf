@@ -65,6 +65,9 @@ OspfAppHelper::Install (Ptr<Node> n) const
   NetDeviceContainer devs;
   for (uint32_t j = 0; j < n->GetNDevices (); j++)
     {
+      // Skip non localhost and non p2p
+      if (j > 0 && !n->GetDevice (j)->IsPointToPoint ())
+        continue;
       devs.Add (n->GetDevice (j));
     }
   return InstallPriv (n, routing, devs);
