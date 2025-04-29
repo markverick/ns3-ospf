@@ -90,6 +90,9 @@ public:
   void AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask,
                             Ipv4Address gateway, uint32_t metric);
   void AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask);
+  // Not a deep copy. TODO: make it a proper class with a proper, faster comparator
+  void SetReachableAddresses (
+      std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>>);
 
   /**
    * \brief Add IPs from all interfaces to the ifIndex interface
@@ -701,7 +704,7 @@ private:
   std::unordered_map<uint32_t, NextHop> m_l1NextHop; //!< Next Hopto routers
   std::unordered_map<uint32_t, std::vector<uint32_t>> m_l1Addresses; //!< Addresses for L1 routers
   Time m_shortestPathUpdateDelay; // !< Shortest path before shortest path calculation
-  std::vector<std::tuple<uint32_t, Ipv4Address, Ipv4Mask, Ipv4Address, uint32_t>> m_externalRoutes;
+  std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>> m_externalRoutes;
 
   // Area
   std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>

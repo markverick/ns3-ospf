@@ -183,15 +183,32 @@ OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address dest, Ipv4Mask mask,
   // Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
   // ipv4->AddAddress (0, Ipv4InterfaceAddress (dest, mask));
   // std::cout << "Inject: " << ifIndex << ", " << dest << ", " << mask << ", " << gateway << ", " << metric << std::endl;
-  m_externalRoutes.emplace_back (ifIndex, dest, mask, gateway, metric);
+  m_externalRoutes.emplace_back (ifIndex, dest.Get (), mask.Get (), gateway.Get (), metric);
   RecomputeL1SummaryLsa ();
 }
 
 void
 OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask)
 {
-  m_externalRoutes.emplace_back (ifIndex, address, mask, Ipv4Address::GetAny (), 0);
+  m_externalRoutes.emplace_back (ifIndex, address.Get (), mask.Get (),
+                                 Ipv4Address::GetAny ().Get (), 0);
   RecomputeL1SummaryLsa ();
+}
+
+void
+OspfApp::SetReachableAddresses (
+    std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>> reachableAddresses)
+{
+  // Flood when the content is different
+  if (m_externalRoutes != reachableAddresses)
+    {
+      m_externalRoutes = std::move (reachableAddresses);
+      RecomputeL1SummaryLsa ();
+      // Create its LSU packet containing its own L1 prefixes and flood
+      Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
+      lsUpdate->AddLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
+      FloodLsu (0, lsUpdate);
+    }
 }
 
 void
@@ -1656,7 +1673,7 @@ OspfApp::GetL1SummaryLsa ()
   // Advertise local addresses
   for (auto &[ifIndex, dest, mask, addr, metric] : m_externalRoutes)
     {
-      l1SummaryLsa->AddRoute (SummaryRoute (dest.Get (), mask.Get (), metric));
+      l1SummaryLsa->AddRoute (SummaryRoute (dest, mask, metric));
     }
   return l1SummaryLsa;
 }
@@ -1856,7 +1873,7 @@ OspfApp::UpdateRouting ()
   // Fill in local routes
   for (auto &[ifIndex, dest, mask, addr, metric] : m_externalRoutes)
     {
-      bestDest[std::make_pair (dest.Get (), mask.Get ())] =
+      bestDest[std::make_pair (dest, mask)] =
           std::make_tuple (Ipv4Address::GetZero (), ifIndex, metric);
     }
 
