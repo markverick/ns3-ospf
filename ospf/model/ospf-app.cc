@@ -2578,7 +2578,7 @@ OspfApp::ExportPrefixes (std::filesystem::path dirName, std::string filename)
 {
   // Export external routes
   Buffer buffer;
-  uint32_t serializedSize = 4; // isLeader
+  uint32_t serializedSize = 4 + m_externalRoutes.size () * 5 * 4; // isLeader
   buffer.AddAtEnd (serializedSize);
   Buffer::Iterator it = buffer.Begin ();
 
