@@ -91,7 +91,8 @@ public:
                             Ipv4Address gateway, uint32_t metric);
   void AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask);
   // Not a deep copy. TODO: make it a proper class with a proper, faster comparator
-  void SetReachableAddresses (
+  // Return whether the prefixes have changed
+  bool SetReachableAddresses (
       std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>>);
 
   /**

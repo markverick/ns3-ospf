@@ -195,7 +195,7 @@ OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask ma
   RecomputeL1SummaryLsa ();
 }
 
-void
+bool
 OspfApp::SetReachableAddresses (
     std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>> reachableAddresses)
 {
@@ -208,7 +208,9 @@ OspfApp::SetReachableAddresses (
       Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
       lsUpdate->AddLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
       FloodLsu (0, lsUpdate);
+      return true;
     }
+  return false;
 }
 
 void
