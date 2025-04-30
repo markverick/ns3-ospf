@@ -2438,12 +2438,12 @@ OspfApp::InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList)
 
 // Import Export
 void
-OspfApp::ExportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName,
-                     std::string metaName)
+OspfApp::ExportOspf (std::filesystem::path dirName, std::string nodeName)
 {
-  ExportMetadata (dirName, metaName);
-  ExportLsdb (dirName, lsdbName);
-  ExportNeighbors (dirName, neighborName);
+  ExportMetadata (dirName, nodeName + ".meta");
+  ExportLsdb (dirName, nodeName + ".lsdb");
+  ExportNeighbors (dirName, nodeName + ".neighbors");
+  ExportPrefixes (dirName, nodeName + ".prefixes");
 }
 void
 OspfApp::ExportLsdb (std::filesystem::path dirName, std::string filename)
@@ -2574,12 +2574,50 @@ OspfApp::ExportMetadata (std::filesystem::path dirName, std::string filename)
 }
 
 void
-OspfApp::ImportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName,
-                     std::string metaName)
+OspfApp::ExportPrefixes (std::filesystem::path dirName, std::string filename)
 {
-  ImportMetadata (dirName, metaName);
-  ImportLsdb (dirName, lsdbName);
-  ImportNeighbors (dirName, neighborName);
+  // Export external routes
+  Buffer buffer;
+  uint32_t serializedSize = 4; // isLeader
+  buffer.AddAtEnd (serializedSize);
+  Buffer::Iterator it = buffer.Begin ();
+
+  it.WriteHtonU32 (m_externalRoutes.size ());
+  for (auto &[a, b, c, d, e] : m_externalRoutes)
+    {
+      it.WriteHtonU32 (a);
+      it.WriteHtonU32 (b);
+      it.WriteHtonU32 (c);
+      it.WriteHtonU32 (d);
+      it.WriteHtonU32 (e);
+    }
+
+  // Convert buffer to vector<uint8_t>
+  std::vector<uint8_t> data (buffer.GetSize ());
+  it = buffer.Begin ();
+  it.Read (data.data (), buffer.GetSize ());
+
+  // Write neighbors to the file
+  std::string fullname = dirName / filename;
+  std::ofstream outFile (fullname);
+  if (!outFile)
+    {
+      std::cerr << "Failed to open file for writing external routes: " << fullname << std::endl;
+      return;
+    }
+  outFile.write (reinterpret_cast<const char *> (data.data ()), data.size ());
+  outFile.close ();
+  std::cout << "Exported external routes of " << data.size () << " bytes to " << fullname
+            << std::endl;
+}
+
+void
+OspfApp::ImportOspf (std::filesystem::path dirName, std::string nodeName)
+{
+  ImportMetadata (dirName, nodeName + ".meta");
+  ImportLsdb (dirName, nodeName + ".lsdb");
+  ImportNeighbors (dirName, nodeName + ".neighbors");
+  ImportPrefixes (dirName, nodeName + ".prefixes");
   m_doInitialize = false;
 }
 
@@ -2718,5 +2756,46 @@ OspfApp::ImportMetadata (std::filesystem::path dirName, std::string filename)
   m_isAreaLeader = it.ReadNtohU32 ();
 
   std::cout << "Imported metadata of " << data.size () << " bytes from " << fullname << std::endl;
+}
+
+void
+OspfApp::ImportPrefixes (std::filesystem::path dirName, std::string filename)
+{
+  // Import External Routes
+  std::string fullname = dirName / filename;
+  std::ifstream inFile (fullname, std::ios::binary);
+  if (!inFile)
+    {
+      std::cerr << "Failed to open file for reading external routes: " << fullname << std::endl;
+      return;
+    }
+
+  // Read file into vector
+  std::vector<uint8_t> data ((std::istreambuf_iterator<char> (inFile)),
+                             std::istreambuf_iterator<char> ());
+
+  // Create buffer and allocate space
+  Buffer buffer;
+  buffer.AddAtEnd (data.size ());
+
+  // Write data into buffer
+  auto it = buffer.Begin ();
+  it.Write (data.data (), data.size ());
+
+  it = buffer.Begin ();
+  uint32_t routeNum = it.ReadNtohU32 ();
+  uint32_t a, b, c, d, e;
+  for (uint32_t i = 0; i < routeNum; i++)
+    {
+      a = it.ReadNtohU32 ();
+      b = it.ReadNtohU32 ();
+      c = it.ReadNtohU32 ();
+      d = it.ReadNtohU32 ();
+      e = it.ReadNtohU32 ();
+      m_externalRoutes.emplace_back (a, b, c, d, e);
+    }
+
+  std::cout << "Imported external routes of " << data.size () << " bytes from " << fullname
+            << std::endl;
 }
 } // Namespace ns3

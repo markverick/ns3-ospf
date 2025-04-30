@@ -250,11 +250,9 @@ public:
   /**
    * \brief Export both LSDB and neighbors in one-go.
    * \param dirName directory name
-   * \param lsdbName lsdb file name
-   * \param neighborName neighbor file name
+   * \param nodeName node name
   */
-  void ExportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName,
-                   std::string metaName);
+  void ExportOspf (std::filesystem::path dirName, std::string nodeName);
   /**
    * \brief Export LSDB.
    * \param dirName directory name
@@ -277,17 +275,23 @@ public:
   void ExportMetadata (std::filesystem::path dirName, std::string filename);
 
   /**
+   * \brief Export injected prefix information.
+   * \param dirName directory name
+   * \param filename file name
+  */
+  void ExportPrefixes (std::filesystem::path dirName, std::string filename);
+
+  /**
    * \brief Export both LSDB and neighbors in one-go.
    * \param dirName directory name
    * \param lsdbName lsdb file name
    * \param neighborName neighbor file name
   */
-  void ImportOspf (std::filesystem::path dirName, std::string lsdbName, std::string neighborName,
-                   std::string metaName);
+  void ImportOspf (std::filesystem::path dirName, std::string nodeName);
   /**
   * \brief Import LSDB.
   * \param dirName directory name
-  * \param filename file name
+  * \param nodeName node name
  */
   void ImportLsdb (std::filesystem::path dirName, std::string filename);
 
@@ -304,6 +308,13 @@ public:
     * \param filename file name
   */
   void ImportMetadata (std::filesystem::path dirName, std::string filename);
+
+  /**
+    * \brief Import injected prefix informatino.
+    * \param dirName directory name
+    * \param filename file name
+  */
+  void ImportPrefixes (std::filesystem::path dirName, std::string filename);
 
 protected:
   virtual void DoDispose (void);

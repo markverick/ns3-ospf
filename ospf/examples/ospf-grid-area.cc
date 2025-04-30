@@ -145,9 +145,7 @@ main (int argc, char *argv[])
           auto app = DynamicCast<OspfApp> (node->GetApplication (0));
           app->SetArea (area);
           app->AddReachableAddress (0, app->GetRouterId (), Ipv4Mask ("255.255.255.253"));
-          app->ImportOspf (dirName, std::to_string (nodeId) + ".lsdb",
-                           std::to_string (nodeId) + ".neighbors",
-                           std::to_string (nodeId) + ".meta");
+          app->ImportOspf (dirName, std::to_string (nodeId));
           // Simulator::Schedule (Seconds (SIM_SECONDS), &OspfApp::ExportOspf, app, dirName,
           //                      std::to_string (nodeId) + ".lsdb", std::to_string (nodeId) + ".neighbors", std::to_string (nodeId) + ".meta");
         }
