@@ -21,6 +21,7 @@
 #ifndef L2_SUMMARY_LSA_H
 #define L2_SUMMARY_LSA_H
 
+#include <set>
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
@@ -31,11 +32,37 @@ class SummaryRoute
 {
 public:
   SummaryRoute ();
-  // Type 1: linkId = Remote Router ID, linkData = Self interface IP
   SummaryRoute (uint32_t address, uint32_t mask, uint32_t metric);
   uint32_t m_address;
   uint32_t m_mask;
   uint32_t m_metric;
+  bool
+  operator== (const SummaryRoute &other) const
+  {
+    return m_address == other.m_address && m_mask == other.m_mask && m_metric == other.m_metric;
+  }
+  bool
+  operator< (const SummaryRoute &other) const
+  {
+    return std::tie (m_address, m_mask, m_metric) <
+           std::tie (other.m_address, other.m_mask, other.m_metric);
+  }
+  SummaryRoute &
+  operator= (const SummaryRoute &other)
+  {
+    if (this != &other)
+      { // Prevent self-assignment
+        m_address = other.m_address;
+        m_mask = other.m_mask;
+        m_metric = other.m_metric;
+      }
+    return *this;
+  };
+  std::tuple<uint32_t, uint32_t, uint32_t>
+  Get ()
+  {
+    return std::tuple<uint32_t, uint32_t, uint32_t> (m_address, m_mask, m_metric);
+  }
 };
 /**
  * \ingroup ospf
@@ -53,7 +80,7 @@ public:
   L2SummaryLsa (Ptr<Packet> packet);
 
   void AddRoute (SummaryRoute route);
-  std::vector<SummaryRoute> GetRoutes ();
+  std::set<SummaryRoute> GetRoutes ();
   uint32_t GetNRoute ();
 
   static TypeId GetTypeId (void);
@@ -67,7 +94,7 @@ public:
   virtual Ptr<Lsa> Copy ();
 
 private:
-  std::vector<SummaryRoute> m_routes;
+  std::set<SummaryRoute> m_routes;
 };
 
 } // namespace ns3

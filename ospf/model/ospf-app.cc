@@ -1885,11 +1885,11 @@ OspfApp::UpdateRouting ()
         {
           continue;
         }
-      auto n = m_l1SummaryLsdb[remoteRouterId].second->GetNRoutes ();
-      for (auto i = 0; i < n; i++)
+      // auto n = m_l1SummaryLsdb[remoteRouterId].second->GetNRoutes ();
+      for (auto route : m_l1SummaryLsdb[remoteRouterId].second->GetRoutes ())
         {
-          auto mask = Ipv4Mask (m_l1SummaryLsdb[remoteRouterId].second->GetRoute (i).m_mask);
-          auto dest = Ipv4Address (m_l1SummaryLsdb[remoteRouterId].second->GetRoute (i).m_address);
+          auto mask = Ipv4Mask (route.m_mask);
+          auto dest = Ipv4Address (route.m_address);
           auto key = std::make_pair (dest.CombineMask (mask).Get (), mask.Get ());
           if (bestDest.find (key) == bestDest.end () ||
               nextHop.metric < std::get<2> (bestDest[key]))

@@ -47,10 +47,10 @@ L2SummaryLsa::L2SummaryLsa (Ptr<Packet> packet)
 void
 L2SummaryLsa::AddRoute (SummaryRoute route)
 {
-  m_routes.emplace_back (route);
+  m_routes.insert (route);
 }
 
-std::vector<SummaryRoute>
+std::set<SummaryRoute>
 L2SummaryLsa::GetRoutes ()
 {
   return m_routes;
@@ -105,10 +105,12 @@ L2SummaryLsa::Serialize (Buffer::Iterator start) const
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
-
   i.WriteHtonU32 (m_routes.size ());
   for (auto route : m_routes)
     {
+      if (m_routes.size () > 110)
+        {
+        }
       i.WriteHtonU32 (route.m_address);
       i.WriteHtonU32 (route.m_mask);
       i.WriteHtonU32 (route.m_metric);
@@ -122,15 +124,15 @@ L2SummaryLsa::Deserialize (Buffer::Iterator start)
 {
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
-
   uint32_t routeNum = i.ReadNtohU32 ();
   uint32_t addr, mask, metric;
+  m_routes.clear ();
   for (uint32_t j = 0; j < routeNum; j++)
     {
       addr = i.ReadNtohU32 ();
       mask = i.ReadNtohU32 ();
       metric = i.ReadNtohU32 ();
-      m_routes.emplace_back (SummaryRoute (addr, mask, metric));
+      m_routes.insert (SummaryRoute (addr, mask, metric));
     }
 
   return GetSerializedSize ();

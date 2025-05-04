@@ -43,17 +43,17 @@ L1SummaryLsa::L1SummaryLsa (Ptr<Packet> packet)
 void
 L1SummaryLsa::AddRoute (SummaryRoute route)
 {
-  m_routes.emplace_back (route);
+  m_routes.insert (route);
 }
 
-SummaryRoute
-L1SummaryLsa::GetRoute (uint32_t index)
-{
-  NS_ASSERT_MSG (index >= 0 && index < m_routes.size (), "Invalid route index");
-  return m_routes[index];
-}
+// SummaryRoute
+// L1SummaryLsa::GetRoute (uint32_t index)
+// {
+//   NS_ASSERT_MSG (index >= 0 && index < m_routes.size (), "Invalid route index");
+//   return m_routes[index];
+// }
 
-std::vector<SummaryRoute>
+std::set<SummaryRoute>
 L1SummaryLsa::GetRoutes ()
 {
   return m_routes;
@@ -133,6 +133,7 @@ L1SummaryLsa::Deserialize (Buffer::Iterator start)
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
+  m_routes.clear ();
   uint32_t routeNum = i.ReadNtohU32 ();
   uint32_t addr, mask, metric;
   for (uint32_t j = 0; j < routeNum; j++)
@@ -140,7 +141,7 @@ L1SummaryLsa::Deserialize (Buffer::Iterator start)
       addr = i.ReadNtohU32 ();
       mask = i.ReadNtohU32 ();
       metric = i.ReadNtohU32 ();
-      m_routes.emplace_back (SummaryRoute (addr, mask, metric));
+      m_routes.insert (SummaryRoute (addr, mask, metric));
     }
 
   return GetSerializedSize ();

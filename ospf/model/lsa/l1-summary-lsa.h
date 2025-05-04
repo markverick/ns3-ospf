@@ -21,6 +21,7 @@
 #ifndef L1_SUMMARY_LSA_H
 #define L1_SUMMARY_LSA_H
 
+#include <set>
 #include "ns3/object.h"
 #include "ns3/header.h"
 #include "ns3/ipv4-address.h"
@@ -44,8 +45,8 @@ public:
   L1SummaryLsa (Ptr<Packet> packet);
 
   void AddRoute (SummaryRoute route);
-  SummaryRoute GetRoute (uint32_t index);
-  std::vector<SummaryRoute> GetRoutes ();
+  // SummaryRoute GetRoute (uint32_t index);
+  std::set<SummaryRoute> GetRoutes ();
   uint16_t GetNRoutes ();
   void ClearRoutes ();
 
@@ -60,7 +61,7 @@ public:
   virtual Ptr<Lsa> Copy ();
 
 private:
-  std::vector<SummaryRoute> m_routes;
+  std::set<SummaryRoute> m_routes;
 };
 
 } // namespace ns3
