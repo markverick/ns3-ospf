@@ -108,9 +108,6 @@ L2SummaryLsa::Serialize (Buffer::Iterator start) const
   i.WriteHtonU32 (m_routes.size ());
   for (auto route : m_routes)
     {
-      if (m_routes.size () > 110)
-        {
-        }
       i.WriteHtonU32 (route.m_address);
       i.WriteHtonU32 (route.m_mask);
       i.WriteHtonU32 (route.m_metric);
