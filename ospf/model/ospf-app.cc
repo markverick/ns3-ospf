@@ -1831,6 +1831,15 @@ OspfApp::RecomputeL2SummaryLsa ()
           summary->AddRoute (SummaryRoute (route.m_address, route.m_mask, route.m_metric));
         }
     }
+  if (m_l2SummaryLsdb.find (m_areaId) != m_l2SummaryLsdb.end ())
+    {
+      auto &[header, lsa] = m_l2SummaryLsdb[m_areaId];
+      // Will not generate a new prefix LSA when the content doesn't change
+      if (lsa->GetRoutes () == summary->GetRoutes ())
+        {
+          return;
+        }
+    }
 
   auto lsaKey = std::make_tuple (LsaHeader::LsType::L2SummaryLSAs, m_areaId, m_routerId.Get ());
 
