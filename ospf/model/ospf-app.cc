@@ -2266,6 +2266,13 @@ OspfApp::FallbackToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
   neighbor->RemoveTimeout ();
   neighbor->ClearKeyedTimeouts ();
   FloodLsu (0, lsUpdate);
+
+  // Flood AreaLSA if the link is inter-area
+  if (m_enableAreaProxy && m_isAreaLeader && neighbor->GetArea () != m_areaId)
+    {
+      // This function already floods
+      RecomputeAreaLsa ();
+    }
 }
 
 // ExStart
@@ -2406,6 +2413,13 @@ OspfApp::AdvanceToFull (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
   // Flood its Router-LSA to all neighbors
 
   FloodLsu (0, lsUpdate);
+
+  // Flood AreaLSA if the link is inter-area
+  if (m_enableAreaProxy && m_isAreaLeader && neighbor->GetArea () != m_areaId)
+    {
+      // This function already floods
+      RecomputeAreaLsa ();
+    }
 }
 
 // Area
