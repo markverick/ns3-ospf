@@ -2491,7 +2491,7 @@ OspfApp::PrintLsaTiming (LsaHeader::LsaKey lsaKey, Time time)
   std::string keyString = std::to_string (std::get<0> (lsaKey)) + "-" +
                           std::to_string (std::get<1> (lsaKey)) + "-" +
                           std::to_string (std::get<2> (lsaKey));
-  m_lsaTimingLog << keyString << "," << time.GetNanoSeconds () << std::endl;
+  m_lsaTimingLog << time.GetNanoSeconds () << "," << keyString << std::endl;
 }
 
 // Import Export
