@@ -460,12 +460,17 @@ private:
   void HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, LsaHeader lsaHeader,
                   Ptr<Lsa> lsa);
   /**
+   * \brief Print LSA
+   * \param lsaKey LSA Key
+   * \param time Time
+   */
+  void PrintLsaTiming (LsaHeader::LsaKey lsaKey, Time time);
+  /**
    * \brief Process LSA.
    * \param ipHeader IPv4 Header
    * \param ospfHeader OSPF Header
    * \param lsa LS Advertisement
    */
-
   // TODO: seperate processor as objects
   void ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa);
   /**
@@ -692,6 +697,9 @@ private:
   Ipv4Mask m_areaMask; // Area masks
   NetDeviceContainer m_boundDevices;
   uint32_t m_areaId; // Only used for default value and for alt area and
+  std::string m_logDir; //!< Log directory
+  bool m_enableLog; // !< Enable log
+  std::ofstream m_lsaTimingLog; // !< Open Log File
 
   // Randomization
   // For a small time jitter

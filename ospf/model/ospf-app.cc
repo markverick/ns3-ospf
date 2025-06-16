@@ -68,6 +68,11 @@ OspfApp::GetTypeId (void)
                          Ipv4AddressValue (Ipv4Address ("224.0.0.6")),
                          MakeIpv4AddressAccessor (&OspfApp::m_lsaAddress),
                          MakeIpv4AddressChecker ())
+          .AddAttribute ("LogDir", "Log Directory", StringValue ("results/"),
+                         MakeStringAccessor (&OspfApp::m_logDir), MakeStringChecker ())
+          .AddAttribute ("EnableLog", "Enable logs such as LSA process timestamps",
+                         BooleanValue (false), MakeBooleanAccessor (&OspfApp::m_enableLog),
+                         MakeBooleanChecker ())
           .AddAttribute (
               "RouterDeadInterval",
               "Link is considered down when not receiving Hello until RouterDeadInterval",
@@ -546,6 +551,20 @@ OspfApp::StartApplication (void)
 {
   NS_LOG_FUNCTION (this);
 
+  if (m_enableLog)
+    {
+      std::string fullname =
+          m_logDir + "/lsa-timings/" + std::to_string (GetNode ()->GetId ()) + ".csv";
+      std::filesystem::path pathObj (fullname);
+      std::filesystem::path dir = pathObj.parent_path ();
+      if (!dir.empty () && !std::filesystem::exists (dir))
+        {
+          std::filesystem::create_directories (dir);
+        }
+      m_lsaTimingLog = std::ofstream (fullname, std::ios::trunc);
+      m_lsaTimingLog << "timestamp,lsa_key" << std::endl;
+    }
+
   // Generate random variables
   m_randomVariable->SetAttribute ("Min", DoubleValue (0.0)); // Minimum value in seconds
   m_randomVariable->SetAttribute ("Max", DoubleValue (0.005)); // Maximum value in seconds (5 ms)
@@ -664,6 +683,7 @@ OspfApp::StopApplication ()
   m_helloSockets.clear ();
   m_lsaSockets.clear ();
   m_sockets.clear ();
+  m_lsaTimingLog.close ();
 }
 
 void
@@ -1433,6 +1453,10 @@ void
 OspfApp::ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa)
 {
   NS_LOG_FUNCTION (this);
+  if (m_enableLog)
+    {
+      PrintLsaTiming (lsaHeader.GetKey (), Simulator::Now ());
+    }
   // Update seq num
   m_seqNumbers[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
   switch (lsaHeader.GetType ())
@@ -2459,6 +2483,15 @@ OspfApp::InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList)
     {
       ProcessLsa (header.Copy (), lsa->Copy ());
     }
+}
+
+void
+OspfApp::PrintLsaTiming (LsaHeader::LsaKey lsaKey, Time time)
+{
+  std::string keyString = std::to_string (std::get<0> (lsaKey)) + "-" +
+                          std::to_string (std::get<1> (lsaKey)) + "-" +
+                          std::to_string (std::get<2> (lsaKey));
+  m_lsaTimingLog << keyString << "," << time.GetNanoSeconds () << std::endl;
 }
 
 // Import Export

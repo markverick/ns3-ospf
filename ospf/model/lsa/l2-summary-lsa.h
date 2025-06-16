@@ -42,7 +42,7 @@ public:
     return m_address == other.m_address && m_mask == other.m_mask && m_metric == other.m_metric;
   }
   bool
-  operator< (const SummaryRoute &other) const
+  operator<(const SummaryRoute &other) const
   {
     return std::tie (m_address, m_mask, m_metric) <
            std::tie (other.m_address, other.m_mask, other.m_metric);

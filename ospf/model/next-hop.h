@@ -50,7 +50,7 @@ public:
     return ifIndex == other.ifIndex && ipAddress == other.ipAddress && metric == other.metric;
   }
   bool
-  operator< (const NextHop &other) const
+  operator<(const NextHop &other) const
   {
     return std::tie (ifIndex, ipAddress, metric) <
            std::tie (other.ifIndex, other.ipAddress, other.metric);

@@ -58,7 +58,7 @@ public:
            m_metric == other.m_metric;
   }
   bool
-  operator< (const RouterLink &other) const
+  operator<(const RouterLink &other) const
   {
     return std::tie (m_linkId, m_linkData, m_type, m_metric) <
            std::tie (other.m_linkId, other.m_linkData, other.m_type, other.m_metric);
