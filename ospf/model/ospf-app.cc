@@ -562,7 +562,7 @@ OspfApp::StartApplication (void)
           std::filesystem::create_directories (dir);
         }
       m_lsaTimingLog = std::ofstream (fullname, std::ios::trunc);
-      m_lsaTimingLog << "lsa_type,timestamp,lsa_key" << std::endl;
+      m_lsaTimingLog << "seq_num,timestamp,lsa_key" << std::endl;
     }
 
   // Generate random variables
@@ -1455,7 +1455,7 @@ OspfApp::ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa)
   NS_LOG_FUNCTION (this);
   if (m_enableLog)
     {
-      PrintLsaTiming (lsaHeader.GetType (), lsaHeader.GetKey (), Simulator::Now ());
+      PrintLsaTiming (lsaHeader.GetSeqNum (), lsaHeader.GetKey (), Simulator::Now ());
     }
   // Update seq num
   m_seqNumbers[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
@@ -2486,13 +2486,14 @@ OspfApp::InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList)
 }
 
 void
-OspfApp::PrintLsaTiming (LsaHeader::LsType lsaType , LsaHeader::LsaKey lsaKey, Time time)
+OspfApp::PrintLsaTiming (uint32_t seqNum, LsaHeader::LsaKey lsaKey, Time time)
 {
-  auto k0 = std::to_string(std::get<0> (lsaKey));
-  auto k1 = Ipv4Address(std::get<1> (lsaKey));
-  auto k2 = Ipv4Address(std::get<2> (lsaKey));
-  
-  m_lsaTimingLog << LsaHeader::LsTypeToString(lsaType) << "," << time.GetNanoSeconds () << "," << k0 << "-" << k1 << "-" << k2 << std::endl;
+  auto k0 = LsaHeader::LsTypeToString (LsaHeader::LsType (std::get<0> (lsaKey)));
+  auto k1 = Ipv4Address (std::get<1> (lsaKey));
+  auto k2 = Ipv4Address (std::get<2> (lsaKey));
+
+  m_lsaTimingLog << seqNum << "," << time.GetNanoSeconds () << "," << k0 << "-" << k1 << "-" << k2
+                 << std::endl;
 }
 
 // Import Export

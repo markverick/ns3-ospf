@@ -461,10 +461,11 @@ private:
                   Ptr<Lsa> lsa);
   /**
    * \brief Print LSA
+   * \param seqNum Sequence Number
    * \param lsaKey LSA Key
    * \param time Time
    */
-  void PrintLsaTiming (LsaHeader::LsType lsType, LsaHeader::LsaKey lsaKey, Time time);
+  void PrintLsaTiming (uint32_t seqNum, LsaHeader::LsaKey lsaKey, Time time);
   /**
    * \brief Process LSA.
    * \param ipHeader IPv4 Header
