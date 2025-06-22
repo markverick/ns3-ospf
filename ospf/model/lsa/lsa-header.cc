@@ -148,9 +148,9 @@ LsaHeader::IsChecksumOk (void) const
 }
 
 std::string
-LsaHeader::LsTypeToString (LsType type) const
+LsaHeader::LsTypeToString (LsType type)
 {
-  NS_LOG_FUNCTION (this << type);
+  NS_LOG_FUNCTION (type);
   switch (type)
     {
     case RouterLSAs:

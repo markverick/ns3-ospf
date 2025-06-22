@@ -115,7 +115,7 @@ public:
    */
   bool IsChecksumOk (void) const;
 
-  std::string LsTypeToString (LsType type) const;
+  static std::string LsTypeToString (LsType type);
 
   /**
    * \brief Get the type ID.
