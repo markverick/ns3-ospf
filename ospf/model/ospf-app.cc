@@ -1547,6 +1547,18 @@ OspfApp::ProcessL1SummaryLsa (LsaHeader lsaHeader, Ptr<L1SummaryLsa> l1SummaryLs
       if (m_isAreaLeader)
         {
           RecomputeL2SummaryLsa ();
+          if (m_enableLog)
+            {
+              std::string fullname = m_logDir + "/lsa-mapping.csv";
+              auto mappingLog = std::ofstream (fullname, std::ios::app);
+              auto l1Key = lsaHeader.GetKey ();
+              auto l1KeyString = LsaHeader::GetKeyString (lsaHeader.GetSeqNum (), l1Key);
+              auto l2Key = m_areaLsdb[m_areaId].first.GetKey ();
+              auto l2KeyString =
+                  LsaHeader::GetKeyString (m_areaLsdb[m_areaId].first.GetSeqNum (), l2Key);
+              mappingLog << l1KeyString << "," << l2KeyString << std::endl;
+              mappingLog.close ();
+            }
           return;
         }
     }
@@ -1573,9 +1585,8 @@ OspfApp::ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
           RecomputeAreaLsa ();
           if (m_enableLog)
             {
-              std::string fullname = m_logDir + "/lsa-mapping.csv";
-              ;
-              auto mappingLog = std::ofstream (fullname, std::ios::trunc);
+              std::string fullname = m_logDir + "/lsa_mapping.csv";
+              auto mappingLog = std::ofstream (fullname, std::ios::app);
               auto l1Key = lsaHeader.GetKey ();
               auto l1KeyString = LsaHeader::GetKeyString (lsaHeader.GetSeqNum (), l1Key);
               auto l2Key = m_areaLsdb[m_areaId].first.GetKey ();
