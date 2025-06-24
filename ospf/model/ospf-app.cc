@@ -562,7 +562,13 @@ OspfApp::StartApplication (void)
           std::filesystem::create_directories (dir);
         }
       m_lsaTimingLog = std::ofstream (fullname, std::ios::trunc);
-      m_lsaTimingLog << "seq_num,timestamp,lsa_key" << std::endl;
+      m_lsaTimingLog << "timestamp,lsa_key" << std::endl;
+
+      fullname = m_logDir + "/lsa-mapping.csv";
+      ;
+      auto mappingLog = std::ofstream (fullname, std::ios::trunc);
+      mappingLog << "l1_key,l2_key" << std::endl;
+      mappingLog.close ();
     }
 
   // Generate random variables
@@ -1563,7 +1569,21 @@ OspfApp::ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
       // This will flood L2 LSA if self is the area leader
       if (m_isAreaLeader)
         {
+
           RecomputeAreaLsa ();
+          if (m_enableLog)
+            {
+              std::string fullname = m_logDir + "/lsa-mapping.csv";
+              ;
+              auto mappingLog = std::ofstream (fullname, std::ios::trunc);
+              auto l1Key = lsaHeader.GetKey ();
+              auto l1KeyString = LsaHeader::GetKeyString (lsaHeader.GetSeqNum (), l1Key);
+              auto l2Key = m_areaLsdb[m_areaId].first.GetKey ();
+              auto l2KeyString =
+                  LsaHeader::GetKeyString (m_areaLsdb[m_areaId].first.GetSeqNum (), l2Key);
+              mappingLog << l1KeyString << "," << l2KeyString << std::endl;
+              mappingLog.close ();
+            }
         }
 
       // Start leadership begin timer if it's a leader (lowest router ID)
@@ -2488,12 +2508,9 @@ OspfApp::InjectLsa (std::vector<std::pair<LsaHeader, Ptr<Lsa>>> lsaList)
 void
 OspfApp::PrintLsaTiming (uint32_t seqNum, LsaHeader::LsaKey lsaKey, Time time)
 {
-  auto k0 = LsaHeader::LsTypeToString (LsaHeader::LsType (std::get<0> (lsaKey)));
-  auto k1 = Ipv4Address (std::get<1> (lsaKey));
-  auto k2 = Ipv4Address (std::get<2> (lsaKey));
+  auto str = LsaHeader::GetKeyString (seqNum, lsaKey);
 
-  m_lsaTimingLog << seqNum << "," << time.GetNanoSeconds () << "," << k0 << "-" << k1 << "-" << k2
-                 << std::endl;
+  m_lsaTimingLog << time.GetNanoSeconds () << "," << str << std::endl;
 }
 
 // Import Export

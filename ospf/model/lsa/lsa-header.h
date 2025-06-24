@@ -104,6 +104,10 @@ public:
 
   LsaKey GetKey ();
 
+  static std::string GetKeyString (LsaKey);
+
+  static std::string GetKeyString (uint32_t seqNum, LsaKey);
+
   void SetSeqNum (uint32_t seqNum);
   uint32_t GetSeqNum (void) const;
 

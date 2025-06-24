@@ -140,6 +140,23 @@ LsaHeader::GetKey ()
   return std::make_tuple (m_type, m_lsId, m_advertisingRouter);
 }
 
+std::string
+LsaHeader::GetKeyString (LsaKey lsaKey)
+{
+  std::stringstream ss;
+  auto k0 = LsaHeader::LsTypeToString (LsaHeader::LsType (std::get<0> (lsaKey)));
+  auto k1 = Ipv4Address (std::get<1> (lsaKey));
+  auto k2 = Ipv4Address (std::get<2> (lsaKey));
+  ss << k0 << "-" << k1 << "-" << k2;
+  return ss.str ();
+}
+
+std::string
+LsaHeader::GetKeyString (uint32_t seqNum, LsaKey lsaKey)
+{
+  return std::to_string (seqNum) + "-" + GetKeyString (lsaKey);
+}
+
 bool
 LsaHeader::IsChecksumOk (void) const
 {
