@@ -60,6 +60,8 @@ OspfApp::GetTypeId (void)
           .AddConstructor<OspfApp> ()
           .AddAttribute ("HelloInterval", "OSPF Hello Interval", TimeValue (Seconds (10)),
                          MakeTimeAccessor (&OspfApp::m_helloInterval), MakeTimeChecker ())
+          .AddAttribute ("InitialHelloDelay", "Initial Hello Delay", TimeValue (Seconds (0)),
+                         MakeTimeAccessor (&OspfApp::m_initialHelloDelay), MakeTimeChecker ())
           .AddAttribute ("HelloAddress", "Multicast address of Hello",
                          Ipv4AddressValue (Ipv4Address ("224.0.0.5")),
                          MakeIpv4AddressAccessor (&OspfApp::m_helloAddress),
@@ -635,7 +637,7 @@ OspfApp::StartApplication (void)
       m_sockets.emplace_back (unicastSocket);
     }
   // Start sending Hello
-  ScheduleTransmitHello (Seconds (0.));
+  ScheduleTransmitHello (m_initialHelloDelay);
 
   if (m_doInitialize)
     {

@@ -710,6 +710,7 @@ private:
 
   // Hello
   Time m_helloInterval; //!< Hello Interval
+  Time m_initialHelloDelay; //!< Delay before the first hello
   Ipv4Address m_helloAddress; //!< Address of multicast hello message
   std::vector<Time> m_lastHelloReceived; //!< Times of last hello received
   std::vector<std::map<uint32_t, EventId>>
