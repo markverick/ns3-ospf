@@ -566,7 +566,7 @@ OspfApp::StartApplication (void)
       m_lsaTimingLog = std::ofstream (fullname, std::ios::trunc);
       m_lsaTimingLog << "timestamp,lsa_key" << std::endl;
 
-      fullname = m_logDir + "/lsa-mapping.csv";
+      fullname = m_logDir + "/lsa_mapping.csv";
       ;
       auto mappingLog = std::ofstream (fullname, std::ios::trunc);
       mappingLog << "l1_key,l2_key" << std::endl;
@@ -1551,7 +1551,7 @@ OspfApp::ProcessL1SummaryLsa (LsaHeader lsaHeader, Ptr<L1SummaryLsa> l1SummaryLs
           RecomputeL2SummaryLsa ();
           if (m_enableLog)
             {
-              std::string fullname = m_logDir + "/lsa-mapping.csv";
+              std::string fullname = m_logDir + "/lsa_mapping.csv";
               auto mappingLog = std::ofstream (fullname, std::ios::app);
               auto l1Key = lsaHeader.GetKey ();
               auto l1KeyString = LsaHeader::GetKeyString (lsaHeader.GetSeqNum (), l1Key);
