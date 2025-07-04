@@ -1555,9 +1555,9 @@ OspfApp::ProcessL1SummaryLsa (LsaHeader lsaHeader, Ptr<L1SummaryLsa> l1SummaryLs
               auto mappingLog = std::ofstream (fullname, std::ios::app);
               auto l1Key = lsaHeader.GetKey ();
               auto l1KeyString = LsaHeader::GetKeyString (lsaHeader.GetSeqNum (), l1Key);
-              auto l2Key = m_areaLsdb[m_areaId].first.GetKey ();
+              auto l2Key = m_l2SummaryLsdb[m_areaId].first.GetKey ();
               auto l2KeyString =
-                  LsaHeader::GetKeyString (m_areaLsdb[m_areaId].first.GetSeqNum (), l2Key);
+                  LsaHeader::GetKeyString (m_l2SummaryLsdb[m_areaId].first.GetSeqNum (), l2Key);
               mappingLog << l1KeyString << "," << l2KeyString << std::endl;
               mappingLog.close ();
             }
