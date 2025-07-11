@@ -474,6 +474,7 @@ private:
    */
   // TODO: seperate processor as objects
   void ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa);
+  void ProcessLsa (std::pair<LsaHeader, Ptr<Lsa>> lsa);
   /**
    * \brief Process Router-LSA during Full.
    * \param lsaHeader LSA Header
@@ -549,11 +550,11 @@ private:
   /**
    * \brief Recompute local Area-LSA, increment its Sequence Number, and inject to Area LSDB
    */
-  void RecomputeAreaLsa ();
+  bool RecomputeAreaLsa ();
   /**
    * \brief Recompute Area Summary-LSA, increment its Sequence Number, and inject to L2 Summary LSDB
    */
-  void RecomputeL2SummaryLsa ();
+  bool RecomputeL2SummaryLsa ();
   /**
    * \brief Update routing table based on shortest paths and prefixes
    */
