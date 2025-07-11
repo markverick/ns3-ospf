@@ -192,6 +192,8 @@ OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address dest, Ipv4Mask mask,
   // std::cout << "Inject: " << ifIndex << ", " << dest << ", " << mask << ", " << gateway << ", " << metric << std::endl;
   m_externalRoutes.emplace_back (ifIndex, dest.Get (), mask.Get (), gateway.Get (), metric);
   RecomputeL1SummaryLsa ();
+  // Process the new LSA and generate/flood L2 Summary LSA if needed
+  ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
 }
 
 void
@@ -200,6 +202,8 @@ OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask ma
   m_externalRoutes.emplace_back (ifIndex, address.Get (), mask.Get (),
                                  Ipv4Address::GetAny ().Get (), 0);
   RecomputeL1SummaryLsa ();
+  // Process the new LSA and generate/flood L2 Summary LSA if needed
+  ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
 }
 
 bool
@@ -211,10 +215,8 @@ OspfApp::SetReachableAddresses (
     {
       m_externalRoutes = std::move (reachableAddresses);
       RecomputeL1SummaryLsa ();
-      // Create its LSU packet containing its own L1 prefixes and flood
-      Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
-      lsUpdate->AddLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
-      FloodLsu (0, lsUpdate);
+      // Process the new LSA and generate/flood L2 Summary LSA if needed
+      ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
       return true;
     }
   return false;
@@ -233,6 +235,8 @@ OspfApp::AddAllReachableAddresses (uint32_t ifIndex)
           m_ospfInterfaces[i]->GetMask (), m_ospfInterfaces[i]->GetAddress (), 0);
     }
   RecomputeL1SummaryLsa ();
+  // Process the new LSA and generate/flood L2 Summary LSA if needed
+  ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
 }
 
 void
@@ -643,6 +647,8 @@ OspfApp::StartApplication (void)
     {
       // Create AS External LSA from Router ID for L1 routing prefix
       RecomputeL1SummaryLsa ();
+      // Process the new LSA and generate/flood L2 Summary LSA if needed
+      ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
       if (m_enableAreaProxy)
         {
           m_isAreaLeader = false;
@@ -1488,6 +1494,12 @@ OspfApp::ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa)
 }
 
 void
+OspfApp::ProcessLsa (std::pair<LsaHeader, Ptr<Lsa>> lsa)
+{
+  ProcessLsa (lsa.first, lsa.second);
+}
+
+void
 OspfApp::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                       Ptr<LsAck> lsAck)
 {
@@ -1561,7 +1573,6 @@ OspfApp::ProcessL1SummaryLsa (LsaHeader lsaHeader, Ptr<L1SummaryLsa> l1SummaryLs
               mappingLog << l1KeyString << "," << l2KeyString << std::endl;
               mappingLog.close ();
             }
-          return;
         }
     }
 
@@ -1799,6 +1810,11 @@ OspfApp::RecomputeRouterLsa ()
 
   // Update routing according to the updated LSDB
   ScheduleUpdateL1ShortestPath ();
+
+  // Flood to neighbor
+  Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
+  lsUpdate->AddLsa (m_routerLsdb[m_routerId.Get ()]);
+  FloodLsu (0, lsUpdate);
 }
 
 void
@@ -1826,12 +1842,17 @@ OspfApp::RecomputeL1SummaryLsa ()
   lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
   m_l1SummaryLsdb[m_routerId.Get ()] = std::make_pair (lsaHeader, l1SummaryLsa);
 
+  // Create its LSU packet containing its own L1 prefixes and flood
+  Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
+  lsUpdate->AddLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
+  FloodLsu (0, lsUpdate);
+
   // Update routing according to the updated LSDB
   UpdateRouting ();
 }
 
 // Recompute Area LSA
-void
+bool
 OspfApp::RecomputeAreaLsa ()
 {
   NS_LOG_FUNCTION (this);
@@ -1843,7 +1864,7 @@ OspfApp::RecomputeAreaLsa ()
   if (m_areaLsdb.find (m_areaId) != m_areaLsdb.end () &&
       areaLsa->GetLinks () == m_areaLsdb[m_areaId].second->GetLinks ())
     {
-      return;
+      return false;
     }
 
   auto lsaKey = std::make_tuple (LsaHeader::LsType::AreaLSAs, m_areaId, m_routerId.Get ());
@@ -1863,18 +1884,15 @@ OspfApp::RecomputeAreaLsa ()
   lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
   m_areaLsdb[m_areaId] = std::make_pair (lsaHeader, areaLsa);
 
-  // Flood LSA if it's the area leader
-  if (m_isAreaLeader)
-    {
-      // Area-LSAs
-      Ptr<LsUpdate> lsUpdateArea = Create<LsUpdate> ();
-      lsUpdateArea->AddLsa (m_areaLsdb[m_areaId]);
-      FloodLsu (0, lsUpdateArea);
-    }
+  // Flood LSA
+  Ptr<LsUpdate> lsUpdateArea = Create<LsUpdate> ();
+  lsUpdateArea->AddLsa (m_areaLsdb[m_areaId]);
+  FloodLsu (0, lsUpdateArea);
   ScheduleUpdateL2ShortestPath ();
+  return true;
 }
 
-void
+bool
 OspfApp::RecomputeL2SummaryLsa ()
 {
   NS_LOG_FUNCTION (this);
@@ -1894,7 +1912,7 @@ OspfApp::RecomputeL2SummaryLsa ()
       // Will not generate a new prefix LSA when the content doesn't change
       if (lsa->GetRoutes () == summary->GetRoutes ())
         {
-          return;
+          return false;
         }
     }
 
@@ -1915,15 +1933,12 @@ OspfApp::RecomputeL2SummaryLsa ()
   lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
   m_l2SummaryLsdb[m_areaId] = std::make_pair (lsaHeader, summary);
 
-  // Flood LSA if it's the area leader
-  if (m_isAreaLeader)
-    {
-      // Area-LSAs
-      Ptr<LsUpdate> lsUpdateSummary = Create<LsUpdate> ();
-      lsUpdateSummary->AddLsa (m_l2SummaryLsdb[m_areaId]);
-      FloodLsu (0, lsUpdateSummary);
-    }
+  // Flood LSA
+  Ptr<LsUpdate> lsUpdateSummary = Create<LsUpdate> ();
+  lsUpdateSummary->AddLsa (m_l2SummaryLsdb[m_areaId]);
+  FloodLsu (0, lsUpdateSummary);
   UpdateRouting ();
+  return true;
 }
 
 void
@@ -2303,12 +2318,16 @@ OspfApp::FallbackToInit (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
   NS_LOG_INFO ("Move to Init");
   // TODO: Defer router lsa update until when the link is fully down
   neighbor->SetState (OspfNeighbor::Init);
+
+  // Fill in the current Router LSDB
   RecomputeRouterLsa ();
-  Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
-  lsUpdate->AddLsa (m_routerLsdb[m_routerId.Get ()]);
+
+  // Process the new LSA and generate/flood Area LSA if needed
+  ProcessLsa (m_routerLsdb[m_routerId.Get ()]);
+
+  // Clear timeouts
   neighbor->RemoveTimeout ();
   neighbor->ClearKeyedTimeouts ();
-  FloodLsu (0, lsUpdate);
 }
 
 // Down
@@ -2317,19 +2336,15 @@ OspfApp::FallbackToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   NS_LOG_INFO ("Hello timeout. Move to Down");
   neighbor->SetState (OspfNeighbor::Down);
+  // Fill in the current Router LSDB
   RecomputeRouterLsa ();
-  Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
-  lsUpdate->AddLsa (m_routerLsdb[m_routerId.Get ()]);
+
+  // Process the new LSA and generate/flood Area LSA if needed
+  ProcessLsa (m_routerLsdb[m_routerId.Get ()]);
+
+  // Clear timeouts
   neighbor->RemoveTimeout ();
   neighbor->ClearKeyedTimeouts ();
-  FloodLsu (0, lsUpdate);
-
-  // Flood AreaLSA if the link is inter-area
-  if (m_enableAreaProxy && m_isAreaLeader && neighbor->GetArea () != m_areaId)
-    {
-      // This function already floods
-      RecomputeAreaLsa ();
-    }
 }
 
 // ExStart
@@ -2461,22 +2476,11 @@ OspfApp::AdvanceToFull (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
   // Remove data sync timeout
   neighbor->RemoveTimeout ();
 
+  // Fill in the current Router LSDB
   RecomputeRouterLsa ();
 
-  // Create its LSU packet containing its own links
-  Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
-  lsUpdate->AddLsa (m_routerLsdb[m_routerId.Get ()]);
-
-  // Flood its Router-LSA to all neighbors
-
-  FloodLsu (0, lsUpdate);
-
-  // Flood AreaLSA if the link is inter-area
-  if (m_enableAreaProxy && m_isAreaLeader && neighbor->GetArea () != m_areaId)
-    {
-      // This function already floods
-      RecomputeAreaLsa ();
-    }
+  // Process the new LSA and generate/flood Area LSA if needed
+  ProcessLsa (m_routerLsdb[m_routerId.Get ()]);
 }
 
 // Area
