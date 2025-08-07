@@ -55,3 +55,6 @@ def build(bld):
     
     obj = bld.create_ns3_program('ospf-grid-area-n-links-error', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
     obj.source = 'ospf-grid-area-n-links-error.cc'
+    
+    obj = bld.create_ns3_program('ospf-grid-n-prefix-update', ['ospf', 'flow-monitor','internet', 'core', 'network', 'applications', 'point-to-point'])
+    obj.source = 'ospf-grid-n-prefix-update.cc'

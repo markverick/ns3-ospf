@@ -132,7 +132,7 @@ OspfNeighbor::IncrementDDSeqNum ()
 void
 OspfNeighbor::ClearDbdQueue ()
 {
-  while (m_dbdQueue.empty ())
+  while (!m_dbdQueue.empty ())
     {
       m_dbdQueue.pop ();
     }
@@ -191,6 +191,17 @@ void
 OspfNeighbor::SetLastDbdSent (Ptr<OspfDbd> dbd)
 {
   m_lastDbdSent = dbd;
+}
+
+void
+OspfNeighbor::SetLastSentDbdSeqNum(uint32_t seq)
+{
+  m_lastSentDbdSeqNum = seq;
+}
+uint32_t
+OspfNeighbor::GetLastSentDbdSeqNum() const
+{
+  return m_lastSentDbdSeqNum;
 }
 
 Ptr<LsRequest>

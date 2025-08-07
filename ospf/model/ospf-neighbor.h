@@ -97,7 +97,9 @@ public:
   void SetDDSeqNum (uint32_t ddSeqNum);
 
   Ptr<OspfDbd> GetLastDbdSent ();
-  void SetLastDbdSent (Ptr<OspfDbd> dbd);
+  void SetLastDbdSent (Ptr<OspfDbd> dbd);  
+  void SetLastSentDbdSeqNum(uint32_t seq);
+  uint32_t GetLastSentDbdSeqNum() const;
 
   // DB Description queue
   void IncrementDDSeqNum ();
@@ -144,6 +146,7 @@ public:
   std::queue<LsaHeader> m_dbdQueue;
   std::queue<LsaHeader::LsaKey> m_lsrQueue;
   Ptr<OspfDbd> m_lastDbdSent;
+  uint32_t m_lastSentDbdSeqNum = 0;
   std::map<LsaHeader::LsaKey, uint32_t> m_lsaSeqNums; // Neighbor's headers
   EventId m_event;
   Time m_lastHelloReceived;

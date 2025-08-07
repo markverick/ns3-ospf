@@ -93,8 +93,8 @@ main (int argc, char *argv[])
   // Create channels
   NS_LOG_INFO ("Create channels.");
   PointToPointHelper p2p;
-  p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
-  p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+  p2p.SetDeviceAttribute ("DataRate", StringValue ("5000Gbps"));
+  p2p.SetChannelAttribute ("Delay", StringValue ("100ns"));
   NetDeviceContainer ndc;
   for (uint32_t i = 0; i < GRID_HEIGHT; i++)
     {
@@ -129,10 +129,10 @@ main (int argc, char *argv[])
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
 
   OspfAppHelper ospfAppHelper;
-  ospfAppHelper.SetAttribute ("HelloInterval", TimeValue (Seconds (10)));
+  ospfAppHelper.SetAttribute ("HelloInterval", TimeValue (Seconds (2)));
   ospfAppHelper.SetAttribute ("HelloAddress", Ipv4AddressValue (ospfHelloAddress));
-  ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (30)));
-  ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
+  ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (6)));
+  ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (1)));
 
   ApplicationContainer ospfApp = ospfAppHelper.Install (c);
 
@@ -149,7 +149,7 @@ main (int argc, char *argv[])
     }
   // ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));
-  ospfApp.Stop (Seconds (SIM_SECONDS));
+  ospfApp.Stop (MilliSeconds ((SIM_SECONDS + 200) * 1000));
 
   // Test Error
   Ptr<UniformRandomVariable> rv = CreateObject<UniformRandomVariable> ();
@@ -168,7 +168,10 @@ main (int argc, char *argv[])
       for (uint32_t j = 0; j < NUM_ERROR_LINKS; j++)
         {
           uint32_t l = (int) (rv->GetValue ());
-          // if (l % 2) l--; // enforce symmetry
+          if (l % 2) {
+            downLinks.insert (l);
+            l--; // enforce symmetry
+          }
           downLinks.insert (l);
         }
       for (auto l : downLinks)
@@ -254,8 +257,8 @@ main (int argc, char *argv[])
   //     Simulator::Schedule (Seconds (SIM_SECONDS), VerifyNeighbor, c, nodes);
   //   }
   // Enable Pcap
-  AsciiTraceHelper ascii;
-  p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));
+  // AsciiTraceHelper ascii;
+  // p2p.EnableAsciiAll (ascii.CreateFileStream (dirName / "ascii.tr"));
   p2p.EnablePcapAll (dirName / "pcap");
 
   // Flow Monitor

@@ -1172,43 +1172,42 @@ void
 OspfApp::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd)
 {
   Ptr<OspfInterface> interface = m_ospfInterfaces[ifIndex];
-  if (dbd->GetDDSeqNum () < neighbor->GetDDSeqNum () ||
-      dbd->GetDDSeqNum () > neighbor->GetDDSeqNum () + 1)
-    {
-      // Drop the packet if out of order
-      NS_LOG_ERROR ("DD sequence number is out-of-order " << neighbor->GetDDSeqNum () << " <> "
-                                                          << dbd->GetDDSeqNum ());
-      return;
-    }
+  uint32_t expectedSeq = neighbor->GetDDSeqNum();
   Ptr<OspfDbd> dbdResponse;
-  if (dbd->GetDDSeqNum () == neighbor->GetDDSeqNum () + 1)
-    {
-      NS_LOG_INFO ("Received duplicated DBD from Master");
-      // Already received this DD seq Num; send the last DBD
-      dbdResponse = neighbor->GetLastDbdSent ();
-    }
-  else
-    {
-      NS_LOG_INFO ("Received new DBD from Master");
-      // Process neighbor DBD
-      auto masterLsaHeaders = dbd->GetLsaHeaders ();
-      for (auto header : masterLsaHeaders)
-        {
-          neighbor->InsertLsaKey (header);
-        }
+  if (dbd->GetDDSeqNum() < expectedSeq)
+  {
+    NS_LOG_WARN("Duplicate DBD detected from Master, retransmitting last DBD");
+    dbdResponse = neighbor->GetLastDbdSent();
+    Ptr<Packet> packet = dbdResponse->ConstructPacket ();
+    EncapsulateOspfPacket (packet, m_routerId, interface->GetArea (), OspfHeader::OspfType::OspfDBD);
+    SendToNeighbor (ifIndex, packet, neighbor);
+    return;
+  }
+  else if (dbd->GetDDSeqNum() > expectedSeq)
+  {
+    NS_LOG_ERROR("DBD from Master out-of-order: expected " << expectedSeq << ", got " << dbd->GetDDSeqNum());
+    return;
+  }
 
-      // Generate its own next DBD, echoing DD seq num of the master
-      auto slaveLsaHeaders = neighbor->PopMaxMtuFromDbdQueue (interface->GetMtu ());
-      dbdResponse = Create<OspfDbd> (interface->GetMtu (), 0, 0, 0, 1, 0, dbd->GetDDSeqNum ());
-      if (neighbor->IsDbdQueueEmpty ())
-        {
-          // No (M)ore packets (the last DBD)
-          dbdResponse->SetBitM (0);
-        }
-      for (auto header : slaveLsaHeaders)
-        {
-          dbdResponse->AddLsaHeader (header);
-        }
+  NS_LOG_INFO ("Received new DBD from Master");
+  // Process neighbor DBD
+  auto masterLsaHeaders = dbd->GetLsaHeaders ();
+  for (auto header : masterLsaHeaders)
+    {
+      neighbor->InsertLsaKey (header);
+    }
+
+  // Generate its own next DBD, echoing DD seq num of the master
+  auto slaveLsaHeaders = neighbor->PopMaxMtuFromDbdQueue (interface->GetMtu ());
+  dbdResponse = Create<OspfDbd> (interface->GetMtu (), 0, 0, 0, 1, 0, dbd->GetDDSeqNum ());
+  if (neighbor->IsDbdQueueEmpty ())
+    {
+      // No (M)ore packets (the last DBD)
+      dbdResponse->SetBitM (0);
+    }
+  for (auto header : slaveLsaHeaders)
+    {
+      dbdResponse->AddLsaHeader (header);
     }
   Ptr<Packet> packet = dbdResponse->ConstructPacket ();
   EncapsulateOspfPacket (packet, m_routerId, interface->GetArea (), OspfHeader::OspfType::OspfDBD);
@@ -1246,9 +1245,17 @@ OspfApp::HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfD
       AdvanceToLoading (ifIndex, neighbor);
       return;
     }
-  // Increment neighbor's seq num and poll more LSAs
-  neighbor->IncrementDDSeqNum ();
-  PollMasterDbd (ifIndex, neighbor);
+
+  uint32_t expectedSeq = neighbor->GetLastSentDbdSeqNum();
+  if (dbd->GetDDSeqNum() != expectedSeq)
+    {
+      NS_LOG_ERROR("Slave DBD out-of-order: expected " << expectedSeq << ", got " << dbd->GetDDSeqNum());
+      return;
+    }
+
+  NS_LOG_INFO("Received valid DBD response from slave with seq " << dbd->GetDDSeqNum());
+  neighbor->IncrementDDSeqNum();
+  PollMasterDbd(ifIndex, neighbor);
 }
 
 void
@@ -2400,6 +2407,7 @@ OspfApp::PollMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 
   // Keep sending DBD until receiving corresponding DBD from slave
   NS_LOG_INFO ("Master start polling for DBD with LSAs");
+  neighbor->SetLastSentDbdSeqNum(ddSeqNum);
   SendToNeighborInterval (m_rxmtInterval + Seconds (m_randomVariable->GetValue ()), ifIndex, packet,
                           neighbor);
 }
