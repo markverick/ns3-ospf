@@ -58,9 +58,9 @@ OspfApp::GetTypeId (void)
           .SetParent<Application> ()
           .SetGroupName ("Applications")
           .AddConstructor<OspfApp> ()
-          .AddAttribute ("HelloInterval", "OSPF Hello Interval", TimeValue (Seconds (10)),
+          .AddAttribute ("HelloInterval", "OSPF Hello Interval", TimeValue (MilliSeconds (10000)),
                          MakeTimeAccessor (&OspfApp::m_helloInterval), MakeTimeChecker ())
-          .AddAttribute ("InitialHelloDelay", "Initial Hello Delay", TimeValue (Seconds (0)),
+          .AddAttribute ("InitialHelloDelay", "Initial Hello Delay", TimeValue (MilliSeconds (0)),
                          MakeTimeAccessor (&OspfApp::m_initialHelloDelay), MakeTimeChecker ())
           .AddAttribute ("HelloAddress", "Multicast address of Hello",
                          Ipv4AddressValue (Ipv4Address ("224.0.0.5")),
@@ -78,9 +78,9 @@ OspfApp::GetTypeId (void)
           .AddAttribute (
               "RouterDeadInterval",
               "Link is considered down when not receiving Hello until RouterDeadInterval",
-              TimeValue (Seconds (30)), MakeTimeAccessor (&OspfApp::m_routerDeadInterval),
+              TimeValue (MilliSeconds (30000)), MakeTimeAccessor (&OspfApp::m_routerDeadInterval),
               MakeTimeChecker ())
-          .AddAttribute ("LSUInterval", "LSU Retransmission Interval", TimeValue (Seconds (5)),
+          .AddAttribute ("LSUInterval", "LSU Retransmission Interval", TimeValue (MilliSeconds (5000)),
                          MakeTimeAccessor (&OspfApp::m_rxmtInterval), MakeTimeChecker ())
           .AddAttribute ("DefaultArea", "Default area ID for router", UintegerValue (0),
                          MakeUintegerAccessor (&OspfApp::m_areaId),
@@ -149,7 +149,7 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
       auto sourceIp = ipv4->GetAddress (i, 0).GetAddress ();
       auto mask = ipv4->GetAddress (i, 0).GetMask ();
       Ptr<OspfInterface> ospfInterface = Create<OspfInterface> (
-          sourceIp, mask, m_helloInterval.GetSeconds (), m_routerDeadInterval.GetSeconds (),
+          sourceIp, mask, m_helloInterval.GetMilliSeconds (), m_routerDeadInterval.GetMilliSeconds (),
           m_areaId, 1, m_boundDevices.Get (i)->GetMtu ());
 
       // Set default routes
@@ -579,7 +579,7 @@ OspfApp::StartApplication (void)
 
   // Generate random variables
   m_randomVariable->SetAttribute ("Min", DoubleValue (0.0)); // Minimum value in seconds
-  m_randomVariable->SetAttribute ("Max", DoubleValue (0.005)); // Maximum value in seconds (5 ms)
+  m_randomVariable->SetAttribute ("Max", DoubleValue (5.0)); // Maximum value in seconds (5 ms)
 
   m_randomVariableSeq->SetAttribute ("Min", DoubleValue (0.0));
   m_randomVariableSeq->SetAttribute ("Max", DoubleValue ((1 << 16) * 1000)); // arbitrary number
@@ -653,7 +653,7 @@ OspfApp::StartApplication (void)
         {
           m_isAreaLeader = false;
           m_areaLeaderBeginTimer =
-              Simulator::Schedule (m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
+              Simulator::Schedule (m_routerDeadInterval + MilliSeconds (m_randomVariable->GetValue ()),
                                    &OspfApp::AreaLeaderBegin, this);
         }
     }
@@ -704,7 +704,7 @@ void
 OspfApp::ScheduleTransmitHello (Time dt)
 {
   m_helloEvent =
-      Simulator::Schedule (dt + Seconds (m_randomVariable->GetValue ()), &OspfApp::SendHello, this);
+      Simulator::Schedule (dt + MilliSeconds (m_randomVariable->GetValue ()), &OspfApp::SendHello, this);
 }
 
 void
@@ -863,7 +863,7 @@ OspfApp::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
           Ptr<Packet> packet = lsu->ConstructPacket ();
           EncapsulateOspfPacket (packet, m_routerId, interface->GetArea (),
                                  OspfHeader::OspfType::OspfLSUpdate);
-          SendToNeighborKeyedInterval (m_rxmtInterval + Seconds (m_randomVariable->GetValue ()), i,
+          SendToNeighborKeyedInterval (m_rxmtInterval + MilliSeconds (m_randomVariable->GetValue ()), i,
                                        packet, neighbor, lsaKey);
         }
     }
@@ -1616,7 +1616,7 @@ OspfApp::ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
           if (!m_isAreaLeader && !m_areaLeaderBeginTimer.IsRunning ())
             {
               m_areaLeaderBeginTimer = Simulator::Schedule (
-                  m_routerDeadInterval + Seconds (m_randomVariable->GetValue ()),
+                  m_routerDeadInterval + MilliSeconds (m_randomVariable->GetValue ()),
                   &OspfApp::AreaLeaderBegin, this);
             }
         }
@@ -2306,8 +2306,8 @@ OspfApp::RefreshHelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
       m_helloTimeouts[ifIndex][remoteIp].Remove ();
     }
   m_helloTimeouts[ifIndex][remoteIp] =
-      Simulator::Schedule (Seconds (m_ospfInterfaces[ifIndex]->GetRouterDeadInterval ()) +
-                               Seconds (m_randomVariable->GetValue ()),
+      Simulator::Schedule (MilliSeconds (m_ospfInterfaces[ifIndex]->GetRouterDeadInterval ()) +
+                               MilliSeconds (m_randomVariable->GetValue ()),
                            &OspfApp::HelloTimeout, this, ifIndex, neighbor);
 }
 
@@ -2364,7 +2364,7 @@ OspfApp::NegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, bool bitMS)
     {
       // Master keep sending DBD until stopped
       NS_LOG_INFO ("Router started advertising as master");
-      SendToNeighborInterval (m_rxmtInterval + Seconds (m_randomVariable->GetValue ()), ifIndex,
+      SendToNeighborInterval (m_rxmtInterval + MilliSeconds (m_randomVariable->GetValue ()), ifIndex,
                               packet, neighbor);
     }
   else
@@ -2400,7 +2400,7 @@ OspfApp::PollMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 
   // Keep sending DBD until receiving corresponding DBD from slave
   NS_LOG_INFO ("Master start polling for DBD with LSAs");
-  SendToNeighborInterval (m_rxmtInterval + Seconds (m_randomVariable->GetValue ()), ifIndex, packet,
+  SendToNeighborInterval (m_rxmtInterval + MilliSeconds (m_randomVariable->GetValue ()), ifIndex, packet,
                           neighbor);
 }
 
@@ -2462,7 +2462,7 @@ OspfApp::SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
   EncapsulateOspfPacket (packet, m_routerId, interface->GetArea (),
                          OspfHeader::OspfType::OspfLSRequest);
   neighbor->SetLastLsrSent (lsRequest);
-  SendToNeighborInterval (m_rxmtInterval + Seconds (m_randomVariable->GetValue ()), ifIndex, packet,
+  SendToNeighborInterval (m_rxmtInterval + MilliSeconds (m_randomVariable->GetValue ()), ifIndex, packet,
                           neighbor);
 }
 
