@@ -44,7 +44,19 @@
 #include "queue"
 #include "filesystem"
 
+#include <memory>
+
 namespace ns3 {
+class OspfAppIo;
+class OspfNeighborFsm;
+class OspfLsaProcessor;
+class OspfStateSerializer;
+class OspfAppSockets;
+class OspfAppLogging;
+class OspfAppRng;
+class OspfAreaLeaderController;
+class OspfRoutingEngine;
+ 
 /**
  * \ingroup applications 
  * \defgroup ospf Ospf
@@ -321,8 +333,33 @@ protected:
   virtual void DoDispose (void);
 
 private:
+  friend class OspfAppIo;
+  friend class OspfNeighborFsm;
+  friend class OspfLsaProcessor;
+  friend class OspfStateSerializer;
+  friend class OspfAppSockets;
+  friend class OspfAppLogging;
+  friend class OspfAppRng;
+  friend class OspfAreaLeaderController;
+  friend class OspfRoutingEngine;
+
+  std::unique_ptr<OspfAppIo> m_io;
+  std::unique_ptr<OspfNeighborFsm> m_neighborFsm;
+  std::unique_ptr<OspfLsaProcessor> m_lsa;
+  std::unique_ptr<OspfStateSerializer> m_state;
+  std::unique_ptr<OspfAppSockets> m_socketsMgr;
+  std::unique_ptr<OspfAppLogging> m_logging;
+  std::unique_ptr<OspfAppRng> m_rng;
+  std::unique_ptr<OspfAreaLeaderController> m_areaLeader;
+  std::unique_ptr<OspfRoutingEngine> m_routingEngine;
   virtual void StartApplication (void);
   virtual void StopApplication (void);
+
+  void InitializeLoggingIfEnabled ();
+  void InitializeRandomVariables ();
+  void InitializeSockets ();
+  void CancelHelloTimeouts ();
+  void CloseSockets ();
 
   /**
    * \brief Helper to schedule hello transmission.
@@ -704,8 +741,8 @@ private:
   std::ofstream m_lsaTimingLog; // !< Open Log File
 
   // Randomization
-  // For a small time jitter
-  Ptr<UniformRandomVariable> m_randomVariable = CreateObject<UniformRandomVariable> ();
+  // For a small time jitter (used for hello/timeout/retx scheduling jitter)
+  Ptr<UniformRandomVariable> m_jitterRv = CreateObject<UniformRandomVariable> ();
   // For DD Sequence Number
   Ptr<UniformRandomVariable> m_randomVariableSeq = CreateObject<UniformRandomVariable> ();
 
