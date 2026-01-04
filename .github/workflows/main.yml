@@ -19,7 +19,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /tmp/docker-cache
-          key: docker-${{ runner.os }}-${{ hashFiles('.github/actions/ns-3-docker/Dockerfile') }}
+          key: docker-${{ runner.os }}-${{ hashFiles('.github/actions/ns-3-docker/Dockerfile', 'entrypoint.sh', '.github/workflows/main.yml') }}
           restore-keys: |
             docker-${{ runner.os }}-
 
