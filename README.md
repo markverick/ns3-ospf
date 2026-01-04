@@ -11,7 +11,8 @@ See the LICENSE file for more details.
 
 1) [Overview](#overview)
 2) [Instruction](#instruction)
-3) [Reporting Issues](#reporting-issues)
+3) [Continuous Integration](#continuous-integration)
+4) [Reporting Issues](#reporting-issues)
 
 
 ## Overview
@@ -32,7 +33,30 @@ See the LICENSE file for more details.
 
 ### Current Limitations
 - Does not implement Designated Router (DR) and Backup Designated Router (BDR).
-- Network devices added after the OSPF application starts are not dynamically registered.
+- Network devices added after the OSPF application starts are not dynamically registered unless `AutoSyncInterfaces` is enabled.
+
+## Continuous Integration
+
+This repository includes a GitHub Actions workflow that builds ns-3 and runs all
+OSPF test suites (`ospf-*`):
+
+- Workflow: `.github/workflows/main.yml`
+
+To run the same OSPF test suites locally from an ns-3 checkout (after placing
+this repository at `ns-3-dev/contrib/ospf`):
+
+```sh
+./waf configure --enable-tests --enable-asserts -d debug
+./waf
+
+./test.py --nowaf --list > test-suites.txt
+ospf_suites=$(awk 'NR>2 {print $2}' test-suites.txt | grep -E '^ospf-' | sort -u)
+suite_args=""
+for s in $ospf_suites; do suite_args="$suite_args -s $s"; done
+
+# shellcheck disable=SC2086
+./test.py --nowaf $suite_args -v
+```
 
 ## Instruction
 ### Installing ns-3
