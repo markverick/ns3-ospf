@@ -15,6 +15,12 @@ void
 OspfLsaProcessor::HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                              Ptr<LsRequest> lsr)
 {
+  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+    {
+      NS_LOG_WARN ("LSR dropped due to invalid ifIndex: " << ifIndex);
+      return;
+    }
+
   auto interface = m_app.m_ospfInterfaces[ifIndex];
   Ptr<OspfNeighbor> neighbor =
       interface->GetNeighbor (Ipv4Address (ospfHeader.GetRouterId ()), ipHeader.GetSource ());
@@ -107,6 +113,12 @@ void
 OspfLsaProcessor::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                              LsaHeader lsaHeader, Ptr<Lsa> lsa)
 {
+  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+    {
+      NS_LOG_WARN ("LSA dropped due to invalid ifIndex: " << ifIndex);
+      return;
+    }
+
   auto interface = m_app.m_ospfInterfaces[ifIndex];
   Ptr<OspfNeighbor> neighbor =
       interface->GetNeighbor (Ipv4Address (ospfHeader.GetRouterId ()), ipHeader.GetSource ());
@@ -149,7 +161,7 @@ OspfLsaProcessor::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader o
   if (neighbor->GetState () == OspfNeighbor::Loading)
     {
       auto lastLsr = neighbor->GetLastLsrSent ();
-      if (lastLsr->HasLsaKey (lsaHeader.GetKey ()))
+      if (lastLsr != nullptr && lastLsr->HasLsaKey (lsaHeader.GetKey ()))
         {
           isLsrSatisfied = true;
           // If LSU is an implicit ACK to LSR
@@ -244,6 +256,12 @@ void
 OspfLsaProcessor::HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                                Ptr<LsAck> lsAck)
 {
+  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+    {
+      NS_LOG_WARN ("LS Ack dropped due to invalid ifIndex: " << ifIndex);
+      return;
+    }
+
   auto interface = m_app.m_ospfInterfaces[ifIndex];
   Ptr<OspfNeighbor> neighbor =
       interface->GetNeighbor (Ipv4Address (ospfHeader.GetRouterId ()), ipHeader.GetSource ());

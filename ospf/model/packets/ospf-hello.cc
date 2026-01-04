@@ -25,6 +25,8 @@
 #include "ns3/packet.h"
 #include "ospf-hello.h"
 
+#include <vector>
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("OspfHello");
@@ -186,7 +188,12 @@ OspfHello::IsNeighbor (uint32_t neighborRouterId)
 uint32_t
 OspfHello::GetNeighbor (uint32_t index)
 {
-  NS_ASSERT_MSG (index >= 0 && index < m_neighbors.size (), "Invalid link index");
+  if (index >= m_neighbors.size ())
+    {
+      NS_LOG_WARN ("GetNeighbor: out-of-range index=" << index
+                                                 << " size=" << m_neighbors.size ());
+      return 0;
+    }
   return m_neighbors[index];
 }
 
@@ -280,6 +287,14 @@ OspfHello::Deserialize (Buffer::Iterator start)
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
+  // Fixed header is 20 bytes (no authentication in this simplified payload).
+  if (i.GetRemainingSize () < 20)
+    {
+      NS_LOG_WARN ("OspfHello truncated: missing fixed header");
+      m_neighbors.clear ();
+      return 0;
+    }
+
   m_mask = i.ReadNtohU32 ();
   m_helloInterval = i.ReadNtohU16 ();
   m_options = i.ReadU8 ();
@@ -287,8 +302,15 @@ OspfHello::Deserialize (Buffer::Iterator start)
   m_routerDeadInterval = i.ReadNtohU32 ();
   m_dr = i.ReadNtohU32 ();
   m_bdr = i.ReadNtohU32 ();
+
+  m_neighbors.clear ();
   while (!i.IsEnd ())
     {
+      if (i.GetRemainingSize () < 4)
+        {
+          NS_LOG_WARN ("OspfHello truncated: incomplete neighbor entry");
+          break;
+        }
       m_neighbors.emplace_back (i.ReadNtohU32 ());
     }
   return GetSerializedSize ();
@@ -299,11 +321,11 @@ OspfHello::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize ();
-  uint8_t *payload = new uint8_t[payloadSize];
-  packet->CopyData (payload, payloadSize);
+  std::vector<uint8_t> payload (payloadSize);
+  packet->CopyData (payload.data (), payloadSize);
   Buffer buffer;
   buffer.AddAtStart (payloadSize);
-  buffer.Begin ().Write (payload, payloadSize);
+  buffer.Begin ().Write (payload.data (), payloadSize);
   Deserialize (buffer.Begin ());
   return payloadSize;
 }

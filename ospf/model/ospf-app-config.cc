@@ -181,8 +181,12 @@ OspfApp::GetAreaMask ()
 void
 OspfApp::SetMetrices (std::vector<uint32_t> metrices)
 {
-  NS_ASSERT_MSG (metrices.size () == m_ospfInterfaces.size (),
-                 "The length of metrices must match the number of interfaces");
+  if (metrices.size () != m_ospfInterfaces.size ())
+    {
+      NS_LOG_ERROR ("Ignoring SetMetrices: expected " << m_ospfInterfaces.size () << " entries, got "
+                                                      << metrices.size ());
+      return;
+    }
   for (uint32_t i = 0; i < m_ospfInterfaces.size (); i++)
     {
       m_ospfInterfaces[i]->SetMetric (metrices[i]);
@@ -192,6 +196,11 @@ OspfApp::SetMetrices (std::vector<uint32_t> metrices)
 uint32_t
 OspfApp::GetMetric (uint32_t ifIndex)
 {
+  if (ifIndex >= m_ospfInterfaces.size () || m_ospfInterfaces[ifIndex] == nullptr)
+    {
+      NS_LOG_WARN ("GetMetric called with invalid ifIndex: " << ifIndex);
+      return 0;
+    }
   return m_ospfInterfaces[ifIndex]->GetMetric ();
 }
 
@@ -430,6 +439,12 @@ OspfApp::PrintAreaLsdbHash ()
 void
 OspfApp::AddNeighbor (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
+  if (ifIndex >= m_ospfInterfaces.size () || m_ospfInterfaces[ifIndex] == nullptr)
+    {
+      NS_LOG_WARN ("AddNeighbor ignored due to invalid ifIndex: " << ifIndex);
+      return;
+    }
+
   Ptr<OspfInterface> ospfInterface = m_ospfInterfaces[ifIndex];
   ospfInterface->AddNeighbor (neighbor);
 }

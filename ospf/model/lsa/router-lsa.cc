@@ -26,6 +26,8 @@
 #include "router-lsa.h"
 #include "set"
 
+#include <vector>
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("RouterLsa");
@@ -54,6 +56,42 @@ RouterLsa::RouterLsa (bool bitV, bool bitE, bool bitB) : m_bitV (bitV), m_bitE (
 }
 
 void
+RouterLsa::SetBitV (bool bitV)
+{
+  m_bitV = bitV;
+}
+
+bool
+RouterLsa::GetBitV (void) const
+{
+  return m_bitV;
+}
+
+void
+RouterLsa::SetBitE (bool bitE)
+{
+  m_bitE = bitE;
+}
+
+bool
+RouterLsa::GetBitE (void) const
+{
+  return m_bitE;
+}
+
+void
+RouterLsa::SetBitB (bool bitB)
+{
+  m_bitB = bitB;
+}
+
+bool
+RouterLsa::GetBitB (void) const
+{
+  return m_bitB;
+}
+
+void
 RouterLsa::AddLink (RouterLink link)
 {
   m_links.emplace_back (link);
@@ -62,7 +100,11 @@ RouterLsa::AddLink (RouterLink link)
 RouterLink
 RouterLsa::GetLink (uint32_t index)
 {
-  NS_ASSERT_MSG (index >= 0 && index < m_links.size (), "Invalid link index");
+  if (index >= m_links.size ())
+    {
+      NS_LOG_WARN ("GetLink: out-of-range index=" << index << " size=" << m_links.size ());
+      return RouterLink ();
+    }
   return m_links[index];
 }
 
@@ -196,13 +238,30 @@ RouterLsa::Deserialize (Buffer::Iterator start)
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
+  // Fixed header is 4 bytes: flags (2) + link count (2)
+  if (i.GetRemainingSize () < 4)
+    {
+      NS_LOG_WARN ("RouterLsa truncated: missing fixed header");
+      m_links.clear ();
+      m_bitV = false;
+      m_bitE = false;
+      m_bitB = false;
+      return 0;
+    }
+
   uint16_t flags = i.ReadNtohU16 ();
   extractFlags (flags, m_bitV, m_bitE, m_bitB);
   uint16_t linkNum = i.ReadNtohU16 ();
 
   m_links.clear ();
+  const uint32_t linkSize = 12;
   for (uint16_t j = 0; j < linkNum; j++)
     {
+      if (i.GetRemainingSize () < linkSize)
+        {
+          NS_LOG_WARN ("RouterLsa truncated: incomplete link entry");
+          break;
+        }
       uint32_t linkId = i.ReadNtohU32 ();
       uint32_t linkData = i.ReadNtohU32 ();
       uint8_t type = i.ReadU8 ();
@@ -219,11 +278,11 @@ RouterLsa::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize ();
-  uint8_t *payload = new uint8_t[payloadSize];
-  packet->CopyData (payload, payloadSize);
+  std::vector<uint8_t> payload (payloadSize);
+  packet->CopyData (payload.data (), payloadSize);
   Buffer buffer;
   buffer.AddAtStart (payloadSize);
-  buffer.Begin ().Write (payload, payloadSize);
+  buffer.Begin ().Write (payload.data (), payloadSize);
   Deserialize (buffer.Begin ());
   return payloadSize;
 }

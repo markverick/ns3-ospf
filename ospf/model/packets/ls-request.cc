@@ -25,6 +25,8 @@
 #include "ns3/packet.h"
 #include "ls-request.h"
 
+#include <vector>
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("LsRequest");
@@ -97,7 +99,11 @@ LsRequest::IsLsaKeyEmpty ()
 LsaHeader::LsaKey
 LsRequest::GetLsaKey (uint32_t index)
 {
-  NS_ASSERT (index < m_lsaKeys.size ());
+  if (index >= m_lsaKeys.size ())
+    {
+      NS_LOG_WARN ("GetLsaKey out of range: " << index << " (size=" << m_lsaKeys.size () << ")");
+      return std::make_tuple (LsaHeader::LsType::RouterLSAs, 0u, 0u);
+    }
   return m_lsaKeys[index];
 }
 
@@ -174,12 +180,41 @@ LsRequest::Deserialize (Buffer::Iterator start)
   Buffer::Iterator i = start;
 
   uint32_t type, lsId, advertisingRouter;
+  m_lsaKeys.clear ();
   while (!i.IsEnd ())
     {
+      if (i.GetRemainingSize () < 12)
+        {
+          NS_LOG_WARN ("LsRequest truncated: incomplete LSA key");
+          break;
+        }
       type = i.ReadNtohU32 ();
       lsId = i.ReadNtohU32 ();
       advertisingRouter = i.ReadNtohU32 ();
-      m_lsaKeys.emplace_back (type, lsId, advertisingRouter);
+
+      if (type > 0xff)
+        {
+          NS_LOG_WARN ("LsRequest invalid LS type (out of range for implementation): " << type);
+          continue;
+        }
+
+      const uint8_t t8 = static_cast<uint8_t> (type);
+      switch (static_cast<LsaHeader::LsType> (t8))
+        {
+        case LsaHeader::RouterLSAs:
+        case LsaHeader::NetworkLSAs:
+        case LsaHeader::SummaryLSAsIP:
+        case LsaHeader::SummaryLSAsASBR:
+        case LsaHeader::ASExternalLSAs:
+        case LsaHeader::AreaLSAs:
+        case LsaHeader::L1SummaryLSAs:
+        case LsaHeader::L2SummaryLSAs:
+          m_lsaKeys.emplace_back (t8, lsId, advertisingRouter);
+          break;
+        default:
+          NS_LOG_WARN ("LsRequest unsupported LS type: " << static_cast<uint32_t> (t8));
+          break;
+        }
     }
   return GetSerializedSize ();
 }
@@ -189,11 +224,11 @@ LsRequest::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize ();
-  uint8_t *payload = new uint8_t[payloadSize];
-  packet->CopyData (payload, payloadSize);
+  std::vector<uint8_t> payload (payloadSize);
+  packet->CopyData (payload.data (), payloadSize);
   Buffer buffer;
   buffer.AddAtStart (payloadSize);
-  buffer.Begin ().Write (payload, payloadSize);
+  buffer.Begin ().Write (payload.data (), payloadSize);
   Deserialize (buffer.Begin ());
   return payloadSize;
 }

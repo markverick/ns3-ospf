@@ -116,10 +116,22 @@ OspfAppIo::SendToNeighborKeyedInterval (Time interval, uint32_t ifIndex, Ptr<Pac
 void
 OspfAppIo::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
 {
-  NS_ASSERT_MSG (lsu->GetNLsa () == 1,
-                 "Only LSU with one LSA is allowed to flood (simplification)");
+  if (lsu == nullptr)
+    {
+      NS_LOG_WARN ("FloodLsu: null LSU");
+      return;
+    }
 
-  auto lsaKey = lsu->GetLsaList ()[0].first.GetKey ();
+  const uint32_t nLsa = lsu->GetNLsa ();
+  auto lsaList = lsu->GetLsaList ();
+  if (nLsa != 1 || lsaList.size () != 1)
+    {
+      NS_LOG_WARN ("FloodLsu: dropping LSU with nLsa=" << nLsa
+                                                       << " (expected exactly 1)");
+      return;
+    }
+
+  auto lsaKey = lsaList[0].first.GetKey ();
 
   for (uint32_t i = 1; i < m_app.m_sockets.size (); i++)
     {
@@ -138,8 +150,8 @@ OspfAppIo::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
             }
           // Flood L1 LSAs to neighbors within the same area
           if (neighbor->GetArea () != m_app.m_areaId &&
-              (lsu->GetLsaList ()[0].first.GetType () == LsaHeader::RouterLSAs ||
-               lsu->GetLsaList ()[0].first.GetType () == LsaHeader::L1SummaryLSAs))
+              (lsaList[0].first.GetType () == LsaHeader::RouterLSAs ||
+               lsaList[0].first.GetType () == LsaHeader::L1SummaryLSAs))
             {
               continue;
             }
@@ -164,9 +176,27 @@ OspfAppIo::HandleRead (Ptr<Socket> socket)
   OspfHeader ospfHeader;
 
   packet->PeekHeader (ipHeader);
-  packet->RemoveHeader (ipHeader);
+  if (packet->RemoveHeader (ipHeader) == 0)
+    {
+      NS_LOG_WARN ("Dropping packet: missing IPv4 header");
+      return;
+    }
 
-  packet->RemoveHeader (ospfHeader);
+  if (packet->RemoveHeader (ospfHeader) == 0)
+    {
+      NS_LOG_WARN ("Dropping packet: missing/invalid OSPF header");
+      return;
+    }
+
+  if (ospfHeader.GetPayloadSize () > packet->GetSize ())
+    {
+      NS_LOG_WARN ("Dropping packet: OSPF declared payload exceeds available bytes");
+      return;
+    }
+  if (ospfHeader.GetPayloadSize () < packet->GetSize ())
+    {
+      packet->RemoveAtEnd (packet->GetSize () - ospfHeader.GetPayloadSize ());
+    }
 
   // Drop irrelevant packets in multi-access
   if (ipHeader.GetDestination () != m_app.m_lsaAddress &&
@@ -206,7 +236,8 @@ OspfAppIo::HandleRead (Ptr<Socket> socket)
     }
   else
     {
-      NS_FATAL_ERROR ("Unknown packet type");
+      NS_LOG_WARN ("Dropping packet: unknown OSPF packet type");
+      return;
     }
 }
 

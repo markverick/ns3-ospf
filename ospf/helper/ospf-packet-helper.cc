@@ -54,15 +54,15 @@ CopyAndDecrementTtl (Ptr<Packet> lsuPayload)
 {
   uint32_t payloadSize = lsuPayload->GetSize ();
 
-  uint8_t *buffer = new uint8_t[payloadSize];
-  lsuPayload->CopyData (buffer, payloadSize);
+  std::vector<uint8_t> buffer (payloadSize);
+  lsuPayload->CopyData (buffer.data (), payloadSize);
   uint16_t ttl = static_cast<int> (buffer[2] << 8) + static_cast<int> (buffer[3]) - 1;
   // std::cout << "    Decrement TTL to " << ttl << std::endl;
   if (ttl <= 0)
     return nullptr;
   buffer[2] = (ttl >> 8) & 0xFF;
   buffer[3] = ttl & 0xFF;
-  return Create<Packet> (buffer, payloadSize);
+  return Create<Packet> (buffer.data (), payloadSize);
 }
 
 Ptr<Packet>
@@ -70,15 +70,15 @@ CopyAndIncrementSeqNumber (Ptr<Packet> lsuPayload)
 {
   uint32_t payloadSize = lsuPayload->GetSize ();
 
-  uint8_t *buffer = new uint8_t[payloadSize];
-  lsuPayload->CopyData (buffer, payloadSize);
+  std::vector<uint8_t> buffer (payloadSize);
+  lsuPayload->CopyData (buffer.data (), payloadSize);
   uint16_t seqNum = static_cast<int> (buffer[0] << 8) + static_cast<int> (buffer[1]) + 1;
   // std::cout << "    Increment seqNum to " << seqNum << std::endl;
   if (seqNum <= 0)
     return nullptr;
   buffer[0] = (seqNum >> 8) & 0xFF;
   buffer[1] = seqNum & 0xFF;
-  return Create<Packet> (buffer, payloadSize);
+  return Create<Packet> (buffer.data (), payloadSize);
 }
 
 Ptr<RouterLsa>
@@ -131,7 +131,8 @@ ConstructLSUPacket (Ipv4Address routerId, uint32_t areaId, uint16_t seqNum, Ptr<
   // Add OSPF header
   OspfHeader ospfHeader;
   ospfHeader.SetType (OspfHeader::OspfType::OspfLSUpdate);
-  ospfHeader.SetPayloadSize (packet->GetSize () + lsaHeader.GetSerializedSize ());
+  // Payload size excludes the OSPF header; at this point the packet already contains the LSA header.
+  ospfHeader.SetPayloadSize (packet->GetSize ());
   ospfHeader.SetRouterId (routerId.Get ());
   ospfHeader.SetArea (areaId);
   packet->AddHeader (ospfHeader);
@@ -167,7 +168,8 @@ ConstructLSUPacket (Ipv4Address routerId, uint32_t areaId, uint16_t seqNum, uint
   // Add OSPF header
   OspfHeader ospfHeader;
   ospfHeader.SetType (OspfHeader::OspfType::OspfLSUpdate);
-  ospfHeader.SetPayloadSize (payloadSize + lsaHeader.GetSerializedSize ());
+  // Payload size excludes the OSPF header; at this point the packet already contains the LSA header.
+  ospfHeader.SetPayloadSize (packet->GetSize ());
   ospfHeader.SetRouterId (routerId.Get ());
   ospfHeader.SetArea (areaId);
   packet->AddHeader (ospfHeader);

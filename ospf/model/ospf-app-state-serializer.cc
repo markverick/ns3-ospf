@@ -6,6 +6,21 @@
 
 namespace ns3 {
 
+namespace {
+
+bool
+TryReadNtohU32 (Buffer::Iterator &it, uint32_t &out)
+{
+  if (it.GetRemainingSize () < 4)
+    {
+      return false;
+    }
+  out = it.ReadNtohU32 ();
+  return true;
+}
+
+} // namespace
+
 OspfStateSerializer::OspfStateSerializer (OspfApp &app)
   : m_app (app)
 {
@@ -55,7 +70,7 @@ OspfStateSerializer::ExportLsdb (std::filesystem::path dirName, std::string file
 
   // Write LSU to the file
   std::string fullname = dirName / filename;
-  std::ofstream outFile (fullname);
+  std::ofstream outFile (fullname, std::ios::binary);
   if (!outFile)
     {
       std::cerr << "Failed to open file for writing LSDB: " << fullname << std::endl;
@@ -70,6 +85,12 @@ OspfStateSerializer::ExportLsdb (std::filesystem::path dirName, std::string file
 void
 OspfStateSerializer::ExportNeighbors (std::filesystem::path dirName, std::string filename)
 {
+  if (m_app.m_ospfInterfaces.empty ())
+    {
+      std::cerr << "Cannot export neighbors without initialized interfaces" << std::endl;
+      return;
+    }
+
   // Export Neighbor Information
   // Serialize neighbors
   Buffer buffer;
@@ -104,7 +125,7 @@ OspfStateSerializer::ExportNeighbors (std::filesystem::path dirName, std::string
 
   // Write neighbors to the file
   std::string fullname = dirName / filename;
-  std::ofstream outFile (fullname);
+  std::ofstream outFile (fullname, std::ios::binary);
   if (!outFile)
     {
       std::cerr << "Failed to open file for writing neighbor information: " << fullname
@@ -135,7 +156,7 @@ OspfStateSerializer::ExportMetadata (std::filesystem::path dirName, std::string 
 
   // Write metadata to the file
   std::string fullname = dirName / filename;
-  std::ofstream outFile (fullname);
+  std::ofstream outFile (fullname, std::ios::binary);
   if (!outFile)
     {
       std::cerr << "Failed to open file for writing neighbor information: " << fullname
@@ -173,7 +194,7 @@ OspfStateSerializer::ExportPrefixes (std::filesystem::path dirName, std::string 
 
   // Write prefixes to the file
   std::string fullname = dirName / filename;
-  std::ofstream outFile (fullname);
+  std::ofstream outFile (fullname, std::ios::binary);
   if (!outFile)
     {
       std::cerr << "Failed to open file for writing external routes: " << fullname << std::endl;
@@ -220,7 +241,25 @@ OspfStateSerializer::ImportLsdb (std::filesystem::path dirName, std::string file
   it.Write (data.data (), data.size ());
 
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
-  lsUpdate->Deserialize (buffer.Begin ());
+  if (data.empty ())
+    {
+      std::cerr << "Empty LSDB file: " << fullname << std::endl;
+      return;
+    }
+
+  const uint32_t consumed = lsUpdate->Deserialize (buffer.Begin ());
+  if (consumed == 0 || consumed > data.size ())
+    {
+      std::cerr << "Malformed LSDB file (cannot deserialize LSU): " << fullname << std::endl;
+      return;
+    }
+
+  // Build a local staging area so we don't partially mutate state.
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>> routerLsdb;
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<L1SummaryLsa>>> l1SummaryLsdb;
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> areaLsdb;
+  std::map<uint32_t, std::pair<LsaHeader, Ptr<L2SummaryLsa>>> l2SummaryLsdb;
+  std::map<LsaHeader::LsaKey, uint16_t> seqNumbers;
 
   for (auto &[lsaHeader, lsa] : lsUpdate->GetLsaList ())
     {
@@ -228,22 +267,62 @@ OspfStateSerializer::ImportLsdb (std::filesystem::path dirName, std::string file
       switch (lsaHeader.GetType ())
         {
         case LsaHeader::RouterLSAs:
-          m_app.m_routerLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<RouterLsa> (lsa));
+          {
+            auto casted = DynamicCast<RouterLsa> (lsa);
+            if (!casted)
+              {
+                std::cerr << "Malformed LSDB: RouterLSA payload type mismatch" << std::endl;
+                return;
+              }
+            routerLsdb[lsId] = std::make_pair (lsaHeader, casted);
+          }
           break;
         case LsaHeader::L1SummaryLSAs:
-          m_app.m_l1SummaryLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<L1SummaryLsa> (lsa));
+          {
+            auto casted = DynamicCast<L1SummaryLsa> (lsa);
+            if (!casted)
+              {
+                std::cerr << "Malformed LSDB: L1SummaryLSA payload type mismatch" << std::endl;
+                return;
+              }
+            l1SummaryLsdb[lsId] = std::make_pair (lsaHeader, casted);
+          }
           break;
         case LsaHeader::AreaLSAs:
-          m_app.m_areaLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<AreaLsa> (lsa));
+          {
+            auto casted = DynamicCast<AreaLsa> (lsa);
+            if (!casted)
+              {
+                std::cerr << "Malformed LSDB: AreaLSA payload type mismatch" << std::endl;
+                return;
+              }
+            areaLsdb[lsId] = std::make_pair (lsaHeader, casted);
+          }
           break;
         case LsaHeader::L2SummaryLSAs:
-          m_app.m_l2SummaryLsdb[lsId] = std::make_pair (lsaHeader, DynamicCast<L2SummaryLsa> (lsa));
+          {
+            auto casted = DynamicCast<L2SummaryLsa> (lsa);
+            if (!casted)
+              {
+                std::cerr << "Malformed LSDB: L2SummaryLSA payload type mismatch" << std::endl;
+                return;
+              }
+            l2SummaryLsdb[lsId] = std::make_pair (lsaHeader, casted);
+          }
           break;
         default:
           std::cerr << "Unsupported LSA Type" << std::endl;
+          return;
         }
-      m_app.m_seqNumbers[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
+      seqNumbers[lsaHeader.GetKey ()] = lsaHeader.GetSeqNum ();
     }
+
+  // Commit staged state.
+  m_app.m_routerLsdb.insert (routerLsdb.begin (), routerLsdb.end ());
+  m_app.m_l1SummaryLsdb.insert (l1SummaryLsdb.begin (), l1SummaryLsdb.end ());
+  m_app.m_areaLsdb.insert (areaLsdb.begin (), areaLsdb.end ());
+  m_app.m_l2SummaryLsdb.insert (l2SummaryLsdb.begin (), l2SummaryLsdb.end ());
+  m_app.m_seqNumbers.insert (seqNumbers.begin (), seqNumbers.end ());
 
   std::cout << "Imported " << lsUpdate->GetNLsa () << " LSAs : " << data.size () << " bytes from "
             << fullname << std::endl;
@@ -275,20 +354,39 @@ OspfStateSerializer::ImportNeighbors (std::filesystem::path dirName, std::string
   it.Write (data.data (), data.size ());
 
   it = buffer.Begin ();
-  uint32_t nInterfaces = it.ReadNtohU32 ();
-  NS_ASSERT_MSG (nInterfaces + 1 == m_app.m_ospfInterfaces.size (),
-                 "Numbers of bound interfaces do not match");
+  uint32_t nInterfaces = 0;
+  if (!TryReadNtohU32 (it, nInterfaces))
+    {
+      std::cerr << "Truncated neighbors data: missing interface count" << std::endl;
+      return;
+    }
+  if (nInterfaces + 1 != m_app.m_ospfInterfaces.size ())
+    {
+      std::cerr << "Numbers of bound interfaces do not match" << std::endl;
+      return;
+    }
 
-  uint32_t nNeighbors, routerId, ipAddress, areaId, totalNeighbors = 0;
+  uint32_t nNeighbors = 0;
+  uint32_t routerId = 0;
+  uint32_t ipAddress = 0;
+  uint32_t areaId = 0;
+  uint32_t totalNeighbors = 0;
   for (uint32_t i = 1; i < m_app.m_ospfInterfaces.size (); i++)
     {
-      nNeighbors = it.ReadNtohU32 ();
+      if (!TryReadNtohU32 (it, nNeighbors))
+        {
+          std::cerr << "Truncated neighbors data: missing neighbor count" << std::endl;
+          return;
+        }
       totalNeighbors += nNeighbors;
       for (uint32_t j = 0; j < nNeighbors; j++)
         {
-          routerId = it.ReadNtohU32 ();
-          ipAddress = it.ReadNtohU32 ();
-          areaId = it.ReadNtohU32 ();
+          if (!TryReadNtohU32 (it, routerId) || !TryReadNtohU32 (it, ipAddress) ||
+              !TryReadNtohU32 (it, areaId))
+            {
+              std::cerr << "Truncated neighbors data: missing neighbor entry" << std::endl;
+              return;
+            }
           auto neighbor = Create<OspfNeighbor> (Ipv4Address (routerId), Ipv4Address (ipAddress),
                                                 areaId, OspfNeighbor::Full);
           neighbor->RefreshLastHelloReceived ();
@@ -327,7 +425,13 @@ OspfStateSerializer::ImportMetadata (std::filesystem::path dirName, std::string 
   it.Write (data.data (), data.size ());
 
   it = buffer.Begin ();
-  m_app.m_isAreaLeader = it.ReadNtohU32 ();
+  uint32_t isLeader = 0;
+  if (!TryReadNtohU32 (it, isLeader))
+    {
+      std::cerr << "Truncated metadata: missing area-leader field" << std::endl;
+      return;
+    }
+  m_app.m_isAreaLeader = (isLeader != 0);
 
   std::cout << "Imported metadata of " << data.size () << " bytes from " << fullname << std::endl;
 }
@@ -357,15 +461,25 @@ OspfStateSerializer::ImportPrefixes (std::filesystem::path dirName, std::string 
   it.Write (data.data (), data.size ());
 
   it = buffer.Begin ();
-  uint32_t routeNum = it.ReadNtohU32 ();
-  uint32_t a, b, c, d, e;
+  uint32_t routeNum = 0;
+  if (!TryReadNtohU32 (it, routeNum))
+    {
+      std::cerr << "Truncated external routes: missing route count" << std::endl;
+      return;
+    }
+  uint32_t a = 0;
+  uint32_t b = 0;
+  uint32_t c = 0;
+  uint32_t d = 0;
+  uint32_t e = 0;
   for (uint32_t i = 0; i < routeNum; i++)
     {
-      a = it.ReadNtohU32 ();
-      b = it.ReadNtohU32 ();
-      c = it.ReadNtohU32 ();
-      d = it.ReadNtohU32 ();
-      e = it.ReadNtohU32 ();
+      if (!TryReadNtohU32 (it, a) || !TryReadNtohU32 (it, b) || !TryReadNtohU32 (it, c) ||
+          !TryReadNtohU32 (it, d) || !TryReadNtohU32 (it, e))
+        {
+          std::cerr << "Truncated external routes: missing route entry" << std::endl;
+          return;
+        }
       m_app.m_externalRoutes.emplace_back (a, b, c, d, e);
     }
 

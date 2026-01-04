@@ -73,9 +73,9 @@ OspfAppSockets::InitializeSockets ()
 void
 OspfAppSockets::CancelHelloTimeouts ()
 {
-  for (auto timeouts : m_app.m_helloTimeouts)
+  for (auto &timeouts : m_app.m_helloTimeouts)
     {
-      for (auto timer : timeouts)
+      for (auto &timer : timeouts)
         {
           timer.second.Remove ();
         }

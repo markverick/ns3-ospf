@@ -12,7 +12,11 @@ OspfApp::SendHello ()
 
   NS_LOG_FUNCTION (this);
 
-  NS_ASSERT (m_helloEvent.IsExpired ());
+  if (!m_helloEvent.IsExpired ())
+    {
+      NS_LOG_WARN ("SendHello called while hello event is still scheduled; dropping");
+      return;
+    }
 
   m_io->SendHello ();
 }
@@ -62,8 +66,12 @@ OspfApp::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
       NS_LOG_INFO ("No sockets to flood LSU");
       return;
     }
-  NS_ASSERT_MSG (lsu->GetNLsa () == 1,
-                 "Only LSU with one LSA is allowed to flood (simplification)");
+  if (lsu->GetNLsa () != 1)
+    {
+      NS_LOG_ERROR ("FloodLsu only supports LSU with exactly one LSA (got " << lsu->GetNLsa ()
+                                                                           << ")");
+      return;
+    }
   NS_LOG_FUNCTION (this << inputIfIndex << lsu->GetNLsa ());
 
   m_io->FloodLsu (inputIfIndex, lsu);

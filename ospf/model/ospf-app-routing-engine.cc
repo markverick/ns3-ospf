@@ -188,7 +188,12 @@ OspfRoutingEngine::UpdateL1ShortestPath ()
           if (ifIndex)
             break;
         }
-      NS_ASSERT (ifIndex > 0);
+      if (ifIndex == 0)
+        {
+          NS_LOG_WARN ("No FULL neighbor found for next-hop routerId="
+                       << Ipv4Address (v) << "; skipping next-hop computation");
+          continue;
+        }
 
       m_app.m_l1NextHop[remoteRouterId] = NextHop (ifIndex, ipAddress, distanceTo[remoteRouterId]);
     }

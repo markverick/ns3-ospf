@@ -247,6 +247,12 @@ LsaHeader::Deserialize (Buffer::Iterator start)
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
+  if (i.GetRemainingSize () < m_headerSize)
+    {
+      NS_LOG_WARN ("LSA header truncated");
+      return 0;
+    }
+
   m_lsAge = i.ReadNtohU16 ();
   m_options = i.ReadU8 ();
   m_type = i.ReadU8 ();

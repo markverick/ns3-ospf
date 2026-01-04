@@ -191,7 +191,14 @@ uint32_t
 OspfHeader::Deserialize (Buffer::Iterator start)
 {
   NS_LOG_FUNCTION (this << &start);
+  const uint32_t available = start.GetRemainingSize ();
   Buffer::Iterator i = start;
+
+  if (available < m_headerSize)
+    {
+      NS_LOG_WARN ("OSPF header truncated");
+      return 0;
+    }
 
   uint8_t ver = i.ReadU8 ();
 
@@ -203,10 +210,26 @@ OspfHeader::Deserialize (Buffer::Iterator start)
 
   m_type = i.ReadU8 ();
   uint16_t size = i.ReadNtohU16 ();
-  m_payloadSize = size - 24;
+
+  if (size < m_headerSize)
+    {
+      NS_LOG_WARN ("OSPF header length is smaller than header size");
+      return 0;
+    }
+
+  if (size > available)
+    {
+      NS_LOG_WARN ("OSPF header length exceeds available bytes");
+      return 0;
+    }
+  m_payloadSize = size - m_headerSize;
   m_routerId = i.ReadNtohU32 ();
   m_area = i.ReadNtohU32 ();
   m_checksum = i.ReadNtohU16 ();
+
+  // Consume the remaining bytes of the fixed-size OSPF header.
+  i.ReadU16 ();
+  i.ReadU64 ();
 
   if (m_calcChecksum)
     {

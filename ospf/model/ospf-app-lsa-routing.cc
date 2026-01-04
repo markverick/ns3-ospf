@@ -213,25 +213,52 @@ std::pair<LsaHeader, Ptr<Lsa>>
 OspfApp::FetchLsa (LsaHeader::LsaKey lsaKey)
 {
   uint32_t lsId = std::get<1> (lsaKey);
-  try
+
+  switch (std::get<0> (lsaKey))
     {
-      switch (std::get<0> (lsaKey))
-        {
-        case LsaHeader::RouterLSAs:
-          return m_routerLsdb.at (lsId);
-        case LsaHeader::L1SummaryLSAs:
-          return m_l1SummaryLsdb.at (lsId);
-        case LsaHeader::AreaLSAs:
-          return m_areaLsdb.at (lsId);
-        case LsaHeader::L2SummaryLSAs:
-          return m_l2SummaryLsdb.at (lsId);
-        default:
-          NS_FATAL_ERROR ("Fetching unsupport LSA type");
-        }
-    }
-  catch (const std::out_of_range &e)
-    {
-      NS_FATAL_ERROR ("LsaKey does not exist: " << e.what ());
+    case LsaHeader::RouterLSAs:
+      {
+        auto it = m_routerLsdb.find (lsId);
+        if (it == m_routerLsdb.end ())
+          {
+            NS_LOG_WARN ("FetchLsa: RouterLSA not found for lsId=" << Ipv4Address (lsId));
+            return {LsaHeader (), nullptr};
+          }
+        return {it->second.first, it->second.second};
+      }
+    case LsaHeader::L1SummaryLSAs:
+      {
+        auto it = m_l1SummaryLsdb.find (lsId);
+        if (it == m_l1SummaryLsdb.end ())
+          {
+            NS_LOG_WARN ("FetchLsa: L1SummaryLSA not found for lsId=" << Ipv4Address (lsId));
+            return {LsaHeader (), nullptr};
+          }
+        return {it->second.first, it->second.second};
+      }
+    case LsaHeader::AreaLSAs:
+      {
+        auto it = m_areaLsdb.find (lsId);
+        if (it == m_areaLsdb.end ())
+          {
+            NS_LOG_WARN ("FetchLsa: AreaLSA not found for lsId=" << Ipv4Address (lsId));
+            return {LsaHeader (), nullptr};
+          }
+        return {it->second.first, it->second.second};
+      }
+    case LsaHeader::L2SummaryLSAs:
+      {
+        auto it = m_l2SummaryLsdb.find (lsId);
+        if (it == m_l2SummaryLsdb.end ())
+          {
+            NS_LOG_WARN ("FetchLsa: L2SummaryLSA not found for lsId=" << Ipv4Address (lsId));
+            return {LsaHeader (), nullptr};
+          }
+        return {it->second.first, it->second.second};
+      }
+    default:
+      NS_LOG_WARN ("FetchLsa: unsupported LSA type " << static_cast<uint32_t> (std::get<0> (lsaKey)));
+      return {LsaHeader (), nullptr};
     }
 }
 // Generate Local AS External LSA
@@ -629,7 +656,12 @@ OspfApp::UpdateL1ShortestPath ()
           if (ifIndex)
             break;
         }
-      NS_ASSERT (ifIndex > 0);
+      if (ifIndex == 0)
+        {
+          NS_LOG_WARN ("No FULL neighbor found for next-hop routerId="
+                       << Ipv4Address (v) << "; skipping next-hop computation");
+          continue;
+        }
 
       // Fill in the next hop and prefixes data
       m_l1NextHop[remoteRouterId] = NextHop (ifIndex, ipAddress, distanceTo[remoteRouterId]);
