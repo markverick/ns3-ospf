@@ -259,6 +259,165 @@ public:
   }
 };
 
+class OspfDisableEnableIdempotentUnitTestCase : public TestCase
+{
+public:
+  OspfDisableEnableIdempotentUnitTestCase ()
+    : TestCase ("Disable-Enable is idempotent")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    RngSeedManager::SetSeed (1);
+    RngSeedManager::SetRun (1);
+
+    NodeContainer nodes;
+    nodes.Create (2);
+
+    InternetStackHelper internet;
+    internet.Install (nodes);
+
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+
+    NetDeviceContainer d01 = p2p.Install (NodeContainer (nodes.Get (0), nodes.Get (1)));
+
+    Ipv4AddressHelper ipv4;
+    ipv4.SetBase ("10.47.1.0", "255.255.255.252");
+    ipv4.Assign (d01);
+
+    OspfAppHelper ospf;
+    ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
+    ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
+
+    ospf.SetAttribute ("InitialHelloDelay", TimeValue (Seconds (0)));
+    ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (50)));
+    ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (200)));
+
+    ApplicationContainer apps = ospf.Install (nodes);
+
+    Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
+    NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
+
+    uint32_t tx = 0;
+    app0->TraceConnectWithoutContext ("Tx", MakeBoundCallback (&IncrementTxCounter, &tx));
+
+    uint32_t txBeforeDisable = 0;
+    uint32_t txAfterDisable = 0;
+    uint32_t txWhileDisabled = 0;
+    uint32_t txAfterEnable = 0;
+
+    apps.Start (Seconds (0.0));
+    apps.Stop (Seconds (0.7));
+
+    Simulator::Schedule (Seconds (0.15), &SnapshotU32, &txBeforeDisable, &tx);
+    Simulator::Schedule (Seconds (0.16), &OspfApp::Disable, app0);
+    Simulator::Schedule (Seconds (0.17), &OspfApp::Disable, app0);
+    Simulator::Schedule (Seconds (0.18), &SnapshotU32, &txAfterDisable, &tx);
+    Simulator::Schedule (Seconds (0.35), &SnapshotU32, &txWhileDisabled, &tx);
+    Simulator::Schedule (Seconds (0.36), &OspfApp::Enable, app0);
+    Simulator::Schedule (Seconds (0.37), &OspfApp::Enable, app0);
+    Simulator::Schedule (Seconds (0.60), &SnapshotU32, &txAfterEnable, &tx);
+
+    Simulator::Stop (Seconds (0.7));
+    Simulator::Run ();
+
+    NS_TEST_ASSERT_MSG_GT (txBeforeDisable, 0u, "expected some OSPF Tx before Disable()");
+    NS_TEST_ASSERT_MSG_EQ (txWhileDisabled, txAfterDisable,
+                           "expected no additional Tx while disabled");
+    NS_TEST_ASSERT_MSG_GT (txAfterEnable, txWhileDisabled, "expected Tx to resume after Enable()");
+
+    Simulator::Destroy ();
+  }
+};
+
+class OspfInterfaceUpWhileDisabledDoesNotResumeUntilEnableUnitTestCase : public TestCase
+{
+public:
+  OspfInterfaceUpWhileDisabledDoesNotResumeUntilEnableUnitTestCase ()
+    : TestCase ("Interface up while disabled does not resume Tx until Enable")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    RngSeedManager::SetSeed (1);
+    RngSeedManager::SetRun (1);
+
+    NodeContainer nodes;
+    nodes.Create (2);
+
+    InternetStackHelper internet;
+    internet.Install (nodes);
+
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+
+    NetDeviceContainer d01 = p2p.Install (NodeContainer (nodes.Get (0), nodes.Get (1)));
+
+    Ipv4AddressHelper ipv4;
+    ipv4.SetBase ("10.50.1.0", "255.255.255.252");
+    ipv4.Assign (d01);
+
+    Ptr<Ipv4> ipv40 = nodes.Get (0)->GetObject<Ipv4> ();
+    NS_TEST_ASSERT_MSG_NE (ipv40, nullptr, "expected Ipv4");
+    const uint32_t if0 = d01.Get (0)->GetIfIndex ();
+
+    OspfAppHelper ospf;
+    ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
+    ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
+
+    ospf.SetAttribute ("InitialHelloDelay", TimeValue (Seconds (0)));
+    ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (50)));
+    ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (200)));
+
+    ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
+    ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (MilliSeconds (20)));
+
+    ApplicationContainer apps = ospf.Install (nodes);
+
+    Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
+    NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
+
+    uint32_t tx = 0;
+    app0->TraceConnectWithoutContext ("Tx", MakeBoundCallback (&IncrementTxCounter, &tx));
+
+    uint32_t txAfterDisable = 0;
+    uint32_t txAfterIfUpWhileDisabled = 0;
+    uint32_t txAfterEnable = 0;
+
+    apps.Start (Seconds (0.0));
+    apps.Stop (Seconds (0.8));
+
+    // Disable, then bring the interface down and up while still disabled.
+    Simulator::Schedule (Seconds (0.16), &OspfApp::Disable, app0);
+    Simulator::Schedule (Seconds (0.18), &SnapshotU32, &txAfterDisable, &tx);
+    Simulator::Schedule (Seconds (0.20), &Ipv4::SetDown, ipv40, if0);
+    Simulator::Schedule (Seconds (0.30), &Ipv4::SetUp, ipv40, if0);
+    Simulator::Schedule (Seconds (0.55), &SnapshotU32, &txAfterIfUpWhileDisabled, &tx);
+
+    // Only after Enable should Tx resume.
+    Simulator::Schedule (Seconds (0.56), &OspfApp::Enable, app0);
+    Simulator::Schedule (Seconds (0.75), &SnapshotU32, &txAfterEnable, &tx);
+
+    Simulator::Stop (Seconds (0.8));
+    Simulator::Run ();
+
+    NS_TEST_ASSERT_MSG_GT (txAfterDisable, 0u, "expected some Tx before Disable() takes effect");
+    NS_TEST_ASSERT_MSG_EQ (txAfterIfUpWhileDisabled, txAfterDisable,
+                           "expected Tx to stay stopped even if interface becomes up while disabled");
+    NS_TEST_ASSERT_MSG_GT (txAfterEnable, txAfterIfUpWhileDisabled,
+                           "expected Tx to resume only after Enable()");
+
+    Simulator::Destroy ();
+  }
+};
+
 class OspfEnableDisableUnitTestSuite : public TestSuite
 {
 public:
@@ -268,6 +427,8 @@ public:
     AddTestCase (new OspfEnableDisableUnitTestCase (), TestCase::QUICK);
     AddTestCase (new OspfAutoSyncPollDoesNotResumeWhenDisabledUnitTestCase (), TestCase::QUICK);
     AddTestCase (new OspfEnableReflectsInterfaceChangesWhileDisabledUnitTestCase (), TestCase::QUICK);
+    AddTestCase (new OspfDisableEnableIdempotentUnitTestCase (), TestCase::QUICK);
+    AddTestCase (new OspfInterfaceUpWhileDisabledDoesNotResumeUntilEnableUnitTestCase (), TestCase::QUICK);
   }
 };
 

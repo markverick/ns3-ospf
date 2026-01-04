@@ -92,6 +92,36 @@ public:
     NS_TEST_EXPECT_MSG_EQ (HasSummaryRoute (l11->GetRoutes (), net, mask, 1), true,
                            "node1 should advertise 10.1.1.0/30 with metric 1");
 
+    // Edge case: calling the helper twice should be idempotent.
+    const auto beforeSize = l10->GetRoutes ().size ();
+    ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
+    Ptr<L1SummaryLsa> l10Second = FetchSelfL1Summary (app0);
+    NS_TEST_EXPECT_MSG_NE (l10Second, nullptr, "expected L1SummaryLSA after second call");
+    NS_TEST_EXPECT_MSG_EQ (l10Second->GetRoutes ().size (), beforeSize,
+                 "second ConfigureReachablePrefixesFromInterfaces call should not add duplicates");
+
+    Simulator::Destroy ();
+  }
+};
+
+class OspfHelperEmptyContainerNoCrashTestCase : public TestCase
+{
+public:
+  OspfHelperEmptyContainerNoCrashTestCase ()
+    : TestCase ("OspfAppHelper helpers are no-ops on empty NodeContainer")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    NodeContainer nodes;
+    OspfAppHelper ospf;
+
+    // Edge case: no nodes. These should not crash.
+    ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
+    ospf.Preload (nodes);
+
     Simulator::Destroy ();
   }
 };
@@ -170,6 +200,7 @@ public:
   {
     AddTestCase (new OspfConfigureReachablePrefixesHelperTestCase (), TestCase::QUICK);
     AddTestCase (new OspfPreloadSeedsL1SummaryTestCase (), TestCase::QUICK);
+    AddTestCase (new OspfHelperEmptyContainerNoCrashTestCase (), TestCase::QUICK);
   }
 };
 

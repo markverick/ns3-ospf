@@ -44,6 +44,11 @@ public:
   DoRun () override
   {
     {
+      // Edge case: empty buffer.
+      NS_TEST_EXPECT_MSG_EQ (CalculateChecksum (nullptr, 0), 0xFFFFu, "checksum of empty buffer");
+    }
+
+    {
       const uint8_t data[2] = {0x00, 0x01};
       NS_TEST_EXPECT_MSG_EQ (CalculateChecksum (data, 2), 0xFFFEu, "checksum of 0x0001");
     }
@@ -89,6 +94,13 @@ public:
       Ptr<Packet> p = Create<Packet> (payload, sizeof (payload));
       Ptr<Packet> dec = CopyAndDecrementTtl (p);
       NS_TEST_EXPECT_MSG_EQ (dec, nullptr, "ttl=1 decrements to 0 -> nullptr");
+    }
+
+    {
+      const uint8_t payload[4] = {0x00, 0x05, 0x00, 0x00};
+      Ptr<Packet> p = Create<Packet> (payload, sizeof (payload));
+      Ptr<Packet> dec = CopyAndDecrementTtl (p);
+      NS_TEST_EXPECT_MSG_EQ (dec, nullptr, "ttl=0 should be treated as invalid -> nullptr");
     }
   }
 };

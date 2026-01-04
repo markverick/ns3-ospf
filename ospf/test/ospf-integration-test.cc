@@ -1305,6 +1305,112 @@ public:
   }
 };
 
+class OspfDisableWithoutResetKeepsRoutesIntegrationTestCase : public TestCase
+{
+public:
+  OspfDisableWithoutResetKeepsRoutesIntegrationTestCase ()
+    : TestCase ("Disable without ResetStateOnDisable does not flush local routes")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    RngSeedManager::SetSeed (1);
+    RngSeedManager::SetRun (1);
+
+    NodeContainer nodes;
+    nodes.Create (3);
+
+    InternetStackHelper internet;
+    internet.Install (nodes);
+
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+
+    NetDeviceContainer d01 = p2p.Install (NodeContainer (nodes.Get (0), nodes.Get (1)));
+    NetDeviceContainer d12 = p2p.Install (NodeContainer (nodes.Get (1), nodes.Get (2)));
+
+    Ipv4AddressHelper ipv4;
+    ipv4.SetBase ("10.32.1.0", "255.255.255.252");
+    Ipv4InterfaceContainer if01 = ipv4.Assign (d01);
+    ipv4.SetBase ("10.32.2.0", "255.255.255.252");
+    Ipv4InterfaceContainer if12 = ipv4.Assign (d12);
+
+    OspfAppHelper ospf;
+    ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
+    ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
+    ospf.SetAttribute ("ShortestPathUpdateDelay", TimeValue (MilliSeconds (50)));
+
+    // Fast timings for test runtime.
+    ospf.SetAttribute ("InitialHelloDelay", TimeValue (Seconds (0)));
+    ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (200)));
+    ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
+    ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (200)));
+
+    // IMPORTANT EDGE CASE: with default ResetStateOnDisable=false, Disable() stops the protocol
+    // but does not flush already-installed routes on the local node.
+    ApplicationContainer apps = ospf.Install (nodes);
+
+    // Configure reachable prefixes (advertised routes) from each node's interfaces.
+    ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
+
+    Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
+    Ptr<OspfApp> app2 = DynamicCast<OspfApp> (apps.Get (2));
+    NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
+    NS_TEST_ASSERT_MSG_NE (app2, nullptr, "expected OspfApp");
+
+    // Advertise a stub network from node2 so node0 learns it via node1.
+    app2->AddReachableAddress (1, Ipv4Address ("10.254.0.0"), Ipv4Mask ("255.255.0.0"),
+                               Ipv4Address ("10.254.0.1"), 1);
+
+    apps.Start (Seconds (0.5));
+    apps.Stop (Seconds (5.5));
+
+    // Disable node2 without reset.
+    Simulator::Schedule (Seconds (2.5), &OspfApp::Disable, app2);
+
+    const std::filesystem::path outDir = CreateTempDirFilename ("ospf-integration-disable-keep-routes");
+    std::filesystem::create_directories (outDir);
+
+    Simulator::Schedule (Seconds (2.2), &OspfApp::PrintRouting, app0, outDir, "n0.before.routes");
+    Simulator::Schedule (Seconds (4.8), &OspfApp::PrintRouting, app0, outDir, "n0.after.routes");
+
+    // Also snapshot the disabled node's routing table to ensure its previously-installed
+    // routes are not flushed unless ResetStateOnDisable=true.
+    Simulator::Schedule (Seconds (2.2), &OspfApp::PrintRouting, app2, outDir, "n2.before.routes");
+    Simulator::Schedule (Seconds (4.8), &OspfApp::PrintRouting, app2, outDir, "n2.after.routes");
+
+    Simulator::Stop (Seconds (5.5));
+    Simulator::Run ();
+
+    const std::string n0Before = ReadAll (outDir / "n0.before.routes");
+    const std::string n0After = ReadAll (outDir / "n0.after.routes");
+    const std::string n2Before = ReadAll (outDir / "n2.before.routes");
+    const std::string n2After = ReadAll (outDir / "n2.after.routes");
+
+    const std::string gw01 = Ipv4ToString (if01.GetAddress (1)); // node1 on (0,1)
+    const std::string gw12 = Ipv4ToString (if12.GetAddress (0)); // node1 on (1,2)
+
+    // Other nodes should withdraw routes once the disabled node stops sending.
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (n0Before, "10.254.0.0", gw01), true,
+                 "node0 should learn 10.254.0.0/16 before disable\n" + n0Before);
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (n0After, "10.254.0.0", gw01), false,
+                 "node0 should remove the learned route after node2 disables (neighbor timeout)\n" +
+                   n0After);
+
+    // But the disabled node keeps its own installed routes unless ResetStateOnDisable=true.
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (n2Before, "10.32.1.0", gw12), true,
+                 "node2 should learn a route to 10.32.1.0/30 before disable\n" + n2Before);
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (n2After, "10.32.1.0", gw12), true,
+                 "with ResetStateOnDisable=false, Disable() should not flush local routes\n" +
+                   n2After);
+
+    Simulator::Destroy ();
+  }
+};
+
 class OspfIntegrationTestSuite : public TestSuite
 {
 public:
@@ -1323,6 +1429,7 @@ public:
     AddTestCase (new OspfPartialMeshIntegrationTestCase (), TestCase::QUICK);
     AddTestCase (new OspfInterfaceDownRemovesRoutesIntegrationTestCase (), TestCase::QUICK);
     AddTestCase (new OspfNodeDisableEnableRelearnsRoutesIntegrationTestCase (), TestCase::QUICK);
+    AddTestCase (new OspfDisableWithoutResetKeepsRoutesIntegrationTestCase (), TestCase::QUICK);
   }
 };
 

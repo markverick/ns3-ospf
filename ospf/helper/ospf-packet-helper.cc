@@ -56,10 +56,13 @@ CopyAndDecrementTtl (Ptr<Packet> lsuPayload)
 
   std::vector<uint8_t> buffer (payloadSize);
   lsuPayload->CopyData (buffer.data (), payloadSize);
-  uint16_t ttl = static_cast<int> (buffer[2] << 8) + static_cast<int> (buffer[3]) - 1;
-  // std::cout << "    Decrement TTL to " << ttl << std::endl;
-  if (ttl <= 0)
-    return nullptr;
+  const uint16_t currentTtl = static_cast<uint16_t> (buffer[2] << 8 | buffer[3]);
+  if (currentTtl <= 1)
+    {
+      return nullptr;
+    }
+
+  const uint16_t ttl = static_cast<uint16_t> (currentTtl - 1);
   buffer[2] = (ttl >> 8) & 0xFF;
   buffer[3] = ttl & 0xFF;
   return Create<Packet> (buffer.data (), payloadSize);
@@ -226,10 +229,16 @@ GetAdvertisement (uint8_t *buffer)
 uint16_t
 CalculateChecksum (const uint8_t *data, uint32_t length)
 {
+  if (length == 0)
+    {
+      // One's complement of 0.
+      return 0xFFFF;
+    }
+
   uint32_t sum = 0;
 
   // Sum each 16-bit word
-  for (uint32_t i = 0; i < length - 1; i += 2)
+  for (uint32_t i = 0; i + 1 < length; i += 2)
     {
       uint16_t word = (data[i] << 8) + data[i + 1];
       sum += word;

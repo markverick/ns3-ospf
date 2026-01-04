@@ -103,6 +103,29 @@ public:
   }
 };
 
+class OspfInterfaceActiveRouterLinksEmptyTestCase : public TestCase
+{
+public:
+  OspfInterfaceActiveRouterLinksEmptyTestCase ()
+    : TestCase ("OspfInterface GetActiveRouterLinks is empty with no Full neighbors")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    Ptr<OspfInterface> iface = Create<OspfInterface> (Ipv4Address ("10.0.0.1"), Ipv4Mask ("255.255.255.0"),
+                                                     /*helloInterval*/ 10, /*dead*/ 40,
+                                                     /*area*/ 1, /*metric*/ 7, /*mtu*/ 1500);
+
+    // Non-Full neighbor should not contribute.
+    iface->AddNeighbor (Ipv4Address ("10.0.0.4"), Ipv4Address ("10.0.0.4"), /*remoteArea*/ 1, OspfNeighbor::TwoWay);
+
+    const auto links = iface->GetActiveRouterLinks ();
+    NS_TEST_EXPECT_MSG_EQ (links.size (), 0u, "no Full neighbors => no active router links");
+  }
+};
+
 class OspfNeighborDbdQueueTestCase : public TestCase
 {
 public:
@@ -144,6 +167,20 @@ public:
     const auto none = n->PopMaxMtuFromDbdQueue (/*mtu*/ 100);
     NS_TEST_EXPECT_MSG_EQ (none.size (), 0u, "mtu too small pops nothing");
     NS_TEST_EXPECT_MSG_EQ (n->IsDbdQueueEmpty (), false, "still has entry");
+
+    // Edge case: MTU so that exactly 1 header fits.
+    const uint32_t mtuOne = 100 + headerSize;
+    const auto one = n->PopMaxMtuFromDbdQueue (mtuOne);
+    NS_TEST_EXPECT_MSG_EQ (one.size (), 1u, "mtu fits exactly one header");
+    NS_TEST_EXPECT_MSG_EQ (n->IsDbdQueueEmpty (), true, "queue empty after popping the only entry");
+
+    // Edge case: very large MTU pops everything.
+    n->AddDbdQueue (h1);
+    n->AddDbdQueue (h2);
+    n->AddDbdQueue (h3);
+    const auto all = n->PopMaxMtuFromDbdQueue (/*mtu*/ 100000);
+    NS_TEST_EXPECT_MSG_EQ (all.size (), 3u, "large mtu pops all headers");
+    NS_TEST_EXPECT_MSG_EQ (n->IsDbdQueueEmpty (), true, "queue empty after popping all");
   }
 };
 
@@ -211,6 +248,7 @@ public:
   {
     AddTestCase (new OspfInterfaceNeighborCrudTestCase, TestCase::QUICK);
     AddTestCase (new OspfInterfaceActiveRouterLinksTestCase, TestCase::QUICK);
+    AddTestCase (new OspfInterfaceActiveRouterLinksEmptyTestCase, TestCase::QUICK);
     AddTestCase (new OspfNeighborDbdQueueTestCase, TestCase::QUICK);
     AddTestCase (new OspfNeighborOutdatedKeysAndTimeoutsTestCase, TestCase::QUICK);
   }

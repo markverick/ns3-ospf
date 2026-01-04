@@ -194,6 +194,155 @@ public:
   }
 };
 
+class OspfAutoSyncPollingUpTransitionStartsTxUnitTestCase : public TestCase
+{
+public:
+  OspfAutoSyncPollingUpTransitionStartsTxUnitTestCase ()
+    : TestCase ("AutoSync polling starts Tx when interface becomes up")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    RngSeedManager::SetSeed (1);
+    RngSeedManager::SetRun (1);
+
+    NodeContainer nodes;
+    nodes.Create (2);
+
+    InternetStackHelper internet;
+    internet.Install (nodes);
+
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+
+    NetDeviceContainer d01 = p2p.Install (NodeContainer (nodes.Get (0), nodes.Get (1)));
+
+    Ipv4AddressHelper ipv4;
+    ipv4.SetBase ("10.48.1.0", "255.255.255.252");
+    ipv4.Assign (d01);
+
+    Ptr<Ipv4> ipv40 = nodes.Get (0)->GetObject<Ipv4> ();
+    NS_TEST_ASSERT_MSG_NE (ipv40, nullptr, "expected Ipv4");
+    const uint32_t if0 = d01.Get (0)->GetIfIndex ();
+    ipv40->SetDown (if0);
+
+    OspfAppHelper ospf;
+    ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
+    ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
+
+    ospf.SetAttribute ("InitialHelloDelay", TimeValue (Seconds (0)));
+    ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (50)));
+    ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (200)));
+
+    ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
+    ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (MilliSeconds (20)));
+
+    ApplicationContainer apps = ospf.Install (nodes);
+
+    Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
+    NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
+
+    uint32_t tx = 0;
+    app0->TraceConnectWithoutContext ("Tx", MakeBoundCallback (&IncrementTxCounter, &tx));
+
+    uint32_t txBeforeUp = 0;
+    uint32_t txAfterUp = 0;
+
+    apps.Start (Seconds (0.0));
+    apps.Stop (Seconds (0.6));
+
+    Simulator::Schedule (Seconds (0.20), &SnapshotU32, &txBeforeUp, &tx);
+    Simulator::Schedule (Seconds (0.25), &Ipv4::SetUp, ipv40, if0);
+    Simulator::Schedule (Seconds (0.55), &SnapshotU32, &txAfterUp, &tx);
+
+    Simulator::Stop (Seconds (0.6));
+    Simulator::Run ();
+
+    NS_TEST_ASSERT_MSG_EQ (txBeforeUp, 0u, "expected no Tx before interface is brought up");
+    NS_TEST_ASSERT_MSG_GT (txAfterUp, txBeforeUp, "expected Tx after interface becomes up");
+
+    Simulator::Destroy ();
+  }
+};
+
+class OspfAutoSyncNoPollingDoesNotReactToUpTransitionUnitTestCase : public TestCase
+{
+public:
+  OspfAutoSyncNoPollingDoesNotReactToUpTransitionUnitTestCase ()
+    : TestCase ("AutoSync without polling does not react to later interface-up")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    RngSeedManager::SetSeed (1);
+    RngSeedManager::SetRun (1);
+
+    NodeContainer nodes;
+    nodes.Create (2);
+
+    InternetStackHelper internet;
+    internet.Install (nodes);
+
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+
+    NetDeviceContainer d01 = p2p.Install (NodeContainer (nodes.Get (0), nodes.Get (1)));
+
+    Ipv4AddressHelper ipv4;
+    ipv4.SetBase ("10.49.1.0", "255.255.255.252");
+    ipv4.Assign (d01);
+
+    Ptr<Ipv4> ipv40 = nodes.Get (0)->GetObject<Ipv4> ();
+    NS_TEST_ASSERT_MSG_NE (ipv40, nullptr, "expected Ipv4");
+    const uint32_t if0 = d01.Get (0)->GetIfIndex ();
+    ipv40->SetDown (if0);
+
+    OspfAppHelper ospf;
+    ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
+    ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
+
+    ospf.SetAttribute ("InitialHelloDelay", TimeValue (Seconds (0)));
+    ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (50)));
+    ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (200)));
+
+    ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
+    // One-shot sync only; no periodic polling.
+    ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (Seconds (0)));
+
+    ApplicationContainer apps = ospf.Install (nodes);
+    Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
+    NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
+
+    uint32_t tx = 0;
+    app0->TraceConnectWithoutContext ("Tx", MakeBoundCallback (&IncrementTxCounter, &tx));
+
+    uint32_t txBeforeUp = 0;
+    uint32_t txAfterUp = 0;
+
+    apps.Start (Seconds (0.0));
+    apps.Stop (Seconds (0.6));
+
+    Simulator::Schedule (Seconds (0.20), &SnapshotU32, &txBeforeUp, &tx);
+    Simulator::Schedule (Seconds (0.25), &Ipv4::SetUp, ipv40, if0);
+    Simulator::Schedule (Seconds (0.55), &SnapshotU32, &txAfterUp, &tx);
+
+    Simulator::Stop (Seconds (0.6));
+    Simulator::Run ();
+
+    NS_TEST_ASSERT_MSG_EQ (txBeforeUp, 0u, "expected no Tx before interface is brought up");
+    NS_TEST_ASSERT_MSG_EQ (txAfterUp, 0u,
+                           "expected no Tx after interface-up when InterfaceSyncInterval=0");
+
+    Simulator::Destroy ();
+  }
+};
+
 class OspfDisableEnableStopsAndResumesTxUnitTestCase : public TestCase
 {
 public:
@@ -352,6 +501,8 @@ public:
     AddTestCase (new OspfInterfaceFlagsUnitTestCase (), TestCase::QUICK);
     AddTestCase (new OspfAutoSyncSkipsDownInterfaceUnitTestCase (), TestCase::QUICK);
     AddTestCase (new OspfAutoSyncSendsOnUpInterfaceUnitTestCase (), TestCase::QUICK);
+    AddTestCase (new OspfAutoSyncPollingUpTransitionStartsTxUnitTestCase (), TestCase::QUICK);
+    AddTestCase (new OspfAutoSyncNoPollingDoesNotReactToUpTransitionUnitTestCase (), TestCase::QUICK);
     AddTestCase (new OspfDisableEnableStopsAndResumesTxUnitTestCase (), TestCase::QUICK);
     AddTestCase (new OspfDisableEnableIdempotentUnitTestCase (), TestCase::QUICK);
   }
