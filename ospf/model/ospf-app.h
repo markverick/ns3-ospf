@@ -329,6 +329,12 @@ public:
   */
   void ImportPrefixes (std::filesystem::path dirName, std::string filename);
 
+  /**
+   * \brief Fetch an LSA by key from the local LSDB.
+   * \return <header, payload> or <default header, nullptr> if missing.
+   */
+  std::pair<LsaHeader, Ptr<Lsa>> FetchLsa (LsaHeader::LsaKey lsaKey);
+
 protected:
   virtual void DoDispose (void);
 
@@ -545,11 +551,6 @@ private:
   void HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsAck> lsAck);
 
   // Link State Advertisement
-  /**
-   * \brief Fetch LSA by an LSA Key from LSDB 
-   * \return LSA
-   */
-  std::pair<LsaHeader, Ptr<Lsa>> FetchLsa (LsaHeader::LsaKey lsaKey);
   /**
    * \brief Generate local Router-LSA based on adjacencies (Full)
    * \return Router-LSA for this router

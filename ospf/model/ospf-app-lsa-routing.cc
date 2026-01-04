@@ -265,12 +265,11 @@ OspfApp::FetchLsa (LsaHeader::LsaKey lsaKey)
 Ptr<L1SummaryLsa>
 OspfApp::GetL1SummaryLsa ()
 {
-  // Hardcoded masks and prefixes to be node's IP
   Ptr<L1SummaryLsa> l1SummaryLsa = Create<L1SummaryLsa> ();
-  auto ipv4 = GetNode ()->GetObject<Ipv4> ();
-  // Advertise local addresses
   for (auto &[ifIndex, dest, mask, addr, metric] : m_externalRoutes)
     {
+      (void)ifIndex;
+      (void)addr;
       l1SummaryLsa->AddRoute (SummaryRoute (dest, mask, metric));
     }
   return l1SummaryLsa;
