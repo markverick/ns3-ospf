@@ -55,8 +55,35 @@ OspfApp::StartApplication (void)
   InitializeLoggingIfEnabled ();
   InitializeRandomVariables ();
 
+  if (m_enabled)
+    {
+      Enable ();
+    }
+  // Will begin as an area leader if noone will
+}
+
+void
+OspfApp::StopApplication ()
+{
+  NS_LOG_FUNCTION (this);
+
+  Disable ();
+  m_lsaTimingLog.close ();
+}
+
+void
+OspfApp::Enable ()
+{
+  m_enabled = true;
+  if (m_protocolRunning)
+    {
+      return;
+    }
+  m_protocolRunning = true;
+
   StartInterfaceSyncIfEnabled ();
   InitializeSockets ();
+
   // Start sending Hello
   ScheduleTransmitHello (m_initialHelloDelay);
 
@@ -76,18 +103,94 @@ OspfApp::StartApplication (void)
       UpdateL1ShortestPath ();
       UpdateL2ShortestPath ();
     }
-  // Will begin as an area leader if noone will
 }
 
 void
-OspfApp::StopApplication ()
+OspfApp::Disable ()
 {
-  NS_LOG_FUNCTION (this);
+  m_enabled = false;
+  if (!m_protocolRunning)
+    {
+      return;
+    }
+  m_protocolRunning = false;
 
   StopInterfaceSync ();
+  m_helloEvent.Remove ();
   CancelHelloTimeouts ();
   CloseSockets ();
-  m_lsaTimingLog.close ();
+
+  if (m_resetStateOnDisable)
+    {
+      ResetStateForRestart ();
+    }
+}
+
+bool
+OspfApp::IsEnabled () const
+{
+  return m_protocolRunning;
+}
+
+void
+OspfApp::FlushOspfRoutes ()
+{
+  if (m_routing == nullptr)
+    {
+      return;
+    }
+  while (m_routing->GetNRoutes () > m_boundDevices.GetN ())
+    {
+      m_routing->RemoveRoute (m_boundDevices.GetN ());
+    }
+}
+
+void
+OspfApp::ResetStateForRestart ()
+{
+  // Cancel internal timers beyond socket-related timeouts.
+  m_updateL1ShortestPathTimeout.Remove ();
+  m_updateL2ShortestPathTimeout.Remove ();
+  m_areaLeaderBeginTimer.Remove ();
+
+  // Stop retransmissions and neighbor-specific scheduled work.
+  for (auto &iface : m_ospfInterfaces)
+    {
+      if (iface == nullptr)
+        {
+          continue;
+        }
+
+      for (auto &nbr : iface->GetNeighbors ())
+        {
+          if (nbr == nullptr)
+            {
+              continue;
+            }
+          nbr->ClearKeyedTimeouts ();
+          nbr->RemoveTimeout ();
+          nbr->SetState (OspfNeighbor::Down);
+        }
+      iface->ClearNeighbors ();
+    }
+
+  FlushOspfRoutes ();
+
+  m_isAreaLeader = false;
+  m_seqNumbers.clear ();
+
+  m_routerLsdb.clear ();
+  m_l1SummaryLsdb.clear ();
+  m_nextHopToShortestBorderRouter.clear ();
+  m_advertisingPrefixes.clear ();
+  m_l1NextHop.clear ();
+  m_l1Addresses.clear ();
+
+  m_areaLsdb.clear ();
+  m_l2SummaryLsdb.clear ();
+  m_l2NextHop.clear ();
+
+  m_doInitialize = true;
 }
 
 void

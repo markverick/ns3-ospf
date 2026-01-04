@@ -1107,7 +1107,7 @@ class OspfInterfaceDownRemovesRoutesIntegrationTestCase : public TestCase
 {
 public:
   OspfInterfaceDownRemovesRoutesIntegrationTestCase ()
-    : TestCase ("OSPF updates learned routes when an interface goes down (AutoSyncInterfaces)")
+    : TestCase ("OSPF updates learned routes when an interface goes down-up (AutoSyncInterfaces)")
   {
   }
 
@@ -1166,7 +1166,7 @@ public:
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
 
     apps.Start (Seconds (0.5));
-    apps.Stop (Seconds (8.0));
+    apps.Stop (Seconds (9.0));
 
     Ptr<Ipv4> ipv41 = nodes.Get (1)->GetObject<Ipv4> ();
     Ptr<Ipv4> ipv42 = nodes.Get (2)->GetObject<Ipv4> ();
@@ -1179,24 +1179,127 @@ public:
     Simulator::Schedule (Seconds (4.0), &Ipv4::SetDown, ipv41, if1);
     Simulator::Schedule (Seconds (4.0), &Ipv4::SetDown, ipv42, if2);
 
+    // Bring the link back up later to validate re-convergence.
+    Simulator::Schedule (Seconds (5.0), &Ipv4::SetUp, ipv41, if1);
+    Simulator::Schedule (Seconds (5.0), &Ipv4::SetUp, ipv42, if2);
+
     const std::filesystem::path outDir = CreateTempDirFilename ("ospf-integration-if-down");
     std::filesystem::create_directories (outDir);
 
     // Snapshot before and after the interface is brought down.
     Simulator::Schedule (Seconds (3.5), &OspfApp::PrintRouting, app0, outDir, "before.routes");
-    Simulator::Schedule (Seconds (7.0), &OspfApp::PrintRouting, app0, outDir, "after.routes");
+    Simulator::Schedule (Seconds (4.8), &OspfApp::PrintRouting, app0, outDir, "down.routes");
+    Simulator::Schedule (Seconds (7.5), &OspfApp::PrintRouting, app0, outDir, "up.routes");
 
-    Simulator::Stop (Seconds (8.0));
+    Simulator::Stop (Seconds (9.0));
     Simulator::Run ();
 
     const std::string before = ReadAll (outDir / "before.routes");
-    const std::string after = ReadAll (outDir / "after.routes");
+    const std::string down = ReadAll (outDir / "down.routes");
+    const std::string up = ReadAll (outDir / "up.routes");
     const std::string gw = Ipv4ToString (if01.GetAddress (1)); // node1 on (0,1)
 
     NS_TEST_ASSERT_MSG_EQ (HasRouteLine (before, "10.252.0.0", gw), true,
                            "node0 should learn 10.252.0.0/16 before link-down\n" + before);
-    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (after, "10.252.0.0", gw), false,
-                           "node0 should remove the learned route after link-down\n" + after);
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (down, "10.252.0.0", gw), false,
+                 "node0 should remove the learned route after link-down\n" + down);
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (up, "10.252.0.0", gw), true,
+                 "node0 should re-learn the route after link-up\n" + up);
+
+    Simulator::Destroy ();
+  }
+};
+
+class OspfNodeDisableEnableRelearnsRoutesIntegrationTestCase : public TestCase
+{
+public:
+  OspfNodeDisableEnableRelearnsRoutesIntegrationTestCase ()
+    : TestCase ("OSPF can be disabled-enabled at runtime (node join-leave)")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    RngSeedManager::SetSeed (1);
+    RngSeedManager::SetRun (1);
+
+    NodeContainer nodes;
+    nodes.Create (3);
+
+    InternetStackHelper internet;
+    internet.Install (nodes);
+
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+
+    NetDeviceContainer d01 = p2p.Install (NodeContainer (nodes.Get (0), nodes.Get (1)));
+    NetDeviceContainer d12 = p2p.Install (NodeContainer (nodes.Get (1), nodes.Get (2)));
+
+    Ipv4AddressHelper ipv4;
+    ipv4.SetBase ("10.31.1.0", "255.255.255.252");
+    Ipv4InterfaceContainer if01 = ipv4.Assign (d01);
+    ipv4.SetBase ("10.31.2.0", "255.255.255.252");
+    ipv4.Assign (d12);
+
+    OspfAppHelper ospf;
+    ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
+    ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
+    ospf.SetAttribute ("ShortestPathUpdateDelay", TimeValue (MilliSeconds (50)));
+
+    // Fast timings for test runtime.
+    ospf.SetAttribute ("InitialHelloDelay", TimeValue (Seconds (0)));
+    ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (200)));
+    ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
+    ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (200)));
+
+    // When Disable() is used, reset state so Enable() behaves like a clean re-join.
+    ospf.SetAttribute ("ResetStateOnDisable", BooleanValue (true));
+
+    ApplicationContainer apps = ospf.Install (nodes);
+
+    // Configure reachable prefixes (advertised routes) from each node's interfaces.
+    ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
+
+    // Advertise a stub network from node2 so node0 learns it via node1.
+    Ptr<OspfApp> app2 = DynamicCast<OspfApp> (apps.Get (2));
+    NS_TEST_ASSERT_MSG_NE (app2, nullptr, "expected OspfApp");
+    app2->AddReachableAddress (1, Ipv4Address ("10.253.0.0"), Ipv4Mask ("255.255.0.0"),
+                               Ipv4Address ("10.253.0.1"), 1);
+
+    Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
+    NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
+
+    apps.Start (Seconds (0.5));
+    apps.Stop (Seconds (7.0));
+
+    // Disable node2's OSPF to model node removal; re-enable to model node add.
+    Simulator::Schedule (Seconds (2.0), &OspfApp::Disable, app2);
+    Simulator::Schedule (Seconds (4.0), &OspfApp::Enable, app2);
+
+    const std::filesystem::path outDir = CreateTempDirFilename ("ospf-integration-node-toggle");
+    std::filesystem::create_directories (outDir);
+
+    Simulator::Schedule (Seconds (1.7), &OspfApp::PrintRouting, app0, outDir, "before.routes");
+    Simulator::Schedule (Seconds (3.6), &OspfApp::PrintRouting, app0, outDir, "disabled.routes");
+    Simulator::Schedule (Seconds (6.2), &OspfApp::PrintRouting, app0, outDir, "reenabled.routes");
+
+    Simulator::Stop (Seconds (7.0));
+    Simulator::Run ();
+
+    const std::string before = ReadAll (outDir / "before.routes");
+    const std::string disabled = ReadAll (outDir / "disabled.routes");
+    const std::string reenabled = ReadAll (outDir / "reenabled.routes");
+    const std::string gw = Ipv4ToString (if01.GetAddress (1)); // node1 on (0,1)
+
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (before, "10.253.0.0", gw), true,
+                           "node0 should learn 10.253.0.0/16 before disable\n" + before);
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (disabled, "10.253.0.0", gw), false,
+                           "node0 should remove the learned route after node2 disable\n" +
+                               disabled);
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (reenabled, "10.253.0.0", gw), true,
+                           "node0 should re-learn the route after node2 re-enable\n" + reenabled);
 
     Simulator::Destroy ();
   }
@@ -1219,6 +1322,7 @@ public:
     AddTestCase (new OspfGridTopologyIntegrationTestCase (), TestCase::QUICK);
     AddTestCase (new OspfPartialMeshIntegrationTestCase (), TestCase::QUICK);
     AddTestCase (new OspfInterfaceDownRemovesRoutesIntegrationTestCase (), TestCase::QUICK);
+    AddTestCase (new OspfNodeDisableEnableRelearnsRoutesIntegrationTestCase (), TestCase::QUICK);
   }
 };
 

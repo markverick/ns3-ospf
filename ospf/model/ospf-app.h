@@ -81,6 +81,17 @@ public:
   virtual ~OspfApp ();
 
   /**
+   * \brief Enable/disable the OSPF protocol at runtime.
+   *
+   * This is separate from the ns-3 Application lifecycle and is intended to
+   * model "adding/removing" an OSPF router during a simulation by starting or
+   * stopping protocol traffic and state.
+   */
+  void Enable ();
+  void Disable ();
+  bool IsEnabled () const;
+
+  /**
    * \brief Set a pointer to a routing table.
    * \param ipv4Routing Ipv4 routing table
    */
@@ -341,6 +352,8 @@ protected:
   virtual void DoDispose (void);
 
 private:
+  void ResetStateForRestart ();
+  void FlushOspfRoutes ();
   friend class OspfAppIo;
   friend class OspfNeighborFsm;
   friend class OspfLsaProcessor;
@@ -730,6 +743,10 @@ private:
   Address m_local; //!< local multicast address
 
   bool m_doInitialize = true;
+
+  bool m_enabled = true;
+  bool m_protocolRunning = false;
+  bool m_resetStateOnDisable = false;
 
   // Area
   /**

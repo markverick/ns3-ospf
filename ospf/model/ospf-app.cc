@@ -112,6 +112,11 @@ OspfApp::GetTypeId (void)
                          TimeValue (MilliSeconds (200)),
                          MakeTimeAccessor (&OspfApp::m_interfaceSyncInterval),
                          MakeTimeChecker ())
+            .AddAttribute ("ResetStateOnDisable",
+                   "When Disable() is called, clear neighbor/LSDB state and remove OSPF-installed routes so Enable() behaves like a clean re-join",
+                           BooleanValue (false),
+                   MakeBooleanAccessor (&OspfApp::m_resetStateOnDisable),
+                   MakeBooleanChecker ())
           .AddTraceSource ("Tx", "A new packet is created and is sent",
                            MakeTraceSourceAccessor (&OspfApp::m_txTrace),
                            "ns3::Packet::TracedCallback")

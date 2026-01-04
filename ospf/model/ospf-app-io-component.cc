@@ -14,6 +14,10 @@ OspfAppIo::OspfAppIo (OspfApp &app)
 void
 OspfAppIo::SendHello ()
 {
+  if (!m_app.IsEnabled ())
+    {
+      return;
+    }
   Address helloSocketAddress;
   for (uint32_t i = 1; i < m_app.m_helloSockets.size (); i++)
     {

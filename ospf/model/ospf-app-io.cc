@@ -61,6 +61,10 @@ OspfApp::SendToNeighborKeyedInterval (Time interval, uint32_t ifIndex, Ptr<Packe
 void
 OspfApp::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
 {
+  if (!IsEnabled ())
+    {
+      return;
+    }
   if (m_sockets.empty ())
     {
       NS_LOG_INFO ("No sockets to flood LSU");
@@ -80,7 +84,10 @@ OspfApp::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
 void
 OspfApp::HandleRead (Ptr<Socket> socket)
 {
-
+  if (!IsEnabled ())
+    {
+      return;
+    }
   m_io->HandleRead (socket);
 }
 

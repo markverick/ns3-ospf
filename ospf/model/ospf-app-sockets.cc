@@ -133,6 +133,10 @@ OspfAppSockets::CloseSockets ()
 void
 OspfAppSockets::ScheduleTransmitHello (Time dt)
 {
+  if (!m_app.IsEnabled ())
+    {
+      return;
+    }
   m_app.m_helloEvent =
       Simulator::Schedule (dt + MilliSeconds (m_app.m_jitterRv->GetValue ()), &OspfApp::SendHello, &m_app);
 }
