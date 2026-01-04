@@ -46,6 +46,7 @@ def build(bld):
         'test/ospf-packets-serialization-test.cc',
         'test/ospf-io-robustness-test.cc',
         'test/ospf-neighbor-interface-test.cc',
+        'test/ospf-interface-tracking-unit-test.cc',
         'test/ospf-state-serializer-test.cc',
         'test/ospf-integration-test.cc',
         ]

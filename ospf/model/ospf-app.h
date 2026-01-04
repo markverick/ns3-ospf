@@ -56,6 +56,8 @@ class OspfAppLogging;
 class OspfAppRng;
 class OspfAreaLeaderController;
 class OspfRoutingEngine;
+class Ipv4;
+class Ipv4InterfaceAddress;
  
 /**
  * \ingroup applications 
@@ -366,6 +368,15 @@ private:
   void InitializeSockets ();
   void CancelHelloTimeouts ();
   void CloseSockets ();
+
+  // Optional: keep m_boundDevices/m_ospfInterfaces in sync with Ipv4 interfaces.
+  void StartInterfaceSyncIfEnabled ();
+  void StopInterfaceSync ();
+  void InterfaceSyncTick ();
+  bool SyncInterfacesFromIpv4 ();
+  static bool SelectPrimaryInterfaceAddress (Ptr<Ipv4> ipv4, uint32_t ifIndex,
+                                             Ipv4InterfaceAddress &out);
+  void HandleInterfaceDown (uint32_t ifIndex);
 
   /**
    * \brief Helper to schedule hello transmission.
@@ -756,6 +767,11 @@ private:
       m_helloTimeouts; //!< Timeout Events of not receiving Hello, per interface, per neighbor
   Time m_routerDeadInterval; //!< Router Dead Interval for Hello to become Down
   EventId m_helloEvent; //!< Event to send the next hello packet
+
+  // Interface auto-tracking (opt-in)
+  bool m_autoSyncInterfaces = false;
+  Time m_interfaceSyncInterval = MilliSeconds (200);
+  EventId m_interfaceSyncEvent;
 
   // Interface
   std::vector<Ptr<OspfInterface>> m_ospfInterfaces; // !< Router interfaces

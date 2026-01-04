@@ -18,6 +18,14 @@ OspfAppIo::SendHello ()
   for (uint32_t i = 1; i < m_app.m_helloSockets.size (); i++)
     {
       auto socket = m_app.m_helloSockets[i];
+      if (socket == nullptr)
+        {
+          continue;
+        }
+      if (i >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[i] == nullptr)
+        {
+          continue;
+        }
       socket->GetSockName (helloSocketAddress);
       Ptr<Packet> p = ConstructHelloPacket (
           Ipv4Address::ConvertFrom (m_app.m_routerId), m_app.m_ospfInterfaces[i]->GetArea (),
@@ -50,6 +58,11 @@ void
 OspfAppIo::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteIp)
 {
   Address ackSocketAddress;
+  if (ifIndex >= m_app.m_sockets.size () || m_app.m_sockets[ifIndex] == nullptr)
+    {
+      NS_LOG_WARN ("SendAck dropped (no socket) ifIndex=" << ifIndex);
+      return;
+    }
   auto socket = m_app.m_sockets[ifIndex];
   socket->GetSockName (ackSocketAddress);
   m_app.m_txTrace (ackPacket);
@@ -62,6 +75,10 @@ OspfAppIo::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteI
 void
 OspfAppIo::SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbor> neighbor)
 {
+  if (ifIndex >= m_app.m_sockets.size () || m_app.m_sockets[ifIndex] == nullptr)
+    {
+      return;
+    }
   auto socket = m_app.m_sockets[ifIndex];
   m_app.m_txTrace (packet);
 
@@ -73,7 +90,7 @@ OspfAppIo::SendToNeighborInterval (Time interval, uint32_t ifIndex, Ptr<Packet> 
                                    Ptr<OspfNeighbor> neighbor)
 {
   // No sockets to send
-  if (m_app.m_sockets.empty ())
+  if (m_app.m_sockets.empty () || ifIndex >= m_app.m_sockets.size () || m_app.m_sockets[ifIndex] == nullptr)
     {
       neighbor->ClearKeyedTimeouts ();
       return;
@@ -97,7 +114,7 @@ OspfAppIo::SendToNeighborKeyedInterval (Time interval, uint32_t ifIndex, Ptr<Pac
                                         Ptr<OspfNeighbor> neighbor, LsaHeader::LsaKey lsaKey)
 {
   // No sockets to send
-  if (m_app.m_sockets.empty ())
+  if (m_app.m_sockets.empty () || ifIndex >= m_app.m_sockets.size () || m_app.m_sockets[ifIndex] == nullptr)
     return;
   SendToNeighbor (ifIndex, packet, neighbor);
   // Retransmit only when the neighbor >= TwoWay (may end up being Full after propagation delay)

@@ -20,6 +20,19 @@ OspfAppSockets::InitializeSockets ()
   m_app.m_lsaSockets.emplace_back (nullptr);
   for (uint32_t i = 1; i < m_app.m_boundDevices.GetN (); i++)
     {
+      // In auto-sync mode, skip sockets for interfaces that are currently down or missing.
+      if (m_app.m_autoSyncInterfaces)
+        {
+          if (i >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[i] == nullptr ||
+              !m_app.m_ospfInterfaces[i]->IsUp ())
+            {
+              m_app.m_helloSockets.emplace_back (nullptr);
+              m_app.m_lsaSockets.emplace_back (nullptr);
+              m_app.m_sockets.emplace_back (nullptr);
+              continue;
+            }
+        }
+
       // Create sockets
       TypeId tid = TypeId::LookupByName ("ns3::Ipv4RawSocketFactory");
 
@@ -89,19 +102,28 @@ OspfAppSockets::CloseSockets ()
   for (uint32_t i = 1; i < m_app.m_sockets.size (); i++)
     {
       // Hello
-      m_app.m_helloSockets[i]->Close ();
-      m_app.m_helloSockets[i]->SetRecvCallback (MakeNullCallback<void, Ptr<Socket>> ());
-      m_app.m_helloSockets[i] = 0;
+      if (m_app.m_helloSockets[i] != nullptr)
+        {
+          m_app.m_helloSockets[i]->Close ();
+          m_app.m_helloSockets[i]->SetRecvCallback (MakeNullCallback<void, Ptr<Socket>> ());
+        }
+      m_app.m_helloSockets[i] = nullptr;
 
       // LSA
-      m_app.m_lsaSockets[i]->Close ();
-      m_app.m_lsaSockets[i]->SetRecvCallback (MakeNullCallback<void, Ptr<Socket>> ());
-      m_app.m_lsaSockets[i] = 0;
+      if (m_app.m_lsaSockets[i] != nullptr)
+        {
+          m_app.m_lsaSockets[i]->Close ();
+          m_app.m_lsaSockets[i]->SetRecvCallback (MakeNullCallback<void, Ptr<Socket>> ());
+        }
+      m_app.m_lsaSockets[i] = nullptr;
 
       // Unicast
-      m_app.m_sockets[i]->Close ();
-      m_app.m_sockets[i]->SetRecvCallback (MakeNullCallback<void, Ptr<Socket>> ());
-      m_app.m_sockets[i] = 0;
+      if (m_app.m_sockets[i] != nullptr)
+        {
+          m_app.m_sockets[i]->Close ();
+          m_app.m_sockets[i]->SetRecvCallback (MakeNullCallback<void, Ptr<Socket>> ());
+        }
+      m_app.m_sockets[i] = nullptr;
     }
   m_app.m_helloSockets.clear ();
   m_app.m_lsaSockets.clear ();

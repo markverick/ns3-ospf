@@ -6,6 +6,9 @@
 #include "ospf-app-rng.h"
 #include "ospf-app-sockets.h"
 
+#include "ns3/ipv4.h"
+#include "ns3/ipv4-interface-address.h"
+
 namespace ns3 {
 void
 OspfApp::DoDispose (void)
@@ -51,6 +54,8 @@ OspfApp::StartApplication (void)
 
   InitializeLoggingIfEnabled ();
   InitializeRandomVariables ();
+
+  StartInterfaceSyncIfEnabled ();
   InitializeSockets ();
   // Start sending Hello
   ScheduleTransmitHello (m_initialHelloDelay);
@@ -79,6 +84,7 @@ OspfApp::StopApplication ()
 {
   NS_LOG_FUNCTION (this);
 
+  StopInterfaceSync ();
   CancelHelloTimeouts ();
   CloseSockets ();
   m_lsaTimingLog.close ();
@@ -88,6 +94,58 @@ void
 OspfApp::ScheduleTransmitHello (Time dt)
 {
   m_socketsMgr->ScheduleTransmitHello (dt);
+}
+
+void
+OspfApp::StartInterfaceSyncIfEnabled ()
+{
+  if (!m_autoSyncInterfaces)
+    {
+      return;
+    }
+
+  // Seed from current Ipv4 interfaces before sockets are created.
+  SyncInterfacesFromIpv4 ();
+
+  if (m_interfaceSyncInterval.IsZero ())
+    {
+      return;
+    }
+  m_interfaceSyncEvent = Simulator::Schedule (m_interfaceSyncInterval, &OspfApp::InterfaceSyncTick, this);
+}
+
+void
+OspfApp::StopInterfaceSync ()
+{
+  m_interfaceSyncEvent.Remove ();
+}
+
+void
+OspfApp::InterfaceSyncTick ()
+{
+  if (!m_autoSyncInterfaces)
+    {
+      return;
+    }
+
+  const bool changed = SyncInterfacesFromIpv4 ();
+  if (changed)
+    {
+      // Rebind sockets to match the current interface set.
+      CancelHelloTimeouts ();
+      CloseSockets ();
+      InitializeSockets ();
+
+      // Restart hello scheduling against the new socket set.
+      m_helloEvent.Remove ();
+      ScheduleTransmitHello (MilliSeconds (0));
+    }
+
+  if (!m_interfaceSyncInterval.IsZero ())
+    {
+      m_interfaceSyncEvent =
+          Simulator::Schedule (m_interfaceSyncInterval, &OspfApp::InterfaceSyncTick, this);
+    }
 }
 
 } // namespace ns3

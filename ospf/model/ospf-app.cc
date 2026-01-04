@@ -102,6 +102,16 @@ OspfApp::GetTypeId (void)
           .AddAttribute ("ShortestPathUpdateDelay", "Delay to re-calculate the shortest path",
                          TimeValue (Seconds (5)),
                          MakeTimeAccessor (&OspfApp::m_shortestPathUpdateDelay), MakeTimeChecker ())
+          .AddAttribute ("AutoSyncInterfaces",
+                         "If true, OSPF automatically tracks the node's Ipv4 interfaces (up/down/add/remove) and updates its bound interfaces accordingly.",
+                         BooleanValue (false),
+                         MakeBooleanAccessor (&OspfApp::m_autoSyncInterfaces),
+                         MakeBooleanChecker ())
+          .AddAttribute ("InterfaceSyncInterval",
+                         "Polling interval for Ipv4 interface synchronization when AutoSyncInterfaces is enabled.",
+                         TimeValue (MilliSeconds (200)),
+                         MakeTimeAccessor (&OspfApp::m_interfaceSyncInterval),
+                         MakeTimeChecker ())
           .AddTraceSource ("Tx", "A new packet is created and is sent",
                            MakeTraceSourceAccessor (&OspfApp::m_txTrace),
                            "ns3::Packet::TracedCallback")

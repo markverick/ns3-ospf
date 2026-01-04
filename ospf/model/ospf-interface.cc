@@ -179,6 +179,18 @@ OspfInterface::GetNeighbors ()
   return m_neighbors;
 }
 
+bool
+OspfInterface::IsUp () const
+{
+  return m_isUp;
+}
+
+void
+OspfInterface::SetUp (bool isUp)
+{
+  m_isUp = isUp;
+}
+
 void
 OspfInterface::AddNeighbor (Ptr<OspfNeighbor> neighbor)
 {
@@ -225,6 +237,12 @@ OspfInterface::IsNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp)
         }
     }
   return false;
+}
+
+void
+OspfInterface::ClearNeighbors ()
+{
+  m_neighbors.clear ();
 }
 
 // Get a list of <neighbor's router ID, router's IP address, neighbor's areaId>

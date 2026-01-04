@@ -2,6 +2,10 @@
 
 #include "ospf-app-private.h"
 
+#include "ns3/channel.h"
+#include "ns3/ipv4.h"
+#include "ns3/ipv4-interface-address.h"
+
 namespace ns3 {
 void
 OspfApp::SetRouting (Ptr<Ipv4StaticRouting> routing)
@@ -62,6 +66,199 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
         }
       m_ospfInterfaces.emplace_back (ospfInterface);
     }
+}
+
+bool
+OspfApp::SelectPrimaryInterfaceAddress (Ptr<Ipv4> ipv4, uint32_t ifIndex, Ipv4InterfaceAddress &out)
+{
+  if (ipv4 == nullptr || ifIndex >= ipv4->GetNInterfaces ())
+    {
+      return false;
+    }
+
+  const uint32_t nAddr = ipv4->GetNAddresses (ifIndex);
+  for (uint32_t a = 0; a < nAddr; ++a)
+    {
+      const auto ifAddr = ipv4->GetAddress (ifIndex, a);
+      const auto ip = ifAddr.GetAddress ();
+      if (ip.IsLocalhost () || ip == Ipv4Address::GetAny ())
+        {
+          continue;
+        }
+      out = ifAddr;
+      return true;
+    }
+
+  return false;
+}
+
+void
+OspfApp::HandleInterfaceDown (uint32_t ifIndex)
+{
+  if (ifIndex >= m_ospfInterfaces.size () || m_ospfInterfaces[ifIndex] == nullptr)
+    {
+      return;
+    }
+
+  auto interface = m_ospfInterfaces[ifIndex];
+  auto neighbors = interface->GetNeighbors ();
+  for (auto n : neighbors)
+    {
+      FallbackToDown (ifIndex, n);
+    }
+  interface->ClearNeighbors ();
+}
+
+bool
+OspfApp::SyncInterfacesFromIpv4 ()
+{
+  if (!m_autoSyncInterfaces)
+    {
+      return false;
+    }
+
+  Ptr<Ipv4> ipv4 = GetNode ()->GetObject<Ipv4> ();
+  if (ipv4 == nullptr)
+    {
+      NS_LOG_WARN ("AutoSyncInterfaces enabled but node has no Ipv4 object");
+      return false;
+    }
+
+  const uint32_t nIf = ipv4->GetNInterfaces ();
+  if (nIf == 0)
+    {
+      return false;
+    }
+
+  bool changed = false;
+
+  NetDeviceContainer newDevices;
+  for (uint32_t i = 0; i < nIf; ++i)
+    {
+      newDevices.Add (ipv4->GetNetDevice (i));
+    }
+
+  if (m_boundDevices.GetN () != newDevices.GetN ())
+    {
+      changed = true;
+    }
+  else
+    {
+      for (uint32_t i = 0; i < newDevices.GetN (); ++i)
+        {
+          if (m_boundDevices.Get (i) != newDevices.Get (i))
+            {
+              changed = true;
+              break;
+            }
+        }
+    }
+  m_boundDevices = newDevices;
+
+  if (m_lastHelloReceived.size () != nIf)
+    {
+      m_lastHelloReceived.resize (nIf);
+      changed = true;
+    }
+  if (m_helloTimeouts.size () != nIf)
+    {
+      m_helloTimeouts.resize (nIf);
+      changed = true;
+    }
+
+  if (m_ospfInterfaces.size () != nIf)
+    {
+      m_ospfInterfaces.resize (nIf);
+      changed = true;
+    }
+
+  if (m_ospfInterfaces[0] == nullptr)
+    {
+      m_ospfInterfaces[0] = Create<OspfInterface> ();
+      changed = true;
+    }
+
+  for (uint32_t i = 1; i < nIf; ++i)
+    {
+      if (m_ospfInterfaces[i] == nullptr)
+        {
+          m_ospfInterfaces[i] = Create<OspfInterface> ();
+          changed = true;
+        }
+
+      Ipv4InterfaceAddress ifAddr;
+      const bool hasAddr = SelectPrimaryInterfaceAddress (ipv4, i, ifAddr);
+      const auto ip = hasAddr ? ifAddr.GetAddress () : Ipv4Address::GetAny ();
+      const auto mask = hasAddr ? ifAddr.GetMask () : Ipv4Mask (0xffffffff);
+      const bool isUp = ipv4->IsUp (i) && hasAddr;
+
+      auto ospfIf = m_ospfInterfaces[i];
+      if (ospfIf->GetAddress () != ip)
+        {
+          ospfIf->SetAddress (ip);
+          changed = true;
+        }
+      if (ospfIf->GetMask () != mask)
+        {
+          ospfIf->SetMask (mask);
+          changed = true;
+        }
+
+      const bool wasUp = ospfIf->IsUp ();
+      if (wasUp && !isUp)
+        {
+          HandleInterfaceDown (i);
+          changed = true;
+        }
+      if (wasUp != isUp)
+        {
+          ospfIf->SetUp (isUp);
+          changed = true;
+        }
+
+      // Keep common parameters aligned with app attributes.
+      ospfIf->SetHelloInterval (m_helloInterval.GetMilliSeconds ());
+      ospfIf->SetRouterDeadInterval (m_routerDeadInterval.GetMilliSeconds ());
+      ospfIf->SetArea (m_areaId);
+      ospfIf->SetMetric (1);
+      if (m_boundDevices.Get (i) != nullptr)
+        {
+          ospfIf->SetMtu (m_boundDevices.Get (i)->GetMtu ());
+        }
+
+      // Gateway selection (only meaningful for point-to-point).
+      Ipv4Address gw = Ipv4Address::GetBroadcast ();
+      if (m_boundDevices.Get (i) != nullptr && m_boundDevices.Get (i)->IsPointToPoint ())
+        {
+          auto dev = m_boundDevices.Get (i);
+          Ptr<Channel> ch = DynamicCast<Channel> (dev->GetChannel ());
+          if (ch != nullptr)
+            {
+              for (uint32_t j = 0; j < ch->GetNDevices (); j++)
+                {
+                  Ptr<NetDevice> remoteDev = ch->GetDevice (j);
+                  if (remoteDev != nullptr && remoteDev != dev)
+                    {
+                      auto remoteIpv4 = remoteDev->GetNode ()->GetObject<Ipv4> ();
+                      Ipv4InterfaceAddress remoteIfAddr;
+                      if (SelectPrimaryInterfaceAddress (remoteIpv4, remoteDev->GetIfIndex (),
+                                                         remoteIfAddr))
+                        {
+                          gw = remoteIfAddr.GetAddress ();
+                        }
+                      break;
+                    }
+                }
+            }
+        }
+      if (ospfIf->GetGateway () != gw)
+        {
+          ospfIf->SetGateway (gw);
+          changed = true;
+        }
+    }
+
+  return changed;
 }
 
 void
