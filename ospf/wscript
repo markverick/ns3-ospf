@@ -46,6 +46,7 @@ def build(bld):
         'test/ospf-io-robustness-test.cc',
         'test/ospf-neighbor-interface-test.cc',
         'test/ospf-state-serializer-test.cc',
+        'test/ospf-integration-test.cc',
         ]
     # Tests encapsulating example programs should be listed here
     if (bld.env['ENABLE_EXAMPLES']):
