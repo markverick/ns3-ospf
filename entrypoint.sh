@@ -13,13 +13,13 @@ if [ -z "$ospf_suites" ]; then
   exit 1
 fi
 
-suite_args=""
-for s in $ospf_suites; do
-  suite_args="$suite_args -s $s"
-done
-
 echo "Running OSPF test suites:" 
 echo "$ospf_suites" | sed 's/^/ - /'
 
-# shellcheck disable=SC2086
-./test.py --nowaf $suite_args -v
+# IMPORTANT: ns-3's test.py only runs the last provided -s when multiple -s
+# options are given in a single invocation. Run each suite separately.
+for s in $ospf_suites; do
+  echo ""
+  echo "=== Running $s ==="
+  ./test.py --nowaf -s "$s" -v
+done
