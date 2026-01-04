@@ -16,14 +16,14 @@ jobs:
           fetch-depth: 1
 
       - name: Cache Docker Image
+        id: docker-cache
         uses: actions/cache@v4
         with:
           path: /tmp/docker-cache
           key: docker-${{ runner.os }}-${{ hashFiles('.github/actions/ns-3-docker/Dockerfile', 'entrypoint.sh', '.github/workflows/main.yml') }}
-          restore-keys: |
-            docker-${{ runner.os }}-
 
       - name: Load Cached Docker Image
+        if: steps.docker-cache.outputs.cache-hit == 'true'
         run: |
           if [ -f "/tmp/docker-cache/docker-image.tar" ]; then
             docker load -i /tmp/docker-cache/docker-image.tar
