@@ -4,6 +4,21 @@ def build(bld):
     module = bld.create_ns3_module('ospf', ['core', 'internet', 'applications', 'point-to-point', 'mobility', 'internet-apps'])
     module.source = [
         'model/ospf-app.cc',
+        'model/ospf-app-config.cc',
+        'model/ospf-app-lifecycle.cc',
+        'model/ospf-app-io.cc',
+        'model/ospf-app-io-component.cc',
+        'model/ospf-app-neighbor.cc',
+        'model/ospf-app-neighbor-fsm.cc',
+        'model/ospf-app-lsa-routing.cc',
+            'model/ospf-app-sockets.cc',
+        'model/ospf-app-logging.cc',
+        'model/ospf-app-rng.cc',
+            'model/ospf-app-area-leader-controller.cc',
+        'model/ospf-app-routing-engine.cc',
+            'model/ospf-app-lsa-processor.cc',
+        'model/ospf-app-import-export.cc',
+        'model/ospf-app-state-serializer.cc',
         'model/ospf-interface.cc',
         'model/ospf-neighbor.cc',
         'model/packets/ospf-header.cc',
@@ -19,11 +34,22 @@ def build(bld):
         'model/lsa/area-lsa.cc',
         'model/lsa/l2-summary-lsa.cc',
         'helper/ospf-app-helper.cc',
+        'helper/ospf-packet-helper.cc',
         'helper/ospf-runtime-helper.cc',
         ]
 
     module_test = bld.create_ns3_module_test_library('ospf')
     module_test.source = [
+        'test/ospf-app-helper-unit-test.cc',
+        'test/ospf-packet-helper-test.cc',
+        'test/ospf-lsa-serialization-test.cc',
+        'test/ospf-packets-serialization-test.cc',
+        'test/ospf-io-robustness-test.cc',
+        'test/ospf-neighbor-interface-test.cc',
+        'test/ospf-interface-tracking-unit-test.cc',
+        'test/ospf-enable-disable-unit-test.cc',
+        'test/ospf-state-serializer-test.cc',
+        'test/ospf-integration-test.cc',
         ]
     # Tests encapsulating example programs should be listed here
     if (bld.env['ENABLE_EXAMPLES']):

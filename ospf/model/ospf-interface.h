@@ -79,6 +79,9 @@ public:
 
   std::vector<Ptr<OspfNeighbor>> GetNeighbors ();
 
+  bool IsUp () const;
+  void SetUp (bool isUp);
+
   void AddNeighbor (Ptr<OspfNeighbor> neighbor);
 
   Ptr<OspfNeighbor> AddNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp,
@@ -87,6 +90,8 @@ public:
   bool RemoveNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp);
 
   bool IsNeighbor (Ipv4Address remoteRouterId, Ipv4Address remoteIp);
+
+  void ClearNeighbors ();
 
   //  Vector of <neighbor's routerIds, its own interface ipAddress>
   std::vector<RouterLink> GetActiveRouterLinks ();
@@ -101,6 +106,8 @@ private:
   uint32_t m_metric;
   uint32_t m_mtu;
   std::vector<Ptr<OspfNeighbor>> m_neighbors;
+
+  bool m_isUp = true;
 };
 } // namespace ns3
 

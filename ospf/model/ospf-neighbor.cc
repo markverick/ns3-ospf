@@ -132,7 +132,7 @@ OspfNeighbor::IncrementDDSeqNum ()
 void
 OspfNeighbor::ClearDbdQueue ()
 {
-  while (m_dbdQueue.empty ())
+  while (!m_dbdQueue.empty ())
     {
       m_dbdQueue.pop ();
     }
@@ -376,10 +376,11 @@ OspfNeighbor::RemoveKeyedTimeout (LsaHeader::LsaKey lsaKey)
 void
 OspfNeighbor::ClearKeyedTimeouts (void)
 {
-  for (auto pair : m_keyedTimeouts)
+  for (auto &pair : m_keyedTimeouts)
     {
       pair.second.Remove ();
     }
+  m_keyedTimeouts.clear ();
 }
 
 // Sequential Event

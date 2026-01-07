@@ -26,6 +26,8 @@
 #include "area-lsa.h"
 #include "router-lsa.h"
 
+#include <vector>
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("AreaLsa");
@@ -63,7 +65,11 @@ AreaLsa::AddLink (AreaLink link)
 AreaLink
 AreaLsa::GetLink (uint32_t index)
 {
-  NS_ASSERT_MSG (index >= 0 && index < m_links.size (), "Invalid link index");
+  if (index >= m_links.size ())
+    {
+      NS_LOG_WARN ("GetLink: out-of-range index=" << index << " size=" << m_links.size ());
+      return AreaLink (0, 0, 0);
+    }
   return m_links[index];
 }
 
@@ -147,12 +153,26 @@ AreaLsa::Deserialize (Buffer::Iterator start)
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
+  // Fixed header is 4 bytes: reserved (2) + link count (2)
+  if (i.GetRemainingSize () < 4)
+    {
+      NS_LOG_WARN ("AreaLsa truncated: missing fixed header");
+      m_links.clear ();
+      return 0;
+    }
+
   i.Next (2);
   uint16_t linkNum = i.ReadNtohU16 ();
 
   m_links.clear ();
+  const uint32_t linkSize = 12;
   for (uint16_t j = 0; j < linkNum; j++)
     {
+      if (i.GetRemainingSize () < linkSize)
+        {
+          NS_LOG_WARN ("AreaLsa truncated: incomplete link entry");
+          break;
+        }
       uint32_t areaId = i.ReadNtohU32 ();
       uint32_t ipAddress = i.ReadNtohU32 ();
       i.Next (2);
@@ -167,11 +187,11 @@ AreaLsa::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize ();
-  uint8_t *payload = new uint8_t[payloadSize];
-  packet->CopyData (payload, payloadSize);
+  std::vector<uint8_t> payload (payloadSize);
+  packet->CopyData (payload.data (), payloadSize);
   Buffer buffer;
   buffer.AddAtStart (payloadSize);
-  buffer.Begin ().Write (payload, payloadSize);
+  buffer.Begin ().Write (payload.data (), payloadSize);
   Deserialize (buffer.Begin ());
   return payloadSize;
 }

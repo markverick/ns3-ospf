@@ -30,8 +30,27 @@
 
 #include <map>
 #include <set>
+#include <tuple>
 
 namespace ns3 {
+
+namespace {
+
+Ptr<OspfApp>
+FindOspfApp (const Ptr<Node> &node)
+{
+  for (uint32_t i = 0; i < node->GetNApplications (); ++i)
+    {
+      auto app = DynamicCast<OspfApp> (node->GetApplication (i));
+      if (app != nullptr)
+        {
+          return app;
+        }
+    }
+  return nullptr;
+}
+
+} // namespace
 
 OspfAppHelper::OspfAppHelper ()
 {
@@ -74,6 +93,41 @@ OspfAppHelper::Install (Ptr<Node> n) const
 }
 
 void
+OspfAppHelper::ConfigureReachablePrefixesFromInterfaces (NodeContainer c) const
+{
+  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+    {
+      Ptr<Node> node = *i;
+      Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+      if (ipv4 == nullptr)
+        {
+          continue;
+        }
+      auto app = FindOspfApp (node);
+      if (app == nullptr)
+        {
+          continue;
+        }
+
+      std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>> reachable;
+      for (uint32_t ifIndex = 1; ifIndex < node->GetNDevices (); ++ifIndex)
+        {
+          Ptr<NetDevice> dev = node->GetDevice (ifIndex);
+          if (dev == nullptr || !dev->IsPointToPoint ())
+            {
+              continue;
+            }
+          const auto ifAddr = ipv4->GetAddress (ifIndex, 0);
+          const auto addr = ifAddr.GetAddress ();
+          const auto mask = ifAddr.GetMask ();
+          const auto dest = addr.CombineMask (mask);
+          reachable.emplace_back (ifIndex, dest.Get (), mask.Get (), addr.Get (), 1);
+        }
+      app->SetReachableAddresses (std::move (reachable));
+    }
+}
+
+void
 OspfAppHelper::Preload (NodeContainer c)
 {
   // Ipv4Address remoteRouterId, Ipv4Address remoteIp, uint32_t remoteAreaId,
@@ -87,7 +141,15 @@ OspfAppHelper::Preload (NodeContainer c)
     {
       Ptr<Node> node = *i;
       Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-      auto app = DynamicCast<OspfApp> (node->GetApplication (0));
+      if (ipv4 == nullptr)
+        {
+          continue;
+        }
+      auto app = FindOspfApp (node);
+      if (app == nullptr)
+        {
+          continue;
+        }
 
       areaMembers[app->GetArea ()].insert (app->GetRouterId ().Get ());
       areaMasks[app->GetArea ()] = app->GetAreaMask ();
@@ -99,6 +161,7 @@ OspfAppHelper::Preload (NodeContainer c)
 
       // Router LSA and Neighbor Status
       Ptr<RouterLsa> routerLsa = Create<RouterLsa> ();
+      std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>> reachable;
       auto numIf = node->GetNDevices ();
       for (uint32_t ifIndex = 0; ifIndex < numIf; ifIndex++)
         {
@@ -108,7 +171,15 @@ OspfAppHelper::Preload (NodeContainer c)
               // TODO: Only support p2p for now
               continue;
             }
-          selfIp = ipv4->GetAddress (dev->GetIfIndex (), 0).GetAddress ();
+          auto selfIfAddr = ipv4->GetAddress (dev->GetIfIndex (), 0);
+          selfIp = selfIfAddr.GetAddress ();
+
+          // Populate reachable (advertised) prefixes via SetReachableAddresses().
+          const auto mask = selfIfAddr.GetMask ();
+          const auto dest = selfIp.CombineMask (mask);
+          // Tuple is (ifIndex, dest, mask, gateway, metric).
+          reachable.emplace_back (dev->GetIfIndex (), dest.Get (), mask.Get (), selfIp.Get (), 1);
+
           Ptr<NetDevice> remoteDev;
           auto ch = DynamicCast<Channel> (dev->GetChannel ());
           for (uint32_t j = 0; j < ch->GetNDevices (); j++)
@@ -118,7 +189,15 @@ OspfAppHelper::Preload (NodeContainer c)
                 {
                   // Set as a gateway
                   auto remoteIpv4 = remoteDev->GetNode ()->GetObject<Ipv4> ();
-                  auto remoteApp = DynamicCast<OspfApp> (remoteDev->GetNode ()->GetApplication (0));
+                  if (remoteIpv4 == nullptr)
+                    {
+                      continue;
+                    }
+                  auto remoteApp = FindOspfApp (remoteDev->GetNode ());
+                  if (remoteApp == nullptr)
+                    {
+                      continue;
+                    }
                   remoteRouterId = remoteApp->GetRouterId ();
                   remoteIp = remoteIpv4->GetAddress (remoteDev->GetIfIndex (), 0).GetAddress ();
                   remoteAreaId = remoteApp->GetArea ();
@@ -153,17 +232,17 @@ OspfAppHelper::Preload (NodeContainer c)
       routerLsaHeader.SetSeqNum (1);
       lsaList[app->GetArea ()].emplace_back (routerLsaHeader, routerLsa);
 
-      // AS External LSA
-      Ptr<L1SummaryLsa> l1SummaryLsa = Create<L1SummaryLsa> ();
-      l1SummaryLsa->AddRoute (
-          SummaryRoute (app->GetRouterId ().Get (), app->GetAreaMask ().Get (), 1));
-      LsaHeader l1SummaryLsaHeader (std::make_tuple (LsaHeader::LsType::L1SummaryLSAs,
-                                                     app->GetRouterId ().Get (),
-                                                     app->GetRouterId ().Get ()));
+      // Configure reachable prefixes, then retrieve the app-generated L1SummaryLSA for seeding.
+      app->SetReachableAddresses (std::move (reachable));
 
-      l1SummaryLsaHeader.SetLength (20 + l1SummaryLsa->GetSerializedSize ());
-      l1SummaryLsaHeader.SetSeqNum (1);
-      lsaList[app->GetArea ()].emplace_back (l1SummaryLsaHeader, l1SummaryLsa);
+      const auto l1Key =
+          std::make_tuple (LsaHeader::LsType::L1SummaryLSAs, app->GetRouterId ().Get (),
+                           app->GetRouterId ().Get ());
+      auto l1 = app->FetchLsa (l1Key);
+      if (l1.second != nullptr)
+        {
+          lsaList[app->GetArea ()].emplace_back (l1.first.Copy (), l1.second->Copy ());
+        }
     }
 
   // Proxied LSA
@@ -187,7 +266,16 @@ OspfAppHelper::Preload (NodeContainer c)
     {
       Ptr<Node> node = *i;
       Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-      auto app = DynamicCast<OspfApp> (node->GetApplication (0));
+      if (ipv4 == nullptr)
+        {
+          continue;
+        }
+      auto app = FindOspfApp (node);
+      if (app == nullptr)
+        {
+          continue;
+        }
+
       // Process area-leader LSAs
       bool isLeader = app->GetRouterId ().Get () == *areaMembers[app->GetArea ()].begin ();
       app->SetDoInitialize (false);

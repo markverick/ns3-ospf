@@ -25,6 +25,8 @@
 #include "ns3/packet.h"
 #include "l1-summary-lsa.h"
 
+#include <vector>
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("L1SummaryLsa");
@@ -134,10 +136,23 @@ L1SummaryLsa::Deserialize (Buffer::Iterator start)
   Buffer::Iterator i = start;
 
   m_routes.clear ();
+
+  if (i.GetRemainingSize () < 4)
+    {
+      NS_LOG_WARN ("L1SummaryLsa truncated: missing route count");
+      return 0;
+    }
+
   uint32_t routeNum = i.ReadNtohU32 ();
   uint32_t addr, mask, metric;
+  const uint32_t routeSize = 12;
   for (uint32_t j = 0; j < routeNum; j++)
     {
+      if (i.GetRemainingSize () < routeSize)
+        {
+          NS_LOG_WARN ("L1SummaryLsa truncated: incomplete route entry");
+          break;
+        }
       addr = i.ReadNtohU32 ();
       mask = i.ReadNtohU32 ();
       metric = i.ReadNtohU32 ();
@@ -152,11 +167,11 @@ L1SummaryLsa::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize ();
-  uint8_t *payload = new uint8_t[payloadSize];
-  packet->CopyData (payload, payloadSize);
+  std::vector<uint8_t> payload (payloadSize);
+  packet->CopyData (payload.data (), payloadSize);
   Buffer buffer;
   buffer.AddAtStart (payloadSize);
-  buffer.Begin ().Write (payload, payloadSize);
+  buffer.Begin ().Write (payload.data (), payloadSize);
   Deserialize (buffer.Begin ());
   return payloadSize;
 }

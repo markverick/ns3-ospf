@@ -25,6 +25,8 @@
 #include "ns3/packet.h"
 #include "ospf-dbd.h"
 
+#include <vector>
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("OspfDbd");
@@ -163,7 +165,12 @@ OspfDbd::HasLsaHeader (LsaHeader lsaHeader)
 LsaHeader
 OspfDbd::GetLsaHeader (uint32_t index)
 {
-  NS_ASSERT (index < m_lsaHeaders.size ());
+  if (index >= m_lsaHeaders.size ())
+    {
+      NS_LOG_WARN ("GetLsaHeader out of range: " << index << " (size=" << m_lsaHeaders.size ()
+                                                  << ")");
+      return LsaHeader ();
+    }
   return m_lsaHeaders[index];
 }
 
@@ -271,14 +278,29 @@ OspfDbd::Deserialize (Buffer::Iterator start)
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
+  // Fixed header is 8 bytes.
+  if (i.GetRemainingSize () < 8)
+    {
+      NS_LOG_WARN ("OspfDbd truncated: missing fixed header");
+      m_lsaHeaders.clear ();
+      return 0;
+    }
+
   m_mtu = i.ReadNtohU16 ();
   m_options = i.ReadU8 ();
   SetFlags (i.ReadU8 ());
   m_ddSeqNum = i.ReadNtohU32 ();
 
   m_lsaHeaders.clear ();
+
+  const uint32_t lsaHeaderSize = LsaHeader ().GetSerializedSize ();
   while (!i.IsEnd ())
     {
+      if (i.GetRemainingSize () < lsaHeaderSize)
+        {
+          NS_LOG_WARN ("OspfDbd truncated: incomplete LSA header");
+          break;
+        }
       LsaHeader lsaHeader;
       i.Next (lsaHeader.Deserialize (i));
       m_lsaHeaders.emplace_back (lsaHeader);
@@ -291,11 +313,11 @@ OspfDbd::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize ();
-  uint8_t *payload = new uint8_t[payloadSize];
-  packet->CopyData (payload, payloadSize);
+  std::vector<uint8_t> payload (payloadSize);
+  packet->CopyData (payload.data (), payloadSize);
   Buffer buffer;
   buffer.AddAtStart (payloadSize);
-  buffer.Begin ().Write (payload, payloadSize);
+  buffer.Begin ().Write (payload.data (), payloadSize);
   Deserialize (buffer.Begin ());
   return payloadSize;
 }

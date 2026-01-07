@@ -28,6 +28,8 @@
 #include "ns3/l2-summary-lsa.h"
 #include "ls-update.h"
 
+#include <vector>
+
 namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("LsUpdate");
@@ -46,14 +48,20 @@ LsUpdate::LsUpdate (Ptr<Packet> packet)
 void
 LsUpdate::AddLsa (LsaHeader header, Ptr<Lsa> lsa)
 {
+  const uint16_t expectedLength =
+      static_cast<uint16_t> (header.GetSerializedSize () + lsa->GetSerializedSize ());
+  header.SetLength (expectedLength);
   m_lsaList.emplace_back (header, lsa);
-  m_serializedSize += header.GetLength ();
+  m_serializedSize += expectedLength;
 }
 void
 LsUpdate::AddLsa (std::pair<LsaHeader, Ptr<Lsa>> lsa)
 {
+  const uint16_t expectedLength =
+      static_cast<uint16_t> (lsa.first.GetSerializedSize () + lsa.second->GetSerializedSize ());
+  lsa.first.SetLength (expectedLength);
   m_lsaList.emplace_back (lsa);
-  m_serializedSize += lsa.first.GetLength ();
+  m_serializedSize += expectedLength;
 }
 
 std::vector<std::pair<LsaHeader, Ptr<Lsa>>>
@@ -90,7 +98,13 @@ LsUpdate::Print (std::ostream &os) const
 uint32_t
 LsUpdate::GetSerializedSize (void) const
 {
-  return m_serializedSize;
+  uint32_t size = 4;
+  for (const auto &lsa : m_lsaList)
+    {
+      size += lsa.first.GetSerializedSize ();
+      size += lsa.second->GetSerializedSize ();
+    }
+  return size;
 }
 
 Ptr<Packet>
@@ -112,10 +126,17 @@ LsUpdate::Serialize (Buffer::Iterator start) const
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
   i.WriteHtonU32 (m_lsaList.size ());
-  for (auto lsa : m_lsaList)
+  for (const auto &lsa : m_lsaList)
     {
-      lsa.first.Serialize (i);
-      i.Next (lsa.first.GetSerializedSize ());
+      // Ensure we never emit a malformed length field.
+      LsaHeader header = lsa.first;
+      const uint16_t expectedLength = static_cast<uint16_t> (
+          header.GetSerializedSize () + lsa.second->GetSerializedSize ());
+      header.SetLength (expectedLength);
+
+      header.Serialize (i);
+      i.Next (header.GetSerializedSize ());
+
       lsa.second->Serialize (i);
       i.Next (lsa.second->GetSerializedSize ());
     }
@@ -128,44 +149,133 @@ LsUpdate::Deserialize (Buffer::Iterator start)
   NS_LOG_FUNCTION (this << &start);
   Buffer::Iterator i = start;
 
-  uint32_t numLsa = i.ReadNtohU32 ();
+  if (i.GetRemainingSize () < 4)
+    {
+      NS_LOG_WARN ("LsUpdate truncated: missing LSA count");
+      m_lsaList.clear ();
+      m_serializedSize = 0;
+      return 0;
+    }
+
+  const uint32_t numLsa = i.ReadNtohU32 ();
   m_lsaList.clear ();
   m_serializedSize = 4;
+
+  const uint32_t lsaHeaderSize = LsaHeader ().GetSerializedSize ();
+
   for (uint32_t j = 0; j < numLsa; j++)
     {
       LsaHeader lsaHeader;
+
+      if (i.GetRemainingSize () < lsaHeaderSize)
+        {
+          NS_LOG_WARN ("LsUpdate truncated: missing LSA header");
+          break;
+        }
+
       i.Next (lsaHeader.Deserialize (i));
+
+      if (lsaHeader.GetLength () < lsaHeaderSize)
+        {
+          NS_LOG_WARN ("LsUpdate malformed: LSA length smaller than header");
+          break;
+        }
+
+      const uint32_t declaredPayloadSize = lsaHeader.GetLength () - lsaHeaderSize;
+      if (i.GetRemainingSize () < declaredPayloadSize)
+        {
+          NS_LOG_WARN ("LsUpdate truncated: LSA payload exceeds remaining buffer");
+          break;
+        }
+
+      if (declaredPayloadSize < 4)
+        {
+          NS_LOG_WARN ("LsUpdate malformed: LSA payload too small");
+          break;
+        }
+
+      std::vector<uint8_t> payloadBytes (declaredPayloadSize);
+      i.Read (payloadBytes.data (), declaredPayloadSize);
+      Buffer payloadBuffer;
+      payloadBuffer.AddAtStart (declaredPayloadSize);
+      payloadBuffer.Begin ().Write (payloadBytes.data (), declaredPayloadSize);
+
+      Buffer::Iterator payloadIt = payloadBuffer.Begin ();
+
       if (lsaHeader.GetType () == LsaHeader::RouterLSAs)
         {
           Ptr<RouterLsa> lsa = Create<RouterLsa> ();
-          i.Next (lsa->Deserialize (i));
+          payloadIt.Next (lsa->Deserialize (payloadIt));
           m_lsaList.emplace_back (lsaHeader, lsa);
-          m_serializedSize += lsaHeader.GetLength ();
+          const uint16_t expectedLength = static_cast<uint16_t> (
+              lsaHeader.GetSerializedSize () + lsa->GetSerializedSize ());
+          if (lsaHeader.GetLength () != expectedLength)
+            {
+              NS_LOG_WARN ("LsUpdate RouterLSA length mismatch (declared=" << lsaHeader.GetLength ()
+                                                                        << ", expected=" << expectedLength
+                                                                        << ")");
+              lsaHeader.SetLength (expectedLength);
+              m_lsaList.back ().first = lsaHeader;
+            }
+
+          m_serializedSize += expectedLength;
         }
       else if (lsaHeader.GetType () == LsaHeader::AreaLSAs)
         {
           Ptr<AreaLsa> lsa = Create<AreaLsa> ();
-          i.Next (lsa->Deserialize (i));
+          payloadIt.Next (lsa->Deserialize (payloadIt));
           m_lsaList.emplace_back (lsaHeader, lsa);
-          m_serializedSize += lsaHeader.GetLength ();
+          const uint16_t expectedLength = static_cast<uint16_t> (
+              lsaHeader.GetSerializedSize () + lsa->GetSerializedSize ());
+          if (lsaHeader.GetLength () != expectedLength)
+            {
+              NS_LOG_WARN ("LsUpdate AreaLSA length mismatch (declared=" << lsaHeader.GetLength ()
+                                                                      << ", expected=" << expectedLength
+                                                                      << ")");
+              lsaHeader.SetLength (expectedLength);
+              m_lsaList.back ().first = lsaHeader;
+            }
+          m_serializedSize += expectedLength;
         }
       else if (lsaHeader.GetType () == LsaHeader::L2SummaryLSAs)
         {
           Ptr<L2SummaryLsa> lsa = Create<L2SummaryLsa> ();
-          i.Next (lsa->Deserialize (i));
+          payloadIt.Next (lsa->Deserialize (payloadIt));
           m_lsaList.emplace_back (lsaHeader, lsa);
-          m_serializedSize += lsaHeader.GetLength ();
+          const uint16_t expectedLength = static_cast<uint16_t> (
+              lsaHeader.GetSerializedSize () + lsa->GetSerializedSize ());
+          if (lsaHeader.GetLength () != expectedLength)
+            {
+              NS_LOG_WARN ("LsUpdate L2SummaryLSA length mismatch (declared=" << lsaHeader.GetLength ()
+                                                                            << ", expected=" << expectedLength
+                                                                            << ")");
+              lsaHeader.SetLength (expectedLength);
+              m_lsaList.back ().first = lsaHeader;
+            }
+          m_serializedSize += expectedLength;
         }
       else if (lsaHeader.GetType () == LsaHeader::L1SummaryLSAs)
         {
           Ptr<L1SummaryLsa> lsa = Create<L1SummaryLsa> ();
-          i.Next (lsa->Deserialize (i));
+          payloadIt.Next (lsa->Deserialize (payloadIt));
           m_lsaList.emplace_back (lsaHeader, lsa);
-          m_serializedSize += lsaHeader.GetLength ();
+          const uint16_t expectedLength = static_cast<uint16_t> (
+              lsaHeader.GetSerializedSize () + lsa->GetSerializedSize ());
+          if (lsaHeader.GetLength () != expectedLength)
+            {
+              NS_LOG_WARN ("LsUpdate L1SummaryLSA length mismatch (declared=" << lsaHeader.GetLength ()
+                                                                            << ", expected=" << expectedLength
+                                                                            << ")");
+              lsaHeader.SetLength (expectedLength);
+              m_lsaList.back ().first = lsaHeader;
+            }
+          m_serializedSize += expectedLength;
         }
       else
         {
-          NS_ASSERT_MSG (true, "Unsupported LSA Type");
+          NS_LOG_WARN ("LsUpdate unsupported LSA type: " << static_cast<uint32_t> (lsaHeader.GetType ()));
+          // Length is known (declaredPayloadSize already consumed). Stop parsing.
+          break;
         }
     }
 
@@ -177,11 +287,11 @@ LsUpdate::Deserialize (Ptr<Packet> packet)
 {
   NS_LOG_FUNCTION (this << &packet);
   uint32_t payloadSize = packet->GetSize ();
-  uint8_t *payload = new uint8_t[payloadSize];
-  packet->CopyData (payload, payloadSize);
+  std::vector<uint8_t> payload (payloadSize);
+  packet->CopyData (payload.data (), payloadSize);
   Buffer buffer;
   buffer.AddAtStart (payloadSize);
-  buffer.Begin ().Write (payload, payloadSize);
+  buffer.Begin ().Write (payload.data (), payloadSize);
   Deserialize (buffer.Begin ());
   return payloadSize;
 }

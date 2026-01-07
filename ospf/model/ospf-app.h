@@ -44,7 +44,21 @@
 #include "queue"
 #include "filesystem"
 
+#include <memory>
+
 namespace ns3 {
+class OspfAppIo;
+class OspfNeighborFsm;
+class OspfLsaProcessor;
+class OspfStateSerializer;
+class OspfAppSockets;
+class OspfAppLogging;
+class OspfAppRng;
+class OspfAreaLeaderController;
+class OspfRoutingEngine;
+class Ipv4;
+class Ipv4InterfaceAddress;
+ 
 /**
  * \ingroup applications 
  * \defgroup ospf Ospf
@@ -65,6 +79,17 @@ public:
   static TypeId GetTypeId (void);
   OspfApp ();
   virtual ~OspfApp ();
+
+  /**
+   * \brief Enable/disable the OSPF protocol at runtime.
+   *
+   * This is separate from the ns-3 Application lifecycle and is intended to
+   * model "adding/removing" an OSPF router during a simulation by starting or
+   * stopping protocol traffic and state.
+   */
+  void Enable ();
+  void Disable ();
+  bool IsEnabled () const;
 
   /**
    * \brief Set a pointer to a routing table.
@@ -317,12 +342,54 @@ public:
   */
   void ImportPrefixes (std::filesystem::path dirName, std::string filename);
 
+  /**
+   * \brief Fetch an LSA by key from the local LSDB.
+   * \return <header, payload> or <default header, nullptr> if missing.
+   */
+  std::pair<LsaHeader, Ptr<Lsa>> FetchLsa (LsaHeader::LsaKey lsaKey);
+
 protected:
   virtual void DoDispose (void);
 
 private:
+  void ResetStateForRestart ();
+  void FlushOspfRoutes ();
+  friend class OspfAppIo;
+  friend class OspfNeighborFsm;
+  friend class OspfLsaProcessor;
+  friend class OspfStateSerializer;
+  friend class OspfAppSockets;
+  friend class OspfAppLogging;
+  friend class OspfAppRng;
+  friend class OspfAreaLeaderController;
+  friend class OspfRoutingEngine;
+
+  std::unique_ptr<OspfAppIo> m_io;
+  std::unique_ptr<OspfNeighborFsm> m_neighborFsm;
+  std::unique_ptr<OspfLsaProcessor> m_lsa;
+  std::unique_ptr<OspfStateSerializer> m_state;
+  std::unique_ptr<OspfAppSockets> m_socketsMgr;
+  std::unique_ptr<OspfAppLogging> m_logging;
+  std::unique_ptr<OspfAppRng> m_rng;
+  std::unique_ptr<OspfAreaLeaderController> m_areaLeader;
+  std::unique_ptr<OspfRoutingEngine> m_routingEngine;
   virtual void StartApplication (void);
   virtual void StopApplication (void);
+
+  void InitializeLoggingIfEnabled ();
+  void InitializeRandomVariables ();
+  void InitializeSockets ();
+  void CancelHelloTimeouts ();
+  void CloseSockets ();
+
+  // Optional: keep m_boundDevices/m_ospfInterfaces in sync with Ipv4 interfaces.
+  void StartInterfaceSyncIfEnabled ();
+  void StopInterfaceSync ();
+  void InterfaceSyncTick ();
+  bool SyncInterfacesFromIpv4 ();
+  static bool SelectPrimaryInterfaceAddress (Ptr<Ipv4> ipv4, uint32_t ifIndex,
+                                             Ipv4InterfaceAddress &out);
+  void HandleInterfaceDown (uint32_t ifIndex);
 
   /**
    * \brief Helper to schedule hello transmission.
@@ -509,11 +576,6 @@ private:
 
   // Link State Advertisement
   /**
-   * \brief Fetch LSA by an LSA Key from LSDB 
-   * \return LSA
-   */
-  std::pair<LsaHeader, Ptr<Lsa>> FetchLsa (LsaHeader::LsaKey lsaKey);
-  /**
    * \brief Generate local Router-LSA based on adjacencies (Full)
    * \return Router-LSA for this router
    */
@@ -682,6 +744,10 @@ private:
 
   bool m_doInitialize = true;
 
+  bool m_enabled = true;
+  bool m_protocolRunning = false;
+  bool m_resetStateOnDisable = false;
+
   // Area
   /**
    * \brief Begin as an area leader
@@ -704,8 +770,8 @@ private:
   std::ofstream m_lsaTimingLog; // !< Open Log File
 
   // Randomization
-  // For a small time jitter
-  Ptr<UniformRandomVariable> m_randomVariable = CreateObject<UniformRandomVariable> ();
+  // For a small time jitter (used for hello/timeout/retx scheduling jitter)
+  Ptr<UniformRandomVariable> m_jitterRv = CreateObject<UniformRandomVariable> ();
   // For DD Sequence Number
   Ptr<UniformRandomVariable> m_randomVariableSeq = CreateObject<UniformRandomVariable> ();
 
@@ -718,6 +784,11 @@ private:
       m_helloTimeouts; //!< Timeout Events of not receiving Hello, per interface, per neighbor
   Time m_routerDeadInterval; //!< Router Dead Interval for Hello to become Down
   EventId m_helloEvent; //!< Event to send the next hello packet
+
+  // Interface auto-tracking (opt-in)
+  bool m_autoSyncInterfaces = false;
+  Time m_interfaceSyncInterval = MilliSeconds (200);
+  EventId m_interfaceSyncEvent;
 
   // Interface
   std::vector<Ptr<OspfInterface>> m_ospfInterfaces; // !< Router interfaces

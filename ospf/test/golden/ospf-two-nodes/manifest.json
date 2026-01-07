@@ -1,0 +1,7 @@
+{
+  "files": {
+    "n0.routes": "6cb205bea4f82508ce22966a383d78fec205015dda72b21db37ee52a5ba70185",
+    "n1.routes": "16c8a6daae4e0f2a8096182ba6f03dd13c0162b3c525e8986678cf72ded1209f"
+  },
+  "results_dir": "/home/mark/ospf-refactor/ns-3-dev/contrib/ospf/ospf/test/golden/ospf-two-nodes"
+}

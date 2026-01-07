@@ -3,7 +3,7 @@ name: Build with Cached Docker Container
 on:
   push:
     branches:
-      - "*"
+      - main
   pull_request:
 
 jobs:
@@ -13,17 +13,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.ref_name }}
+          fetch-depth: 1
 
       - name: Cache Docker Image
+        id: docker-cache
         uses: actions/cache@v4
         with:
           path: /tmp/docker-cache
-          key: docker-${{ runner.os }}-${{ hashFiles('.github/actions/ns-3-docker/Dockerfile') }}
-          restore-keys: |
-            docker-${{ runner.os }}-
+          key: docker-${{ runner.os }}-${{ hashFiles('.github/actions/ns-3-docker/Dockerfile', 'entrypoint.sh', '.github/workflows/main.yml') }}
 
       - name: Load Cached Docker Image
+        if: steps.docker-cache.outputs.cache-hit == 'true'
         run: |
           if [ -f "/tmp/docker-cache/docker-image.tar" ]; then
             docker load -i /tmp/docker-cache/docker-image.tar
@@ -39,8 +39,6 @@ jobs:
 
       - name: Run Docker Container with Mounted Volume
         run: |
-          echo "output_path=/tmp/ospf_output.txt" >> $GITHUB_ENV
           docker run --rm \
-            -v /home/runner/work/ns3-ospf/ns3-ospf/ospf:/usr/local/app/ns-3/contrib/ospf \
-            -e GITHUB_OUTPUT="/tmp/ospf_output.txt" \
+            -v "${{ github.workspace }}/ospf:/usr/local/app/ns-3/contrib/ospf" \
             ns3-contrib-container

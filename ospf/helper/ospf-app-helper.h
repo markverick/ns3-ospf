@@ -31,21 +31,19 @@
 namespace ns3 {
 
 /**
- * \ingroup ospfapp
- * \brief Create a server application which waits for input UDP packets
- *        and sends them back to the original sender.
+ * \ingroup ospf
+ * \brief Helper for installing and configuring ns3::OspfApp instances.
  */
 class OspfAppHelper
 {
 public:
   /**
-   * Create OspfAppHelper which will make life easier for people trying
-   * to set up simulations with echos.
+   * Create an OspfAppHelper.
    */
   OspfAppHelper ();
 
   /**
-   * Record an attribute to be set in each Application after it is is created.
+    * Record an attribute to be set in each Application after it is created.
    *
    * \param name the name of the attribute to set
    * \param value the value of the attribute to set
@@ -53,26 +51,38 @@ public:
   void SetAttribute (std::string name, const AttributeValue &value);
 
   /**
-   * \param c The nodes on which to create the Applications.  The nodes
-   *          are specified by a NodeContainer.
-   *
-   * Create one udp echo server application on each of the Nodes in the
-   * NodeContainer.
-   *
-   * \returns The applications created, one Application per Node in the 
-   *          NodeContainer.
+    * Create one OSPF application on the given node.
+    *
+    * \param n The node on which to create the Application.
+    * \returns The application created.
    */
   ApplicationContainer Install (Ptr<Node> n) const;
+
+    /**
+    * Create one OSPF application on each node in the NodeContainer.
+    *
+    * \param c The nodes on which to create the Applications.
+    * \returns The applications created, one per node.
+    */
   ApplicationContainer Install (NodeContainer c) const;
+
+  /**
+   * Populate each node's reachable prefixes from its configured IPv4
+   * point-to-point interfaces.
+   *
+   * This is intended for scenarios/tests that want nodes to advertise connected
+   * interface networks without relying on Preload().
+   */
+  void ConfigureReachablePrefixesFromInterfaces (NodeContainer c) const;
 
   void Preload (NodeContainer c);
 
 private:
   /**
-   * Install an ns3::UdpEchoServer on the node configured with all the
-   * attributes set with SetAttribute.
+  * Install an ns3::OspfApp on the node configured with all the
+  * attributes set with SetAttribute().
    *
-   * \param node The node on which an UdpEchoServer will be installed.
+  * \param node The node on which an OspfApp will be installed.
    * \returns Ptr to the application installed.
    */
   Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing,
