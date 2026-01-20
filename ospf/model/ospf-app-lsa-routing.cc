@@ -62,7 +62,7 @@ OspfApp::ProcessL1SummaryLsa (LsaHeader lsaHeader, Ptr<L1SummaryLsa> l1SummaryLs
       if (m_isAreaLeader)
         {
           RecomputeL2SummaryLsa ();
-          if (m_enableLog)
+          if (m_enableLsaTimingLog)
             {
               std::string fullname = m_logDir + "/lsa_mapping.csv";
               auto mappingLog = std::ofstream (fullname, std::ios::app);
@@ -97,7 +97,7 @@ OspfApp::ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa)
         {
 
           RecomputeAreaLsa ();
-          if (m_enableLog)
+          if (m_enableLsaTimingLog)
             {
               std::string fullname = m_logDir + "/lsa_mapping.csv";
               auto mappingLog = std::ofstream (fullname, std::ios::app);

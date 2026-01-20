@@ -766,8 +766,11 @@ private:
   NetDeviceContainer m_boundDevices;
   uint32_t m_areaId; // Only used for default value and for alt area and
   std::string m_logDir; //!< Log directory
-  bool m_enableLog; // !< Enable log
-  std::ofstream m_lsaTimingLog; // !< Open Log File
+  bool m_enableLsaTimingLog; //!< Enable LSA timing logs
+  std::ofstream m_lsaTimingLog; //!< LSA timing log file
+  bool m_enablePacketLog; //!< Enable OSPF packet logging
+  bool m_includeHelloInPacketLog; //!< Include Hello packets in packet log
+  std::ofstream m_packetLog; //!< OSPF packet log file
 
   // Randomization
   // For a small time jitter (used for hello/timeout/retx scheduling jitter)

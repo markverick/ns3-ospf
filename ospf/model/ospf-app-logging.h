@@ -3,6 +3,9 @@
 #ifndef OSPF_APP_LOGGING_H
 #define OSPF_APP_LOGGING_H
 
+#include <cstdint>
+#include <string>
+
 namespace ns3 {
 
 class OspfApp;
@@ -13,6 +16,22 @@ public:
   explicit OspfAppLogging (OspfApp &app);
 
   void InitializeLoggingIfEnabled ();
+
+  /**
+   * Log an OSPF packet transmission (replaces PCAP capture for overhead measurement)
+   * \param size Packet size in bytes
+   * \param ospfType OSPF packet type (1=Hello, 2=DBD, 3=LSReq, 4=LSU, 5=LSAck)
+   * \param lsaLevel LSA level ("L1", "L2", or "" for Hello/unknown)
+   */
+  void LogPacketTx (uint32_t size, uint8_t ospfType, const std::string &lsaLevel);
+
+  /**
+   * Log an OSPF packet reception (to match PCAP which captures both TX and RX)
+   * \param size Packet size in bytes
+   * \param ospfType OSPF packet type (1=Hello, 2=DBD, 3=LSReq, 4=LSU, 5=LSAck)
+   * \param lsaLevel LSA level ("L1", "L2", or "" for Hello/unknown)
+   */
+  void LogPacketRx (uint32_t size, uint8_t ospfType, const std::string &lsaLevel);
 
 private:
   OspfApp &m_app;
