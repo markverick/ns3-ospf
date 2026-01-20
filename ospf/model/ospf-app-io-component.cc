@@ -3,8 +3,92 @@
 #include "ospf-app-io-component.h"
 
 #include "ospf-app-private.h"
+#include "ospf-app-logging.h"
+#include "packets/ospf-header.h"
+#include "lsa/lsa-header.h"
 
 namespace ns3 {
+
+namespace {
+/**
+ * Classify LSA type as L1 or L2
+ */
+std::string
+ClassifyLsaLevel (uint8_t lsaType)
+{
+  switch (lsaType)
+    {
+    case LsaHeader::RouterLSAs:
+    case LsaHeader::NetworkLSAs:
+    case LsaHeader::L1SummaryLSAs:
+      return "L1";
+    case LsaHeader::SummaryLSAsIP:
+    case LsaHeader::SummaryLSAsASBR:
+    case LsaHeader::ASExternalLSAs:
+    case LsaHeader::AreaLSAs:
+    case LsaHeader::L2SummaryLSAs:
+      return "L2";
+    default:
+      return "";
+    }
+}
+
+/**
+ * Extract LSA level from packet payload for LSU (type 4) or LSAck (type 5)
+ */
+std::string
+ExtractLsaLevelFromPacket (Ptr<Packet> packet, uint8_t ospfType)
+{
+  if (ospfType != OspfHeader::OspfLSUpdate && ospfType != OspfHeader::OspfLSAck)
+    {
+      return "";
+    }
+
+  // Make a copy to avoid modifying original
+  Ptr<Packet> copy = packet->Copy ();
+  
+  // Remove OSPF header (24 bytes) to get to payload
+  OspfHeader ospfHeader;
+  if (copy->RemoveHeader (ospfHeader) == 0)
+    {
+      return "";
+    }
+
+  uint32_t payloadSize = copy->GetSize ();
+  if (payloadSize < 8)
+    {
+      return "";
+    }
+
+  // Read first few bytes of payload
+  uint8_t buffer[12];
+  uint32_t bytesToRead = std::min (payloadSize, 12u);
+  copy->CopyData (buffer, bytesToRead);
+
+  if (ospfType == OspfHeader::OspfLSUpdate)
+    {
+      // LSU format: num_lsas (4 bytes), then LSA headers
+      // LSA header: LS age(2), options(1), LS type(1), ...
+      if (bytesToRead >= 8)
+        {
+          uint8_t lsaType = buffer[7]; // offset 4 + 3
+          return ClassifyLsaLevel (lsaType);
+        }
+    }
+  else if (ospfType == OspfHeader::OspfLSAck)
+    {
+      // LSAck format: LSA header(s) directly
+      // LSA header: LS age(2), options(1), LS type(1), ...
+      if (bytesToRead >= 4)
+        {
+          uint8_t lsaType = buffer[3];
+          return ClassifyLsaLevel (lsaType);
+        }
+    }
+
+  return "";
+}
+} // anonymous namespace
 
 OspfAppIo::OspfAppIo (OspfApp &app)
   : m_app (app)
@@ -37,6 +121,13 @@ OspfAppIo::SendHello ()
           m_app.m_ospfInterfaces[i]->GetRouterDeadInterval (),
           m_app.m_ospfInterfaces[i]->GetNeighbors ());
       m_app.m_txTrace (p);
+
+      // Log Hello packet (type 1, no LSA level)
+      if (m_app.m_enablePacketLog)
+        {
+          m_app.m_logging->LogPacketTx (p->GetSize (), OspfHeader::OspfHello, "");
+        }
+
       if (Ipv4Address::IsMatchingType (m_app.m_helloAddress))
         {
           m_app.m_txTraceWithAddresses (
@@ -71,6 +162,13 @@ OspfAppIo::SendAck (uint32_t ifIndex, Ptr<Packet> ackPacket, Ipv4Address remoteI
   socket->GetSockName (ackSocketAddress);
   m_app.m_txTrace (ackPacket);
 
+  // Log LSAck packet (type 5, extract LSA level)
+  if (m_app.m_enablePacketLog)
+    {
+      std::string lsaLevel = ExtractLsaLevelFromPacket (ackPacket, OspfHeader::OspfLSAck);
+      m_app.m_logging->LogPacketTx (ackPacket->GetSize (), OspfHeader::OspfLSAck, lsaLevel);
+    }
+
   socket->SendTo (ackPacket, 0, InetSocketAddress (remoteIp));
 
   NS_LOG_INFO ("LS Ack sent via interface " << ifIndex << " : " << remoteIp);
@@ -85,6 +183,16 @@ OspfAppIo::SendToNeighbor (uint32_t ifIndex, Ptr<Packet> packet, Ptr<OspfNeighbo
     }
   auto socket = m_app.m_sockets[ifIndex];
   m_app.m_txTrace (packet);
+
+  // Log packet for overhead measurement (replaces PCAP)
+  if (m_app.m_enablePacketLog)
+    {
+      OspfHeader ospfHeader;
+      packet->PeekHeader (ospfHeader);
+      uint8_t ospfType = static_cast<uint8_t> (ospfHeader.GetType ());
+      std::string lsaLevel = ExtractLsaLevelFromPacket (packet, ospfType);
+      m_app.m_logging->LogPacketTx (packet->GetSize (), ospfType, lsaLevel);
+    }
 
   socket->SendTo (packet->Copy (), 0, InetSocketAddress (neighbor->GetIpAddress ()));
 }

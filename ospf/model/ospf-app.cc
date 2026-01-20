@@ -83,6 +83,9 @@ OspfApp::GetTypeId (void)
           .AddAttribute ("EnableLog", "Enable logs such as LSA process timestamps",
                          BooleanValue (false), MakeBooleanAccessor (&OspfApp::m_enableLog),
                          MakeBooleanChecker ())
+          .AddAttribute ("EnablePacketLog", "Enable OSPF packet logging (replaces PCAP for overhead measurement)",
+                         BooleanValue (false), MakeBooleanAccessor (&OspfApp::m_enablePacketLog),
+                         MakeBooleanChecker ())
           .AddAttribute (
               "RouterDeadInterval",
               "Link is considered down when not receiving Hello until RouterDeadInterval",

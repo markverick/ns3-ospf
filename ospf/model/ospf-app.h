@@ -768,6 +768,8 @@ private:
   std::string m_logDir; //!< Log directory
   bool m_enableLog; // !< Enable log
   std::ofstream m_lsaTimingLog; // !< Open Log File
+  bool m_enablePacketLog; //!< Enable OSPF packet logging (replaces PCAP)
+  std::ofstream m_packetLog; //!< OSPF packet log file
 
   // Randomization
   // For a small time jitter (used for hello/timeout/retx scheduling jitter)
