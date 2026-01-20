@@ -269,7 +269,7 @@ OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address dest, Ipv4Mask mask,
   // ipv4->AddAddress (0, Ipv4InterfaceAddress (dest, mask));
   // std::cout << "Inject: " << ifIndex << ", " << dest << ", " << mask << ", " << gateway << ", " << metric << std::endl;
   m_externalRoutes.emplace_back (ifIndex, dest.Get (), mask.Get (), gateway.Get (), metric);
-  RecomputeL1SummaryLsa ();
+  ThrottledRecomputeL1SummaryLsa ();
   // Process the new LSA and generate/flood L2 Summary LSA if needed
   ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
 }
@@ -279,7 +279,7 @@ OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask ma
 {
   m_externalRoutes.emplace_back (ifIndex, address.Get (), mask.Get (),
                                  Ipv4Address::GetAny ().Get (), 0);
-  RecomputeL1SummaryLsa ();
+  ThrottledRecomputeL1SummaryLsa ();
   // Process the new LSA and generate/flood L2 Summary LSA if needed
   ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
 }
@@ -292,7 +292,7 @@ OspfApp::SetReachableAddresses (
   if (m_externalRoutes != reachableAddresses)
     {
       m_externalRoutes = std::move (reachableAddresses);
-      RecomputeL1SummaryLsa ();
+      ThrottledRecomputeL1SummaryLsa ();
       // Process the new LSA and generate/flood L2 Summary LSA if needed
       ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
       return true;
@@ -312,7 +312,7 @@ OspfApp::AddAllReachableAddresses (uint32_t ifIndex)
           ifIndex, m_ospfInterfaces[i]->GetAddress ().CombineMask (m_ospfInterfaces[i]->GetMask ()),
           m_ospfInterfaces[i]->GetMask (), m_ospfInterfaces[i]->GetAddress (), 0);
     }
-  RecomputeL1SummaryLsa ();
+  ThrottledRecomputeL1SummaryLsa ();
   // Process the new LSA and generate/flood L2 Summary LSA if needed
   ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
 }

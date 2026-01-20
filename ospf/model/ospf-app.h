@@ -606,17 +606,33 @@ private:
    */
   void RecomputeRouterLsa ();
   /**
+   * \brief Throttled version of RecomputeRouterLsa that respects MinLsInterval
+   */
+  void ThrottledRecomputeRouterLsa ();
+  /**
    * \brief Recompute L1 Summary-LSA, increment its Sequence Number, and inject to L1 Summary LSDB
    */
   void RecomputeL1SummaryLsa ();
+  /**
+   * \brief Throttled version of RecomputeL1SummaryLsa that respects MinLsInterval
+   */
+  void ThrottledRecomputeL1SummaryLsa ();
   /**
    * \brief Recompute local Area-LSA, increment its Sequence Number, and inject to Area LSDB
    */
   bool RecomputeAreaLsa ();
   /**
+   * \brief Throttled version of RecomputeAreaLsa that respects MinLsInterval
+   */
+  void ThrottledRecomputeAreaLsa ();
+  /**
    * \brief Recompute Area Summary-LSA, increment its Sequence Number, and inject to L2 Summary LSDB
    */
   bool RecomputeL2SummaryLsa ();
+  /**
+   * \brief Throttled version of RecomputeL2SummaryLsa that respects MinLsInterval
+   */
+  void ThrottledRecomputeL2SummaryLsa ();
   /**
    * \brief Update routing table based on shortest paths and prefixes
    */
@@ -814,6 +830,11 @@ private:
   EventId m_areaLeaderBeginTimer; // area leadership begin timer
   Ipv4Address m_lsaAddress; //!< multicast address for LSA
   std::map<LsaHeader::LsaKey, uint16_t> m_seqNumbers; // sequence number of stored LSA
+
+  // LSA Throttling (RFC 2328 MinLSInterval)
+  Time m_minLsInterval; //!< Minimum interval between originating the same LSA
+  std::map<LsaHeader::LsaKey, Time> m_lastLsaOriginationTime; //!< Last origination time per LSA key
+  std::map<LsaHeader::LsaKey, EventId> m_pendingLsaRegeneration; //!< Pending regeneration events
 
   // L1 LSDB
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>

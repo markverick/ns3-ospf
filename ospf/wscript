@@ -50,6 +50,7 @@ def build(bld):
         'test/ospf-enable-disable-unit-test.cc',
         'test/ospf-state-serializer-test.cc',
         'test/ospf-integration-test.cc',
+        'test/ospf-lsa-throttling-test.cc',
         ]
     # Tests encapsulating example programs should be listed here
     if (bld.env['ENABLE_EXAMPLES']):

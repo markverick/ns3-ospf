@@ -108,6 +108,10 @@ OspfApp::GetTypeId (void)
           .AddAttribute ("ShortestPathUpdateDelay", "Delay to re-calculate the shortest path",
                          TimeValue (Seconds (5)),
                          MakeTimeAccessor (&OspfApp::m_shortestPathUpdateDelay), MakeTimeChecker ())
+          .AddAttribute ("MinLsInterval",
+                         "Minimum interval between originating the same LSA (RFC 2328 MinLSInterval)",
+                         TimeValue (Seconds (0)),
+                         MakeTimeAccessor (&OspfApp::m_minLsInterval), MakeTimeChecker ())
           .AddAttribute ("AutoSyncInterfaces",
                          "If true, OSPF automatically tracks the node's Ipv4 interfaces (up/down/add/remove) and updates its bound interfaces accordingly.",
                          BooleanValue (false),
