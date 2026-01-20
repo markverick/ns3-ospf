@@ -80,11 +80,14 @@ OspfApp::GetTypeId (void)
                          MakeIpv4AddressChecker ())
           .AddAttribute ("LogDir", "Log Directory", StringValue ("results/"),
                          MakeStringAccessor (&OspfApp::m_logDir), MakeStringChecker ())
-          .AddAttribute ("EnableLog", "Enable logs such as LSA process timestamps",
-                         BooleanValue (false), MakeBooleanAccessor (&OspfApp::m_enableLog),
+          .AddAttribute ("EnableLsaTimingLog", "Enable LSA timing logs for convergence analysis",
+                         BooleanValue (false), MakeBooleanAccessor (&OspfApp::m_enableLsaTimingLog),
                          MakeBooleanChecker ())
-          .AddAttribute ("EnablePacketLog", "Enable OSPF packet logging (replaces PCAP for overhead measurement)",
+          .AddAttribute ("EnablePacketLog", "Enable OSPF packet logging for overhead measurement",
                          BooleanValue (false), MakeBooleanAccessor (&OspfApp::m_enablePacketLog),
+                         MakeBooleanChecker ())
+          .AddAttribute ("IncludeHelloInPacketLog", "Include Hello packets in packet log",
+                         BooleanValue (false), MakeBooleanAccessor (&OspfApp::m_includeHelloInPacketLog),
                          MakeBooleanChecker ())
           .AddAttribute (
               "RouterDeadInterval",

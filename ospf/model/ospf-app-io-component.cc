@@ -338,6 +338,16 @@ OspfAppIo::HandleRead (Ptr<Socket> socket)
         }
     }
 
+  // Log received packet (to match PCAP which captures both TX and RX)
+  if (m_app.m_enablePacketLog)
+    {
+      uint8_t ospfType = static_cast<uint8_t> (ospfHeader.GetType ());
+      // Calculate full OSPF packet size (header + payload)
+      uint32_t packetSize = ospfHeader.GetSerializedSize () + ospfHeader.GetPayloadSize ();
+      std::string lsaLevel = ExtractLsaLevelFromPacket (packet->Copy (), ospfType);
+      m_app.m_logging->LogPacketRx (packetSize, ospfType, lsaLevel);
+    }
+
   if (ospfHeader.GetType () == OspfHeader::OspfType::OspfHello)
     {
       Ptr<OspfHello> hello = Create<OspfHello> (packet);

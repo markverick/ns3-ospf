@@ -220,7 +220,7 @@ OspfLsaProcessor::HandleLsa (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader o
 void
 OspfLsaProcessor::ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa)
 {
-  if (m_app.m_enableLog)
+  if (m_app.m_enableLsaTimingLog)
     {
       m_app.PrintLsaTiming (lsaHeader.GetSeqNum (), lsaHeader.GetKey (), Simulator::Now ());
     }

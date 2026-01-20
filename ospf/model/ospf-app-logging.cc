@@ -15,7 +15,7 @@ OspfAppLogging::OspfAppLogging (OspfApp &app)
 void
 OspfAppLogging::InitializeLoggingIfEnabled ()
 {
-  if (m_app.m_enableLog)
+  if (m_app.m_enableLsaTimingLog)
     {
       std::string fullname =
           m_app.m_logDir + "/lsa-timings/" + std::to_string (m_app.GetNode ()->GetId ()) + ".csv";
@@ -56,8 +56,26 @@ OspfAppLogging::LogPacketTx (uint32_t size, uint8_t ospfType, const std::string 
 {
   if (m_app.m_enablePacketLog && m_app.m_packetLog.is_open ())
     {
-      // Format: timestamp,size,type,lsa_level
-      // timestamp is in seconds (matching PCAP format)
+      if (ospfType == 1 && !m_app.m_includeHelloInPacketLog)
+        {
+          return;
+        }
+      m_app.m_packetLog << Simulator::Now ().GetSeconds () << ","
+                        << size << ","
+                        << static_cast<int> (ospfType) << ","
+                        << lsaLevel << std::endl;
+    }
+}
+
+void
+OspfAppLogging::LogPacketRx (uint32_t size, uint8_t ospfType, const std::string &lsaLevel)
+{
+  if (m_app.m_enablePacketLog && m_app.m_packetLog.is_open ())
+    {
+      if (ospfType == 1 && !m_app.m_includeHelloInPacketLog)
+        {
+          return;
+        }
       m_app.m_packetLog << Simulator::Now ().GetSeconds () << ","
                         << size << ","
                         << static_cast<int> (ospfType) << ","
