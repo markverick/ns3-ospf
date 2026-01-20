@@ -348,6 +348,27 @@ public:
    */
   std::pair<LsaHeader, Ptr<Lsa>> FetchLsa (LsaHeader::LsaKey lsaKey);
 
+  struct LsaThrottleStats
+  {
+    uint64_t recomputeTriggers = 0; //!< Number of calls into ThrottledRecompute*()
+    uint64_t immediate = 0; //!< Recompute executed immediately (no throttling delay)
+    uint64_t deferredScheduled = 0; //!< A deferred recompute event was scheduled
+    uint64_t suppressed = 0; //!< A trigger was suppressed because a deferred recompute was already pending
+    uint64_t cancelledPending = 0; //!< A pending deferred recompute was cancelled because we could run immediately
+  };
+
+  /**
+   * \brief Return current LSA throttling statistics.
+   *
+   * Stats are only collected when the EnableLsaThrottleStats attribute is true.
+   */
+  LsaThrottleStats GetLsaThrottleStats () const;
+
+  /**
+   * \brief Reset LSA throttling statistics to zero.
+   */
+  void ResetLsaThrottleStats ();
+
 protected:
   virtual void DoDispose (void);
 
@@ -633,6 +654,29 @@ private:
    * \brief Throttled version of RecomputeL2SummaryLsa that respects MinLsInterval
    */
   void ThrottledRecomputeL2SummaryLsa ();
+
+  /**
+   * \brief Check if LSA should be throttled and get delay
+   * \param lsaKey the LSA key
+   * \return Time::Zero() if should proceed immediately, otherwise delay until next allowed origination
+   */
+  Time GetLsaThrottleDelay (const LsaHeader::LsaKey &lsaKey);
+
+  /**
+   * \brief Clean up completed throttle events for an LSA key
+   * \param lsaKey the LSA key to clean
+   */
+  void CleanupThrottleEvent (const LsaHeader::LsaKey &lsaKey);
+
+  /**
+   * \brief Wrapper for RecomputeAreaLsa (void return type for Simulator::Schedule)
+   */
+  void RecomputeAreaLsaWrapper ();
+
+  /**
+   * \brief Wrapper for RecomputeL2SummaryLsa (void return type for Simulator::Schedule)
+   */
+  void RecomputeL2SummaryLsaWrapper ();
   /**
    * \brief Update routing table based on shortest paths and prefixes
    */
@@ -835,6 +879,13 @@ private:
   Time m_minLsInterval; //!< Minimum interval between originating the same LSA
   std::map<LsaHeader::LsaKey, Time> m_lastLsaOriginationTime; //!< Last origination time per LSA key
   std::map<LsaHeader::LsaKey, EventId> m_pendingLsaRegeneration; //!< Pending regeneration events
+
+  bool m_enableLsaThrottleStats = false;
+  uint64_t m_lsaThrottleRecomputeTriggers = 0;
+  uint64_t m_lsaThrottleImmediate = 0;
+  uint64_t m_lsaThrottleDeferredScheduled = 0;
+  uint64_t m_lsaThrottleSuppressed = 0;
+  uint64_t m_lsaThrottleCancelledPending = 0;
 
   // L1 LSDB
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>

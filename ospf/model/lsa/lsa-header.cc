@@ -68,6 +68,20 @@ LsaHeader::EnableChecksum (void)
 }
 
 void
+LsaHeader::SetLsAge (uint16_t lsAge)
+{
+  NS_LOG_FUNCTION (this << lsAge);
+  m_lsAge = lsAge;
+}
+
+uint16_t
+LsaHeader::GetLsAge (void) const
+{
+  NS_LOG_FUNCTION (this);
+  return m_lsAge;
+}
+
+void
 LsaHeader::SetType (LsType type)
 {
   NS_LOG_FUNCTION (this << type);

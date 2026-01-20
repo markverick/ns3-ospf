@@ -112,6 +112,12 @@ OspfApp::GetTypeId (void)
                          "Minimum interval between originating the same LSA (RFC 2328 MinLSInterval)",
                          TimeValue (Seconds (0)),
                          MakeTimeAccessor (&OspfApp::m_minLsInterval), MakeTimeChecker ())
+            .AddAttribute (
+              "EnableLsaThrottleStats",
+              "If true, track statistics about LSA throttling/coalescing (e.g., how many recompute triggers are suppressed while an LSA is pending).",
+              BooleanValue (false),
+              MakeBooleanAccessor (&OspfApp::m_enableLsaThrottleStats),
+              MakeBooleanChecker ())
           .AddAttribute ("AutoSyncInterfaces",
                          "If true, OSPF automatically tracks the node's Ipv4 interfaces (up/down/add/remove) and updates its bound interfaces accordingly.",
                          BooleanValue (false),

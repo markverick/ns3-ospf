@@ -421,6 +421,133 @@ public:
 };
 
 // =============================================================================
+// Test Case: EnableLsaThrottleStats attribute is properly exposed and defaults off
+// =============================================================================
+class OspfLsaThrottleStatsAttributeTestCase : public TestCase
+{
+public:
+  OspfLsaThrottleStatsAttributeTestCase ()
+    : TestCase ("EnableLsaThrottleStats attribute is properly exposed and defaults off")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    RngSeedManager::SetSeed (1);
+    RngSeedManager::SetRun (1);
+
+    NodeContainer nodes;
+    nodes.Create (2);
+
+    InternetStackHelper internet;
+    internet.Install (nodes);
+
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+
+    NetDeviceContainer d01 = p2p.Install (NodeContainer (nodes.Get (0), nodes.Get (1)));
+
+    Ipv4AddressHelper ipv4;
+    ipv4.SetBase ("10.56.1.0", "255.255.255.252");
+    ipv4.Assign (d01);
+
+    OspfAppHelper ospf;
+
+    ApplicationContainer apps = ospf.Install (nodes);
+    Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
+    NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
+
+    BooleanValue enableStats;
+    app0->GetAttribute ("EnableLsaThrottleStats", enableStats);
+    NS_TEST_EXPECT_MSG_EQ (enableStats.Get (), false, "EnableLsaThrottleStats should default to false");
+
+    app0->SetAttribute ("EnableLsaThrottleStats", BooleanValue (true));
+    app0->GetAttribute ("EnableLsaThrottleStats", enableStats);
+    NS_TEST_EXPECT_MSG_EQ (enableStats.Get (), true, "EnableLsaThrottleStats should be settable");
+
+    Simulator::Destroy ();
+  }
+};
+
+// =============================================================================
+// Test Case: Suppressed triggers are counted when stats are enabled
+// =============================================================================
+class OspfLsaThrottleStatsSuppressionTestCase : public TestCase
+{
+public:
+  OspfLsaThrottleStatsSuppressionTestCase ()
+    : TestCase ("LSA throttling stats count suppressed recompute triggers")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    RngSeedManager::SetSeed (42);
+    RngSeedManager::SetRun (1);
+
+    NodeContainer nodes;
+    nodes.Create (3);
+
+    InternetStackHelper internet;
+    internet.Install (nodes);
+
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+
+    NetDeviceContainer d01 = p2p.Install (NodeContainer (nodes.Get (0), nodes.Get (1)));
+    NetDeviceContainer d12 = p2p.Install (NodeContainer (nodes.Get (1), nodes.Get (2)));
+
+    Ipv4AddressHelper ipv4;
+    ipv4.SetBase ("10.55.1.0", "255.255.255.252");
+    ipv4.Assign (d01);
+    ipv4.SetBase ("10.55.2.0", "255.255.255.252");
+    ipv4.Assign (d12);
+
+    OspfAppHelper ospf;
+    ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
+    ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
+    ospf.SetAttribute ("MinLsInterval", TimeValue (Seconds (1)));
+    ospf.SetAttribute ("EnableLsaThrottleStats", BooleanValue (true));
+    ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
+
+    ospf.SetAttribute ("InitialHelloDelay", TimeValue (Seconds (0)));
+    ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (100)));
+    ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (400)));
+
+    ApplicationContainer apps = ospf.Install (nodes);
+    Ptr<OspfApp> app1 = DynamicCast<OspfApp> (apps.Get (1));
+    NS_TEST_ASSERT_MSG_NE (app1, nullptr, "expected OspfApp");
+
+    app1->ResetLsaThrottleStats ();
+
+    apps.Start (Seconds (0.0));
+    apps.Stop (Seconds (3.0));
+
+    Simulator::Schedule (Seconds (0.5), &TriggerInterfaceFlap, nodes.Get (1), 1);
+    Simulator::Schedule (Seconds (0.55), &BringInterfaceUp, nodes.Get (1), 1);
+    Simulator::Schedule (Seconds (0.6), &TriggerInterfaceFlap, nodes.Get (1), 1);
+    Simulator::Schedule (Seconds (0.65), &BringInterfaceUp, nodes.Get (1), 1);
+    Simulator::Schedule (Seconds (0.7), &TriggerInterfaceFlap, nodes.Get (1), 1);
+    Simulator::Schedule (Seconds (0.75), &BringInterfaceUp, nodes.Get (1), 1);
+
+    Simulator::Stop (Seconds (3.0));
+    Simulator::Run ();
+
+    OspfApp::LsaThrottleStats stats = app1->GetLsaThrottleStats ();
+    NS_TEST_EXPECT_MSG_GT (stats.recomputeTriggers, 0u, "expected throttled recompute triggers");
+    NS_TEST_EXPECT_MSG_GT (stats.deferredScheduled, 0u, "expected at least one deferred recompute");
+    NS_TEST_EXPECT_MSG_GT (stats.suppressed, 0u,
+                           "expected at least one suppressed trigger while a recompute was pending");
+
+    Simulator::Destroy ();
+  }
+};
+
+// =============================================================================
 // Test Suite Registration
 // =============================================================================
 class OspfLsaThrottlingTestSuite : public TestSuite
@@ -434,6 +561,8 @@ public:
     AddTestCase (new OspfLsaThrottlingReducesPacketsTestCase, TestCase::QUICK);
     AddTestCase (new OspfLsaThrottlingDeferredSendTestCase, TestCase::QUICK);
     AddTestCase (new OspfLsaThrottlingDefaultValueTestCase, TestCase::QUICK);
+    AddTestCase (new OspfLsaThrottleStatsAttributeTestCase, TestCase::QUICK);
+    AddTestCase (new OspfLsaThrottleStatsSuppressionTestCase, TestCase::QUICK);
   }
 };
 

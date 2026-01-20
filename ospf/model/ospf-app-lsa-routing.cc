@@ -318,8 +318,11 @@ OspfApp::RecomputeRouterLsa ()
   auto lsaKey =
       std::make_tuple (LsaHeader::LsType::RouterLSAs, m_routerId.Get (), m_routerId.Get ());
 
-  // Record origination time for throttling
-  m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
+  // Record origination time for throttling (only if enabled)
+  if (!m_minLsInterval.IsZero ())
+    {
+      m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
+    }
 
   // Initialize seq number to zero if new
   if (m_seqNumbers.find (lsaKey) == m_seqNumbers.end ())
@@ -356,8 +359,11 @@ OspfApp::RecomputeL1SummaryLsa ()
   auto lsaKey =
       std::make_tuple (LsaHeader::LsType::L1SummaryLSAs, m_routerId.Get (), m_routerId.Get ());
 
-  // Record origination time for throttling
-  m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
+  // Record origination time for throttling (only if enabled)
+  if (!m_minLsInterval.IsZero ())
+    {
+      m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
+    }
 
   // Initialize seq number to zero if new
   if (m_seqNumbers.find (lsaKey) == m_seqNumbers.end ())
@@ -404,8 +410,11 @@ OspfApp::RecomputeAreaLsa ()
 
   auto lsaKey = std::make_tuple (LsaHeader::LsType::AreaLSAs, m_areaId, m_routerId.Get ());
 
-  // Record origination time for throttling
-  m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
+  // Record origination time for throttling (only if enabled)
+  if (!m_minLsInterval.IsZero ())
+    {
+      m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
+    }
 
   // Initialize seq number to zero if new
   if (m_seqNumbers.find (lsaKey) == m_seqNumbers.end ())
@@ -456,8 +465,11 @@ OspfApp::RecomputeL2SummaryLsa ()
 
   auto lsaKey = std::make_tuple (LsaHeader::LsType::L2SummaryLSAs, m_areaId, m_routerId.Get ());
 
-  // Record origination time for throttling
-  m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
+  // Record origination time for throttling (only if enabled)
+  if (!m_minLsInterval.IsZero ())
+    {
+      m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
+    }
 
   // Initialize seq number to zero if new
   if (m_seqNumbers.find (lsaKey) == m_seqNumbers.end ())
@@ -855,151 +867,196 @@ OspfApp::AreaLeaderEnd ()
 // LSA Throttling Implementation (RFC 2328 MinLSInterval)
 // =============================================================================
 
+Time
+OspfApp::GetLsaThrottleDelay (const LsaHeader::LsaKey &lsaKey)
+{
+  if (m_minLsInterval.IsZero ())
+    {
+      return Time (0);
+    }
+
+  auto lastIt = m_lastLsaOriginationTime.find (lsaKey);
+  if (lastIt != m_lastLsaOriginationTime.end ())
+    {
+      Time elapsed = Simulator::Now () - lastIt->second;
+      if (elapsed < m_minLsInterval)
+        {
+          return m_minLsInterval - elapsed;
+        }
+    }
+  return Time (0);
+}
+
+void
+OspfApp::CleanupThrottleEvent (const LsaHeader::LsaKey &lsaKey)
+{
+  auto it = m_pendingLsaRegeneration.find (lsaKey);
+  if (it != m_pendingLsaRegeneration.end () && !it->second.IsRunning ())
+    {
+      m_pendingLsaRegeneration.erase (it);
+    }
+}
+
 void
 OspfApp::ThrottledRecomputeRouterLsa ()
 {
   NS_LOG_FUNCTION (this);
-
-  // If MinLsInterval is zero, bypass throttling
-  if (m_minLsInterval.IsZero ())
-    {
-      RecomputeRouterLsa ();
-      return;
-    }
-
   auto lsaKey =
       std::make_tuple (LsaHeader::LsType::RouterLSAs, m_routerId.Get (), m_routerId.Get ());
 
-  Time now = Simulator::Now ();
-  auto lastIt = m_lastLsaOriginationTime.find (lsaKey);
-
-  if (lastIt != m_lastLsaOriginationTime.end ())
+  CleanupThrottleEvent (lsaKey);
+  if (m_enableLsaThrottleStats)
     {
-      Time elapsed = now - lastIt->second;
-      if (elapsed < m_minLsInterval)
+      ++m_lsaThrottleRecomputeTriggers;
+    }
+  Time delay = GetLsaThrottleDelay (lsaKey);
+
+  if (delay.IsZero ())
+    {
+      if (m_enableLsaThrottleStats)
         {
-          auto pendingIt = m_pendingLsaRegeneration.find (lsaKey);
-          if (pendingIt == m_pendingLsaRegeneration.end () || !pendingIt->second.IsRunning ())
-            {
-              Time delay = m_minLsInterval - elapsed;
-              NS_LOG_INFO ("Router-LSA throttled, deferring by " << delay.As (Time::MS));
-              m_pendingLsaRegeneration[lsaKey] =
-                  Simulator::Schedule (delay, &OspfApp::RecomputeRouterLsa, this);
-            }
-          return;
+          ++m_lsaThrottleImmediate;
+        }
+      RecomputeRouterLsa ();
+    }
+  else if (m_pendingLsaRegeneration.find (lsaKey) == m_pendingLsaRegeneration.end ())
+    {
+      NS_LOG_INFO ("Router-LSA throttled, deferring by " << delay.As (Time::MS));
+      if (m_enableLsaThrottleStats)
+        {
+          ++m_lsaThrottleDeferredScheduled;
+        }
+      m_pendingLsaRegeneration[lsaKey] =
+          Simulator::Schedule (delay, &OspfApp::RecomputeRouterLsa, this);
+    }
+  else
+    {
+      if (m_enableLsaThrottleStats)
+        {
+          ++m_lsaThrottleSuppressed;
         }
     }
-
-  RecomputeRouterLsa ();
 }
 
 void
 OspfApp::ThrottledRecomputeL1SummaryLsa ()
 {
   NS_LOG_FUNCTION (this);
-
-  if (m_minLsInterval.IsZero ())
-    {
-      RecomputeL1SummaryLsa ();
-      return;
-    }
-
   auto lsaKey =
       std::make_tuple (LsaHeader::LsType::L1SummaryLSAs, m_routerId.Get (), m_routerId.Get ());
 
-  Time now = Simulator::Now ();
-  auto lastIt = m_lastLsaOriginationTime.find (lsaKey);
-
-  if (lastIt != m_lastLsaOriginationTime.end ())
+  CleanupThrottleEvent (lsaKey);
+  if (m_enableLsaThrottleStats)
     {
-      Time elapsed = now - lastIt->second;
-      if (elapsed < m_minLsInterval)
+      ++m_lsaThrottleRecomputeTriggers;
+    }
+  Time delay = GetLsaThrottleDelay (lsaKey);
+
+  if (delay.IsZero ())
+    {
+      if (m_enableLsaThrottleStats)
         {
-          auto pendingIt = m_pendingLsaRegeneration.find (lsaKey);
-          if (pendingIt == m_pendingLsaRegeneration.end () || !pendingIt->second.IsRunning ())
-            {
-              Time delay = m_minLsInterval - elapsed;
-              NS_LOG_INFO ("L1Summary-LSA throttled, deferring by " << delay.As (Time::MS));
-              m_pendingLsaRegeneration[lsaKey] =
-                  Simulator::Schedule (delay, &OspfApp::RecomputeL1SummaryLsa, this);
-            }
-          return;
+          ++m_lsaThrottleImmediate;
+        }
+      RecomputeL1SummaryLsa ();
+    }
+  else if (m_pendingLsaRegeneration.find (lsaKey) == m_pendingLsaRegeneration.end ())
+    {
+      NS_LOG_INFO ("L1Summary-LSA throttled, deferring by " << delay.As (Time::MS));
+      if (m_enableLsaThrottleStats)
+        {
+          ++m_lsaThrottleDeferredScheduled;
+        }
+      m_pendingLsaRegeneration[lsaKey] =
+          Simulator::Schedule (delay, &OspfApp::RecomputeL1SummaryLsa, this);
+    }
+  else
+    {
+      if (m_enableLsaThrottleStats)
+        {
+          ++m_lsaThrottleSuppressed;
         }
     }
-
-  RecomputeL1SummaryLsa ();
 }
 
 void
 OspfApp::ThrottledRecomputeAreaLsa ()
 {
   NS_LOG_FUNCTION (this);
-
-  if (m_minLsInterval.IsZero ())
-    {
-      RecomputeAreaLsa ();
-      return;
-    }
-
   auto lsaKey = std::make_tuple (LsaHeader::LsType::AreaLSAs, m_areaId, m_routerId.Get ());
 
-  Time now = Simulator::Now ();
-  auto lastIt = m_lastLsaOriginationTime.find (lsaKey);
-
-  if (lastIt != m_lastLsaOriginationTime.end ())
+  CleanupThrottleEvent (lsaKey);
+  if (m_enableLsaThrottleStats)
     {
-      Time elapsed = now - lastIt->second;
-      if (elapsed < m_minLsInterval)
+      ++m_lsaThrottleRecomputeTriggers;
+    }
+  Time delay = GetLsaThrottleDelay (lsaKey);
+
+  if (delay.IsZero ())
+    {
+      if (m_enableLsaThrottleStats)
         {
-          auto pendingIt = m_pendingLsaRegeneration.find (lsaKey);
-          if (pendingIt == m_pendingLsaRegeneration.end () || !pendingIt->second.IsRunning ())
-            {
-              Time delay = m_minLsInterval - elapsed;
-              NS_LOG_INFO ("Area-LSA throttled, deferring by " << delay.As (Time::MS));
-              m_pendingLsaRegeneration[lsaKey] =
-                  Simulator::Schedule (delay, &OspfApp::RecomputeAreaLsa, this);
-            }
-          return;
+          ++m_lsaThrottleImmediate;
+        }
+      RecomputeAreaLsa ();
+    }
+  else if (m_pendingLsaRegeneration.find (lsaKey) == m_pendingLsaRegeneration.end ())
+    {
+      NS_LOG_INFO ("Area-LSA throttled, deferring by " << delay.As (Time::MS));
+      auto wrapper = [this] () { RecomputeAreaLsa (); };
+      if (m_enableLsaThrottleStats)
+        {
+          ++m_lsaThrottleDeferredScheduled;
+        }
+      m_pendingLsaRegeneration[lsaKey] = Simulator::Schedule (delay, wrapper);
+    }
+  else
+    {
+      if (m_enableLsaThrottleStats)
+        {
+          ++m_lsaThrottleSuppressed;
         }
     }
-
-  RecomputeAreaLsa ();
 }
 
 void
 OspfApp::ThrottledRecomputeL2SummaryLsa ()
 {
   NS_LOG_FUNCTION (this);
-
-  if (m_minLsInterval.IsZero ())
-    {
-      RecomputeL2SummaryLsa ();
-      return;
-    }
-
   auto lsaKey = std::make_tuple (LsaHeader::LsType::L2SummaryLSAs, m_areaId, m_routerId.Get ());
 
-  Time now = Simulator::Now ();
-  auto lastIt = m_lastLsaOriginationTime.find (lsaKey);
-
-  if (lastIt != m_lastLsaOriginationTime.end ())
+  CleanupThrottleEvent (lsaKey);
+  if (m_enableLsaThrottleStats)
     {
-      Time elapsed = now - lastIt->second;
-      if (elapsed < m_minLsInterval)
+      ++m_lsaThrottleRecomputeTriggers;
+    }
+  Time delay = GetLsaThrottleDelay (lsaKey);
+
+  if (delay.IsZero ())
+    {
+      if (m_enableLsaThrottleStats)
         {
-          auto pendingIt = m_pendingLsaRegeneration.find (lsaKey);
-          if (pendingIt == m_pendingLsaRegeneration.end () || !pendingIt->second.IsRunning ())
-            {
-              Time delay = m_minLsInterval - elapsed;
-              NS_LOG_INFO ("L2Summary-LSA throttled, deferring by " << delay.As (Time::MS));
-              m_pendingLsaRegeneration[lsaKey] =
-                  Simulator::Schedule (delay, &OspfApp::RecomputeL2SummaryLsa, this);
-            }
-          return;
+          ++m_lsaThrottleImmediate;
+        }
+      RecomputeL2SummaryLsa ();
+    }
+  else if (m_pendingLsaRegeneration.find (lsaKey) == m_pendingLsaRegeneration.end ())
+    {
+      NS_LOG_INFO ("L2Summary-LSA throttled, deferring by " << delay.As (Time::MS));
+      auto wrapper = [this] () { RecomputeL2SummaryLsa (); };
+      if (m_enableLsaThrottleStats)
+        {
+          ++m_lsaThrottleDeferredScheduled;
+        }
+      m_pendingLsaRegeneration[lsaKey] = Simulator::Schedule (delay, wrapper);
+    }
+  else
+    {
+      if (m_enableLsaThrottleStats)
+        {
+          ++m_lsaThrottleSuppressed;
         }
     }
-
-  RecomputeL2SummaryLsa ();
 }
 
 } // namespace ns3
