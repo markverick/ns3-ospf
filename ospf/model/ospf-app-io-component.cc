@@ -35,6 +35,7 @@ ClassifyLsaLevel (uint8_t lsaType)
 
 /**
  * Extract LSA level from packet payload for LSU (type 4) or LSAck (type 5)
+ * This version expects the full OSPF packet (with header).
  */
 std::string
 ExtractLsaLevelFromPacket (Ptr<Packet> packet, uint8_t ospfType)
@@ -64,6 +65,53 @@ ExtractLsaLevelFromPacket (Ptr<Packet> packet, uint8_t ospfType)
   uint8_t buffer[12];
   uint32_t bytesToRead = std::min (payloadSize, 12u);
   copy->CopyData (buffer, bytesToRead);
+
+  if (ospfType == OspfHeader::OspfLSUpdate)
+    {
+      // LSU format: num_lsas (4 bytes), then LSA headers
+      // LSA header: LS age(2), options(1), LS type(1), ...
+      if (bytesToRead >= 8)
+        {
+          uint8_t lsaType = buffer[7]; // offset 4 + 3
+          return ClassifyLsaLevel (lsaType);
+        }
+    }
+  else if (ospfType == OspfHeader::OspfLSAck)
+    {
+      // LSAck format: LSA header(s) directly
+      // LSA header: LS age(2), options(1), LS type(1), ...
+      if (bytesToRead >= 4)
+        {
+          uint8_t lsaType = buffer[3];
+          return ClassifyLsaLevel (lsaType);
+        }
+    }
+
+  return "";
+}
+
+/**
+ * Extract LSA level from packet payload for LSU (type 4) or LSAck (type 5)
+ * This version expects the payload only (OSPF header already removed).
+ */
+std::string
+ExtractLsaLevelFromPayload (Ptr<Packet> payload, uint8_t ospfType)
+{
+  if (ospfType != OspfHeader::OspfLSUpdate && ospfType != OspfHeader::OspfLSAck)
+    {
+      return "";
+    }
+
+  uint32_t payloadSize = payload->GetSize ();
+  if (payloadSize < 8)
+    {
+      return "";
+    }
+
+  // Read first few bytes of payload
+  uint8_t buffer[12];
+  uint32_t bytesToRead = std::min (payloadSize, 12u);
+  payload->CopyData (buffer, bytesToRead);
 
   if (ospfType == OspfHeader::OspfLSUpdate)
     {
@@ -344,7 +392,8 @@ OspfAppIo::HandleRead (Ptr<Socket> socket)
       uint8_t ospfType = static_cast<uint8_t> (ospfHeader.GetType ());
       // Calculate full OSPF packet size (header + payload)
       uint32_t packetSize = ospfHeader.GetSerializedSize () + ospfHeader.GetPayloadSize ();
-      std::string lsaLevel = ExtractLsaLevelFromPacket (packet->Copy (), ospfType);
+      // Note: OSPF header was already removed above, so extract level from payload directly
+      std::string lsaLevel = ExtractLsaLevelFromPayload (packet->Copy (), ospfType);
       m_app.m_logging->LogPacketRx (packetSize, ospfType, lsaLevel);
     }
 

@@ -190,6 +190,17 @@ OspfApp::ResetStateForRestart ()
   m_l2SummaryLsdb.clear ();
   m_l2NextHop.clear ();
 
+  // Cancel pending LSA regeneration events and clear throttling state
+  for (auto &pair : m_pendingLsaRegeneration)
+    {
+      if (pair.second.IsRunning ())
+        {
+          Simulator::Cancel (pair.second);
+        }
+    }
+  m_pendingLsaRegeneration.clear ();
+  m_lastLsaOriginationTime.clear ();
+
   m_doInitialize = true;
 }
 

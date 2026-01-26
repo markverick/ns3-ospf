@@ -10,6 +10,8 @@
 #include "ns3/ospf-app-helper.h"
 #include "ns3/ospf-app.h"
 
+#include "ospf-test-utils.h"
+
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
@@ -21,66 +23,11 @@ namespace ns3 {
 
 namespace {
 
-std::string
-ReadAll (const std::filesystem::path &path)
-{
-  std::ifstream in (path);
-  std::stringstream ss;
-  ss << in.rdbuf ();
-  return ss.str ();
-}
-
-bool
-HasRouteLine (const std::string &table, const std::string &dst, const std::string &gw)
-{
-  std::istringstream iss (table);
-  for (std::string line; std::getline (iss, line);)
-    {
-      // Ipv4StaticRouting table lines begin with the destination.
-      if (line.rfind (dst, 0) == 0 && line.find (gw) != std::string::npos)
-        {
-          return true;
-        }
-    }
-  return false;
-}
-
-bool
-HasRouteLineViaAnyGateway (const std::string &table, const std::string &dst,
-                           const std::initializer_list<std::string> &gws)
-{
-  for (const auto &gw : gws)
-    {
-      if (HasRouteLine (table, dst, gw))
-        {
-          return true;
-        }
-    }
-  return false;
-}
-
-bool
-HasRouteDest (const std::string &table, const std::string &dst)
-{
-  std::istringstream iss (table);
-  for (std::string line; std::getline (iss, line);)
-    {
-      // Ipv4StaticRouting table lines begin with the destination.
-      if (line.rfind (dst, 0) == 0)
-        {
-          return true;
-        }
-    }
-  return false;
-}
-
-std::string
-Ipv4ToString (Ipv4Address addr)
-{
-  std::ostringstream os;
-  os << addr;
-  return os.str ();
-}
+using ospf_test_utils::ReadAll;
+using ospf_test_utils::HasRouteLine;
+using ospf_test_utils::HasRouteLineViaAnyGateway;
+using ospf_test_utils::HasRouteDest;
+using ospf_test_utils::Ipv4ToString;
 
 static void
 IncrementTxCounter (uint32_t *counter, Ptr<const Packet>)

@@ -398,8 +398,8 @@ OspfNeighborFsm::FallbackToInit (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
   // TODO: Defer router lsa update until when the link is fully down
   neighbor->SetState (OspfNeighbor::Init);
 
-  // Fill in the current Router LSDB
-  m_app.RecomputeRouterLsa ();
+  // Fill in the current Router LSDB (throttled to prevent LSA storms)
+  m_app.ThrottledRecomputeRouterLsa ();
 
   // Process the new LSA and generate/flood Area LSA if needed
   m_app.ProcessLsa (m_app.m_routerLsdb[m_app.m_routerId.Get ()]);
@@ -415,8 +415,8 @@ OspfNeighborFsm::FallbackToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   NS_LOG_INFO ("Hello timeout. Move to Down");
   neighbor->SetState (OspfNeighbor::Down);
-  // Fill in the current Router LSDB
-  m_app.RecomputeRouterLsa ();
+  // Fill in the current Router LSDB (throttled to prevent LSA storms)
+  m_app.ThrottledRecomputeRouterLsa ();
 
   // Process the new LSA and generate/flood Area LSA if needed
   m_app.ProcessLsa (m_app.m_routerLsdb[m_app.m_routerId.Get ()]);
@@ -575,8 +575,8 @@ OspfNeighborFsm::AdvanceToFull (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
   // Remove data sync timeout
   neighbor->RemoveTimeout ();
 
-  // Fill in the current Router LSDB
-  m_app.RecomputeRouterLsa ();
+  // Fill in the current Router LSDB (throttled to prevent LSA storms)
+  m_app.ThrottledRecomputeRouterLsa ();
 
   // Process the new LSA and generate/flood Area LSA if needed
   m_app.ProcessLsa (m_app.m_routerLsdb[m_app.m_routerId.Get ()]);
