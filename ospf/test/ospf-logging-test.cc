@@ -241,6 +241,72 @@ public:
   }
 };
 
+class OspfPacketLogLsaLevelPopulatedTestCase : public TestCase
+{
+public:
+  OspfPacketLogLsaLevelPopulatedTestCase ()
+    : TestCase ("Packet log has lsa_level populated for LSU and LSAck packets")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    const auto r = RunTwoNodeOspfWithLogs (true /*packet*/, false /*includeHello*/, false /*lsaTiming*/);
+    NS_TEST_ASSERT_MSG_EQ (r.outDir.empty (), false, "failed to create temp dir");
+
+    const std::filesystem::path pkt0 = r.outDir / "ospf-packets" / (std::to_string (r.node0Id) + ".csv");
+    NS_TEST_ASSERT_MSG_EQ (std::filesystem::exists (pkt0), true, "packet log for node0 exists");
+
+    auto lines = ReadLines (pkt0);
+    NS_TEST_ASSERT_MSG_EQ (lines.empty (), false, "packet log is non-empty");
+    NS_TEST_ASSERT_MSG_EQ (lines.front (), "timestamp,size,type,lsa_level", "packet log header");
+
+    // Check that LSU (type 4) and LSAck (type 5) packets have non-empty lsa_level
+    int lsuCount = 0;
+    int lsackCount = 0;
+    int lsuWithLevel = 0;
+    int lsackWithLevel = 0;
+
+    for (size_t i = 1; i < lines.size (); ++i)
+      {
+        auto fields = SplitCsvLine (lines[i]);
+        if (fields.size () >= 4)
+          {
+            const std::string &packetType = fields[2];
+            const std::string &lsaLevel = fields[3];
+
+            if (packetType == "4") // LSU
+              {
+                lsuCount++;
+                if (!lsaLevel.empty () && (lsaLevel == "L1" || lsaLevel == "L2"))
+                  {
+                    lsuWithLevel++;
+                  }
+              }
+            else if (packetType == "5") // LSAck
+              {
+                lsackCount++;
+                if (!lsaLevel.empty () && (lsaLevel == "L1" || lsaLevel == "L2"))
+                  {
+                    lsackWithLevel++;
+                  }
+              }
+          }
+      }
+
+    // We expect at least some LSU and LSAck packets in a 2-node OSPF simulation
+    NS_TEST_ASSERT_MSG_GT (lsuCount, 0, "expected at least one LSU packet");
+    NS_TEST_ASSERT_MSG_GT (lsackCount, 0, "expected at least one LSAck packet");
+
+    // All LSU and LSAck packets should have lsa_level populated
+    NS_TEST_ASSERT_MSG_EQ (lsuWithLevel, lsuCount,
+                           "all LSU packets should have lsa_level (L1 or L2)");
+    NS_TEST_ASSERT_MSG_EQ (lsackWithLevel, lsackCount,
+                           "all LSAck packets should have lsa_level (L1 or L2)");
+  }
+};
+
 class OspfLoggingTestSuite : public TestSuite
 {
 public:
@@ -250,6 +316,7 @@ public:
     AddTestCase (new OspfPacketLogHelloFilteredByDefaultTestCase, TestCase::QUICK);
     AddTestCase (new OspfPacketLogIncludesHelloWhenEnabledTestCase, TestCase::QUICK);
     AddTestCase (new OspfLsaTimingLogCreatesFilesTestCase, TestCase::QUICK);
+    AddTestCase (new OspfPacketLogLsaLevelPopulatedTestCase, TestCase::QUICK);
   }
 };
 
