@@ -348,6 +348,27 @@ public:
    */
   std::pair<LsaHeader, Ptr<Lsa>> FetchLsa (LsaHeader::LsaKey lsaKey);
 
+  struct LsaThrottleStats
+  {
+    uint64_t recomputeTriggers = 0; //!< Number of calls into ThrottledRecompute*()
+    uint64_t immediate = 0; //!< Recompute executed immediately (no throttling delay)
+    uint64_t deferredScheduled = 0; //!< A deferred recompute event was scheduled
+    uint64_t suppressed = 0; //!< A trigger was suppressed because a deferred recompute was already pending
+    uint64_t cancelledPending = 0; //!< A pending deferred recompute was cancelled because we could run immediately
+  };
+
+  /**
+   * \brief Return current LSA throttling statistics.
+   *
+   * Stats are only collected when the EnableLsaThrottleStats attribute is true.
+   */
+  LsaThrottleStats GetLsaThrottleStats () const;
+
+  /**
+   * \brief Reset LSA throttling statistics to zero.
+   */
+  void ResetLsaThrottleStats ();
+
 protected:
   virtual void DoDispose (void);
 
@@ -606,17 +627,56 @@ private:
    */
   void RecomputeRouterLsa ();
   /**
+   * \brief Throttled version of RecomputeRouterLsa that respects MinLsInterval
+   */
+  void ThrottledRecomputeRouterLsa ();
+  /**
    * \brief Recompute L1 Summary-LSA, increment its Sequence Number, and inject to L1 Summary LSDB
    */
   void RecomputeL1SummaryLsa ();
+  /**
+   * \brief Throttled version of RecomputeL1SummaryLsa that respects MinLsInterval
+   */
+  void ThrottledRecomputeL1SummaryLsa ();
   /**
    * \brief Recompute local Area-LSA, increment its Sequence Number, and inject to Area LSDB
    */
   bool RecomputeAreaLsa ();
   /**
+   * \brief Throttled version of RecomputeAreaLsa that respects MinLsInterval
+   */
+  void ThrottledRecomputeAreaLsa ();
+  /**
    * \brief Recompute Area Summary-LSA, increment its Sequence Number, and inject to L2 Summary LSDB
    */
   bool RecomputeL2SummaryLsa ();
+  /**
+   * \brief Throttled version of RecomputeL2SummaryLsa that respects MinLsInterval
+   */
+  void ThrottledRecomputeL2SummaryLsa ();
+
+  /**
+   * \brief Check if LSA should be throttled and get delay
+   * \param lsaKey the LSA key
+   * \return Time::Zero() if should proceed immediately, otherwise delay until next allowed origination
+   */
+  Time GetLsaThrottleDelay (const LsaHeader::LsaKey &lsaKey);
+
+  /**
+   * \brief Clean up completed throttle events for an LSA key
+   * \param lsaKey the LSA key to clean
+   */
+  void CleanupThrottleEvent (const LsaHeader::LsaKey &lsaKey);
+
+  /**
+   * \brief Wrapper for RecomputeAreaLsa (void return type for Simulator::Schedule)
+   */
+  void RecomputeAreaLsaWrapper ();
+
+  /**
+   * \brief Wrapper for RecomputeL2SummaryLsa (void return type for Simulator::Schedule)
+   */
+  void RecomputeL2SummaryLsaWrapper ();
   /**
    * \brief Update routing table based on shortest paths and prefixes
    */
@@ -814,6 +874,18 @@ private:
   EventId m_areaLeaderBeginTimer; // area leadership begin timer
   Ipv4Address m_lsaAddress; //!< multicast address for LSA
   std::map<LsaHeader::LsaKey, uint16_t> m_seqNumbers; // sequence number of stored LSA
+
+  // LSA Throttling (RFC 2328 MinLSInterval)
+  Time m_minLsInterval; //!< Minimum interval between originating the same LSA
+  std::map<LsaHeader::LsaKey, Time> m_lastLsaOriginationTime; //!< Last origination time per LSA key
+  std::map<LsaHeader::LsaKey, EventId> m_pendingLsaRegeneration; //!< Pending regeneration events
+
+  bool m_enableLsaThrottleStats = false;
+  uint64_t m_lsaThrottleRecomputeTriggers = 0;
+  uint64_t m_lsaThrottleImmediate = 0;
+  uint64_t m_lsaThrottleDeferredScheduled = 0;
+  uint64_t m_lsaThrottleSuppressed = 0;
+  uint64_t m_lsaThrottleCancelledPending = 0;
 
   // L1 LSDB
   std::map<uint32_t, std::pair<LsaHeader, Ptr<RouterLsa>>>
