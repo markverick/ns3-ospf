@@ -1,5 +1,9 @@
 Simplified OSPF module for ns-3
 ===============================
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.18843774.svg)](https://doi.org/10.5281/zenodo.18843774)
+[![CI](https://github.com/markverick/ns3-ospf/actions/workflows/main.yml/badge.svg)](https://github.com/markverick/ns3-ospf/actions/workflows/main.yml)
+[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)](LICENSE)
+
 This project is an external module for the [ns-3 network simulator](https://www.nsnam.org/), implementing basic functionality of the Open Shortest Path First Version 2 (OSPFv2) routing protocol as defined in [RFC 2328](https://datatracker.ietf.org/doc/rfc2328/). This module is targetted for ns-3 version 3.35.
 
 ## License
@@ -12,7 +16,8 @@ See the LICENSE file for more details.
 1) [Overview](#overview)
 2) [Instruction](#instruction)
 3) [Continuous Integration](#continuous-integration)
-4) [Reporting Issues](#reporting-issues)
+4) [Citation](#citation)
+5) [Reporting Issues](#reporting-issues)
 
 
 ## Overview
@@ -56,6 +61,26 @@ for s in $ospf_suites; do suite_args="$suite_args -s $s"; done
 
 # shellcheck disable=SC2086
 ./test.py --nowaf $suite_args -v
+```
+
+## Citation
+
+If you use this software in research, please cite the Zenodo record:
+
+Theeranantachai, S. (2026). *ns3-ospf* (v1.0.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.18843774
+
+BibTeX:
+
+```bibtex
+@software{theeranantachai_2026_ns3_ospf,
+   author    = {Theeranantachai, Sirapop},
+   title     = {ns3-ospf},
+   version   = {v1.0.0},
+   publisher = {Zenodo},
+   year      = {2026},
+   doi       = {10.5281/zenodo.18843774},
+   url       = {https://doi.org/10.5281/zenodo.18843774}
+}
 ```
 
 ## Instruction

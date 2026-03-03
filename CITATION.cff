@@ -8,6 +8,7 @@ authors:
     alias: "markverick"
 repository-code: "https://github.com/markverick/ns3-ospf"
 url: "https://github.com/markverick/ns3-ospf"
+doi: "10.5281/zenodo.18843774"
 license: "GPL-2.0-only"
 abstract: "Simplified, native OSPFv2/3 implementation as an external module for ns-3 for research use."
 keywords:
@@ -15,5 +16,5 @@ keywords:
   - OSPF
   - routing
   - network simulation
-version: "0.1.0"
+version: "1.0.0"
 date-released: 2026-03-02
