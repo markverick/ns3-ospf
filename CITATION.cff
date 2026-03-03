@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use this software in research, please cite it as below."
+title: "ns3-ospf"
+type: software
+authors:
+  - family-names: "Theeranantachai"
+    given-names: "Sirapop"
+    alias: "markverick"
+repository-code: "https://github.com/markverick/ns3-ospf"
+url: "https://github.com/markverick/ns3-ospf"
+license: "GPL-2.0-only"
+abstract: "Simplified, native OSPFv2/3 implementation as an external module for ns-3 for research use."
+keywords:
+  - ns-3
+  - OSPF
+  - routing
+  - network simulation
+version: "0.1.0"
+date-released: 2026-03-02
