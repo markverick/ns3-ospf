@@ -135,14 +135,8 @@ OspfApp::IsEnabled () const
 void
 OspfApp::FlushOspfRoutes ()
 {
-  if (m_routing == nullptr)
-    {
-      return;
-    }
-  while (m_routing->GetNRoutes () > m_boundDevices.GetN ())
-    {
-      m_routing->RemoveRoute (m_boundDevices.GetN ());
-    }
+  // No flat OSPF routes are installed anymore. Forwarding stops automatically
+  // when the app is disabled because the OSPF routing protocol checks IsEnabled().
 }
 
 void

@@ -2,6 +2,7 @@
 
 #include "ns3/test.h"
 
+#include "ns3/applications-module.h"
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-module.h"
@@ -28,6 +29,8 @@ using ospf_test_utils::HasRouteLine;
 using ospf_test_utils::HasRouteLineViaAnyGateway;
 using ospf_test_utils::HasRouteDest;
 using ospf_test_utils::Ipv4ToString;
+using ospf_test_utils::FindStaticRoute;
+using ospf_test_utils::LookupOspfRoute;
 
 static void
 IncrementTxCounter (uint32_t *counter, Ptr<const Packet>)
@@ -66,9 +69,9 @@ public:
 
     Ipv4AddressHelper ipv4;
     ipv4.SetBase ("10.1.1.0", "255.255.255.252");
-    ipv4.Assign (d01);
+    Ipv4InterfaceContainer if01 = ipv4.Assign (d01);
     ipv4.SetBase ("10.1.2.0", "255.255.255.252");
-    ipv4.Assign (d12);
+    Ipv4InterfaceContainer if12 = ipv4.Assign (d12);
 
     OspfAppHelper ospf;
     ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
@@ -109,6 +112,21 @@ public:
     NS_TEST_ASSERT_MSG_EQ (HasRouteLine (n2, "10.1.1.0", "10.1.2.1"), true,
                            "node2 should have a route to 10.1.1.0/30 via 10.1.2.1\n" + n2);
 
+    Socket::SocketErrno sockerr = Socket::ERROR_NOTERROR;
+    auto route = LookupOspfRoute (nodes.Get (0), if12.GetAddress (1), nullptr, &sockerr);
+    NS_TEST_ASSERT_MSG_EQ (sockerr, Socket::ERROR_NOTERROR,
+                           "node0 should resolve node2 through OSPF's forwarding plane");
+    NS_TEST_ASSERT_MSG_NE (route, nullptr, "node0 should resolve a route to node2");
+    NS_TEST_ASSERT_MSG_EQ (route->GetGateway (), if01.GetAddress (1),
+                           "node0 should use node1 as the first hop to node2");
+    NS_TEST_ASSERT_MSG_EQ (route->GetOutputDevice (), d01.Get (0),
+                           "node0 should emit node2 traffic on the (0,1) link");
+
+    const auto staticRoute = FindStaticRoute (nodes.Get (0), if12.GetAddress (1).CombineMask (Ipv4Mask ("255.255.255.252")),
+                                              Ipv4Mask ("255.255.255.252"));
+    NS_TEST_ASSERT_MSG_EQ (staticRoute.has_value (), false,
+                           "node0 must not have a flattened static route for node2's subnet");
+
     Simulator::Destroy ();
   }
 };
@@ -142,9 +160,9 @@ public:
 
     Ipv4AddressHelper ipv4;
     ipv4.SetBase ("10.1.1.0", "255.255.255.252");
-    ipv4.Assign (d01);
+    Ipv4InterfaceContainer if01 = ipv4.Assign (d01);
     ipv4.SetBase ("10.1.2.0", "255.255.255.252");
-    ipv4.Assign (d12);
+    Ipv4InterfaceContainer if12 = ipv4.Assign (d12);
 
     OspfAppHelper ospf;
     ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
@@ -165,6 +183,19 @@ public:
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
     NS_TEST_ASSERT_MSG_NE (app1, nullptr, "expected OspfApp");
     NS_TEST_ASSERT_MSG_NE (app2, nullptr, "expected OspfApp");
+
+    UdpServerHelper server (9000);
+    ApplicationContainer serverApps = server.Install (nodes.Get (2));
+    serverApps.Start (Seconds (0.5));
+    serverApps.Stop (Seconds (8.0));
+
+    UdpClientHelper client (if12.GetAddress (1), 9000);
+    client.SetAttribute ("MaxPackets", UintegerValue (5));
+    client.SetAttribute ("Interval", TimeValue (MilliSeconds (100)));
+    client.SetAttribute ("PacketSize", UintegerValue (64));
+    ApplicationContainer clientApps = client.Install (nodes.Get (0));
+    clientApps.Start (Seconds (6.5));
+    clientApps.Stop (Seconds (7.5));
 
     // Configure reachable prefixes (advertised routes) from each node's interfaces.
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
@@ -223,6 +254,24 @@ public:
     NS_TEST_ASSERT_MSG_EQ (h0, h1, "expected LSDB hashes to match after cold start (n0 vs n1)");
     NS_TEST_ASSERT_MSG_EQ (h0, h2, "expected LSDB hashes to match after cold start (n0 vs n2)");
 
+    Ptr<UdpServer> udpServer = DynamicCast<UdpServer> (serverApps.Get (0));
+    NS_TEST_ASSERT_MSG_NE (udpServer, nullptr, "expected UdpServer application");
+    NS_TEST_ASSERT_MSG_EQ (udpServer->GetReceived (), 5u,
+                           "all user packets should reach node2 after cold-start convergence");
+
+    Socket::SocketErrno sockerr = Socket::ERROR_NOTERROR;
+    auto route = LookupOspfRoute (nodes.Get (0), if12.GetAddress (1), nullptr, &sockerr);
+    NS_TEST_ASSERT_MSG_EQ (sockerr, Socket::ERROR_NOTERROR,
+                           "node0 should resolve node2 through the two-step forwarding plane after cold start");
+    NS_TEST_ASSERT_MSG_NE (route, nullptr, "node0 should resolve a post-convergence route to node2");
+    NS_TEST_ASSERT_MSG_EQ (route->GetGateway (), if01.GetAddress (1),
+                           "node0 should still forward to node1 as the first hop after cold start");
+
+    const auto staticRoute = FindStaticRoute (nodes.Get (0), if12.GetAddress (1).CombineMask (Ipv4Mask ("255.255.255.252")),
+                                              Ipv4Mask ("255.255.255.252"));
+    NS_TEST_ASSERT_MSG_EQ (staticRoute.has_value (), false,
+                           "cold-start convergence must not materialize learned routes in the static routing table");
+
     Simulator::Destroy ();
   }
 };
@@ -257,11 +306,11 @@ public:
 
     Ipv4AddressHelper ipv4;
     ipv4.SetBase ("10.1.1.0", "255.255.255.252");
-    ipv4.Assign (d01);
+    Ipv4InterfaceContainer if01 = ipv4.Assign (d01);
     ipv4.SetBase ("10.1.2.0", "255.255.255.252");
-    ipv4.Assign (d12);
+    Ipv4InterfaceContainer if12 = ipv4.Assign (d12);
     ipv4.SetBase ("10.1.3.0", "255.255.255.252");
-    ipv4.Assign (d23);
+    Ipv4InterfaceContainer if23 = ipv4.Assign (d23);
 
     OspfAppHelper ospf;
     ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
@@ -798,11 +847,11 @@ public:
 
     Ipv4AddressHelper ipv4;
     ipv4.SetBase ("10.1.1.0", "255.255.255.252");
-    ipv4.Assign (d01);
+    Ipv4InterfaceContainer if01 = ipv4.Assign (d01);
     ipv4.SetBase ("10.1.2.0", "255.255.255.252");
-    ipv4.Assign (d12);
+    Ipv4InterfaceContainer if12 = ipv4.Assign (d12);
     ipv4.SetBase ("10.1.3.0", "255.255.255.252");
-    ipv4.Assign (d23);
+    Ipv4InterfaceContainer if23 = ipv4.Assign (d23);
 
     OspfAppHelper ospf;
     ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
@@ -833,6 +882,19 @@ public:
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
     NS_TEST_ASSERT_MSG_NE (app3, nullptr, "expected OspfApp");
 
+    UdpServerHelper server (9001);
+    ApplicationContainer serverApps = server.Install (nodes.Get (3));
+    serverApps.Start (Seconds (0.5));
+    serverApps.Stop (Seconds (8.0));
+
+    UdpClientHelper client (if23.GetAddress (1), 9001);
+    client.SetAttribute ("MaxPackets", UintegerValue (5));
+    client.SetAttribute ("Interval", TimeValue (MilliSeconds (100)));
+    client.SetAttribute ("PacketSize", UintegerValue (64));
+    ApplicationContainer clientApps = client.Install (nodes.Get (0));
+    clientApps.Start (Seconds (6.5));
+    clientApps.Stop (Seconds (7.5));
+
     apps.Start (Seconds (0.0));
     apps.Stop (Seconds (8.0));
 
@@ -854,6 +916,26 @@ public:
     NS_TEST_ASSERT_MSG_EQ (
         HasRouteLine (n3, "10.1.1.0", "10.1.3.1"), true,
         "node3 should have a route to 10.1.1.0/30 via 10.1.3.1 across areas\n" + n3);
+
+    Ptr<UdpServer> udpServer = DynamicCast<UdpServer> (serverApps.Get (0));
+    NS_TEST_ASSERT_MSG_NE (udpServer, nullptr, "expected UdpServer application");
+    NS_TEST_ASSERT_MSG_EQ (udpServer->GetReceived (), 5u,
+                           "all inter-area user packets should reach node3");
+
+    Socket::SocketErrno sockerr = Socket::ERROR_NOTERROR;
+    auto route = LookupOspfRoute (nodes.Get (0), if23.GetAddress (1), nullptr, &sockerr);
+    NS_TEST_ASSERT_MSG_EQ (sockerr, Socket::ERROR_NOTERROR,
+                           "node0 should resolve node3 through the inter-area two-step forwarding plane");
+    NS_TEST_ASSERT_MSG_NE (route, nullptr, "node0 should resolve a route to node3 across areas");
+    NS_TEST_ASSERT_MSG_EQ (route->GetGateway (), if01.GetAddress (1),
+                           "node0 should choose node1 as the first border hop toward area 1");
+    NS_TEST_ASSERT_MSG_EQ (route->GetOutputDevice (), d01.Get (0),
+                           "node0 should emit inter-area traffic on the (0,1) link");
+
+    const auto staticRoute = FindStaticRoute (nodes.Get (0), if23.GetAddress (1).CombineMask (Ipv4Mask ("255.255.255.252")),
+                                              Ipv4Mask ("255.255.255.252"));
+    NS_TEST_ASSERT_MSG_EQ (staticRoute.has_value (), false,
+                           "inter-area forwarding must not depend on a flattened static route to node3's subnet");
 
     Simulator::Destroy ();
   }
@@ -1271,7 +1353,7 @@ class OspfDisableWithoutResetKeepsRoutesIntegrationTestCase : public TestCase
 {
 public:
   OspfDisableWithoutResetKeepsRoutesIntegrationTestCase ()
-    : TestCase ("Disable without ResetStateOnDisable does not flush local routes")
+    : TestCase ("Disable without ResetStateOnDisable preserves state but disables forwarding until re-enabled")
   {
   }
 
@@ -1312,7 +1394,8 @@ public:
     ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (200)));
 
     // IMPORTANT EDGE CASE: with default ResetStateOnDisable=false, Disable() stops the protocol
-    // but does not flush already-installed routes on the local node.
+    // without discarding LSDB/neighbor state. Forwarding must still stop while disabled, but
+    // the preserved state should make forwarding available immediately on re-enable.
     ApplicationContainer apps = ospf.Install (nodes);
 
     // Configure reachable prefixes (advertised routes) from each node's interfaces.
@@ -1328,29 +1411,34 @@ public:
                                Ipv4Address ("10.254.0.1"), 1);
 
     apps.Start (Seconds (0.5));
-    apps.Stop (Seconds (5.5));
+    apps.Stop (Seconds (7.0));
 
-    // Disable node2 without reset.
+    // Disable node2 without reset, then re-enable it.
     Simulator::Schedule (Seconds (2.5), &OspfApp::Disable, app2);
+    Simulator::Schedule (Seconds (4.0), &OspfApp::Enable, app2);
 
     const std::filesystem::path outDir = CreateTempDirFilename ("ospf-integration-disable-keep-routes");
     std::filesystem::create_directories (outDir);
 
     Simulator::Schedule (Seconds (2.2), &OspfApp::PrintRouting, app0, outDir, "n0.before.routes");
-    Simulator::Schedule (Seconds (4.8), &OspfApp::PrintRouting, app0, outDir, "n0.after.routes");
+    Simulator::Schedule (Seconds (3.2), &OspfApp::PrintRouting, app0, outDir, "n0.disabled.routes");
+    Simulator::Schedule (Seconds (6.2), &OspfApp::PrintRouting, app0, outDir, "n0.reenabled.routes");
 
-    // Also snapshot the disabled node's routing table to ensure its previously-installed
-    // routes are not flushed unless ResetStateOnDisable=true.
+    // Also snapshot the toggled node to verify forwarding is inactive while disabled and resumes
+    // immediately after re-enable without a full reset.
     Simulator::Schedule (Seconds (2.2), &OspfApp::PrintRouting, app2, outDir, "n2.before.routes");
-    Simulator::Schedule (Seconds (4.8), &OspfApp::PrintRouting, app2, outDir, "n2.after.routes");
+    Simulator::Schedule (Seconds (3.2), &OspfApp::PrintRouting, app2, outDir, "n2.disabled.routes");
+    Simulator::Schedule (Seconds (6.2), &OspfApp::PrintRouting, app2, outDir, "n2.reenabled.routes");
 
-    Simulator::Stop (Seconds (5.5));
+    Simulator::Stop (Seconds (7.0));
     Simulator::Run ();
 
     const std::string n0Before = ReadAll (outDir / "n0.before.routes");
-    const std::string n0After = ReadAll (outDir / "n0.after.routes");
+    const std::string n0Disabled = ReadAll (outDir / "n0.disabled.routes");
+    const std::string n0Reenabled = ReadAll (outDir / "n0.reenabled.routes");
     const std::string n2Before = ReadAll (outDir / "n2.before.routes");
-    const std::string n2After = ReadAll (outDir / "n2.after.routes");
+    const std::string n2Disabled = ReadAll (outDir / "n2.disabled.routes");
+    const std::string n2Reenabled = ReadAll (outDir / "n2.reenabled.routes");
 
     const std::string gw01 = Ipv4ToString (if01.GetAddress (1)); // node1 on (0,1)
     const std::string gw12 = Ipv4ToString (if12.GetAddress (0)); // node1 on (1,2)
@@ -1358,16 +1446,20 @@ public:
     // Other nodes should withdraw routes once the disabled node stops sending.
     NS_TEST_ASSERT_MSG_EQ (HasRouteLine (n0Before, "10.254.0.0", gw01), true,
                  "node0 should learn 10.254.0.0/16 before disable\n" + n0Before);
-    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (n0After, "10.254.0.0", gw01), false,
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (n0Disabled, "10.254.0.0", gw01), false,
                  "node0 should remove the learned route after node2 disables (neighbor timeout)\n" +
-                   n0After);
+                   n0Disabled);
 
-    // But the disabled node keeps its own installed routes unless ResetStateOnDisable=true.
+    // The disabled node must stop forwarding while disabled.
+    const bool n2InactiveWhileDisabled = n2Disabled.find ("inactive") != std::string::npos;
     NS_TEST_ASSERT_MSG_EQ (HasRouteLine (n2Before, "10.32.1.0", gw12), true,
                  "node2 should learn a route to 10.32.1.0/30 before disable\n" + n2Before);
-    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (n2After, "10.32.1.0", gw12), true,
-                 "with ResetStateOnDisable=false, Disable() should not flush local routes\n" +
-                   n2After);
+    NS_TEST_ASSERT_MSG_EQ (n2InactiveWhileDisabled, true,
+                 "with ResetStateOnDisable=false, Disable() should stop forwarding while leaving state in memory\n" +
+                   n2Disabled);
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (n2Reenabled, "10.32.1.0", gw12), true,
+                 "with ResetStateOnDisable=false, re-enable should restore forwarding without requiring a full state rebuild\n" +
+                   n2Reenabled);
 
     Simulator::Destroy ();
   }
@@ -1510,8 +1602,8 @@ public:
                            "node1 should learn the route before partition\n" + n1Before);
     NS_TEST_ASSERT_MSG_EQ (HasRouteDest (n2Before, "10.252.0.0"), true,
                            "node2 should learn the route before partition\n" + n2Before);
-    NS_TEST_ASSERT_MSG_EQ (HasRouteLineViaAnyGateway (n3Before, "10.252.0.0", {"0.0.0.0", gw2}), true,
-                           "node3 should have the route before partition\n" + n3Before);
+    NS_TEST_ASSERT_MSG_EQ (HasRouteDest (n3Before, "10.252.0.0"), true,
+                 "node3 should keep its locally injected prefix before partition\n" + n3Before);
 
     // During partition: area 0 side (nodes 0/1) must withdraw; area 1 side (nodes 2/3) keeps.
     NS_TEST_ASSERT_MSG_EQ (HasRouteDest (n0Partition, "10.252.0.0"), false,

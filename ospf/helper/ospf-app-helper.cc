@@ -19,8 +19,10 @@
  */
 #include "ns3/uinteger.h"
 #include "ns3/names.h"
-#include "ns3/ipv4-static-routing-helper.h"
+#include "ns3/ipv4-list-routing.h"
+#include "ns3/ipv4-routing-helper.h"
 #include "ns3/ospf-app.h"
+#include "ns3/ospf-routing.h"
 #include "ns3/point-to-point-net-device.h"
 #include "ns3/point-to-point-channel.h"
 #include "ns3/ospf-neighbor.h"
@@ -67,7 +69,6 @@ ApplicationContainer
 OspfAppHelper::Install (NodeContainer c) const
 {
   ApplicationContainer apps;
-  Ipv4StaticRoutingHelper ipv4RoutingHelper;
   for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
     {
       apps.Add (Install (*i));
@@ -79,8 +80,16 @@ ApplicationContainer
 OspfAppHelper::Install (Ptr<Node> n) const
 {
   Ptr<Ipv4> ipv4 = n->GetObject<Ipv4> ();
-  Ipv4StaticRoutingHelper ipv4RoutingHelper;
-  Ptr<Ipv4StaticRouting> routing = ipv4RoutingHelper.GetStaticRouting (ipv4);
+  Ptr<Ipv4RoutingProtocol> routingProtocol = ipv4->GetRoutingProtocol ();
+  Ptr<OspfRouting> routing = Ipv4RoutingHelper::GetRouting<OspfRouting> (routingProtocol);
+  if (routing == nullptr)
+    {
+      auto listRouting = DynamicCast<Ipv4ListRouting> (routingProtocol);
+      NS_ABORT_MSG_IF (listRouting == nullptr,
+                       "OspfAppHelper requires Ipv4ListRouting on the node IPv4 stack");
+      routing = CreateObject<OspfRouting> ();
+      listRouting->AddRoutingProtocol (routing, 10);
+    }
   NetDeviceContainer devs;
   for (uint32_t j = 0; j < n->GetNDevices (); j++)
     {
@@ -286,11 +295,12 @@ OspfAppHelper::Preload (NodeContainer c)
 }
 
 Ptr<Application>
-OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing,
+OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<OspfRouting> routing,
                             NetDeviceContainer devs) const
 {
   Ptr<OspfApp> app = m_factory.Create<OspfApp> ();
   app->SetRouting (routing);
+  routing->SetApp (app);
   Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
   app->SetRouterId (
       ipv4->GetAddress (1, 0).GetAddress ()); // default to the first interface address

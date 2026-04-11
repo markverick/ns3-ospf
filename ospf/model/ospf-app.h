@@ -25,8 +25,8 @@
 #include "ns3/event-id.h"
 #include "ns3/ptr.h"
 #include "ns3/address.h"
+#include "ns3/net-device-container.h"
 #include "ns3/traced-callback.h"
-#include "ns3/ipv4-static-routing-helper.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/ospf-header.h"
 #include "ns3/ospf-dbd.h"
@@ -39,6 +39,7 @@
 #include "ns3/area-lsa.h"
 #include "ns3/l2-summary-lsa.h"
 #include "next-hop.h"
+#include "ospf-routing.h"
 #include "ospf-interface.h"
 #include "unordered_map"
 #include "queue"
@@ -93,9 +94,9 @@ public:
 
   /**
    * \brief Set a pointer to a routing table.
-   * \param ipv4Routing Ipv4 routing table
+    * \param ipv4Routing OSPF forwarding plane
    */
-  void SetRouting (Ptr<Ipv4StaticRouting> ipv4Routing);
+    void SetRouting (Ptr<OspfRouting> ipv4Routing);
 
   /**
    * \brief Register network devices as OSPF interfaces.Abs
@@ -394,6 +395,8 @@ private:
   std::unique_ptr<OspfAppRng> m_rng;
   std::unique_ptr<OspfAreaLeaderController> m_areaLeader;
   std::unique_ptr<OspfRoutingEngine> m_routingEngine;
+
+  friend class OspfRouting;
   virtual void StartApplication (void);
   virtual void StopApplication (void);
 
@@ -857,7 +860,7 @@ private:
   std::vector<Ptr<OspfInterface>> m_ospfInterfaces; // !< Router interfaces
 
   // Routing
-  Ptr<Ipv4StaticRouting> m_routing; // !< Routing table
+  Ptr<OspfRouting> m_routing; // !< OSPF forwarding plane
   std::unordered_map<uint32_t, NextHop> m_l1NextHop; //!< Next Hopto routers
   std::unordered_map<uint32_t, std::vector<uint32_t>> m_l1Addresses; //!< Addresses for L1 routers
   Time m_shortestPathUpdateDelay; // !< Shortest path before shortest path calculation

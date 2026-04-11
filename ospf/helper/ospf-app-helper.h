@@ -23,12 +23,14 @@
 #include <stdint.h>
 #include "ns3/application-container.h"
 #include "ns3/node-container.h"
+#include "ns3/net-device-container.h"
 #include "ns3/object-factory.h"
 #include "ns3/ipv4-address.h"
 #include "ns3/ipv6-address.h"
-#include "ns3/ipv4-static-routing-helper.h"
 
 namespace ns3 {
+
+class OspfRouting;
 
 /**
  * \ingroup ospf
@@ -85,7 +87,7 @@ private:
   * \param node The node on which an OspfApp will be installed.
    * \returns Ptr to the application installed.
    */
-  Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<Ipv4StaticRouting> routing,
+  Ptr<Application> InstallPriv (Ptr<Node> node, Ptr<OspfRouting> routing,
                                 NetDeviceContainer devs) const;
 
   ObjectFactory m_factory; //!< Object factory.

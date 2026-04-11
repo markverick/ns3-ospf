@@ -5,8 +5,11 @@
 
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
+#include "ns3/ipv4-routing-helper.h"
 
 #include "ns3/ospf-app-helper.h"
+#include "ns3/ospf-app.h"
+#include "ns3/ospf-routing.h"
 
 #include <filesystem>
 #include <fstream>
@@ -32,8 +35,9 @@ HasRouteLine (const std::string &table, const std::string &dst, const std::strin
   std::istringstream iss (table);
   for (std::string line; std::getline (iss, line);)
     {
-      // Ipv4StaticRouting table lines begin with the destination.
-      if (line.rfind (dst, 0) == 0 && line.find (gw) != std::string::npos)
+      const auto firstNonSpace = line.find_first_not_of (" \t");
+      const auto trimmed = firstNonSpace == std::string::npos ? std::string () : line.substr (firstNonSpace);
+      if (trimmed.rfind (dst, 0) == 0 && trimmed.find (gw) != std::string::npos)
         {
           return true;
         }
@@ -61,7 +65,9 @@ HasRouteDest (const std::string &table, const std::string &dst)
   std::istringstream iss (table);
   for (std::string line; std::getline (iss, line);)
     {
-      if (line.rfind (dst, 0) == 0)
+      const auto firstNonSpace = line.find_first_not_of (" \t");
+      const auto trimmed = firstNonSpace == std::string::npos ? std::string () : line.substr (firstNonSpace);
+      if (trimmed.rfind (dst, 0) == 0)
         {
           return true;
         }
@@ -113,6 +119,68 @@ FindStaticRoute (Ptr<Node> node, Ipv4Address network, Ipv4Mask mask)
     }
 
   return std::nullopt;
+}
+
+inline Ptr<OspfApp>
+GetOspfApp (Ptr<Node> node)
+{
+  if (node == nullptr)
+    {
+      return nullptr;
+    }
+
+  for (uint32_t i = 0; i < node->GetNApplications (); ++i)
+    {
+      auto app = DynamicCast<OspfApp> (node->GetApplication (i));
+      if (app != nullptr)
+        {
+          return app;
+        }
+    }
+
+  return nullptr;
+}
+
+inline Ptr<OspfRouting>
+GetOspfRouting (Ptr<Node> node)
+{
+  if (node == nullptr)
+    {
+      return nullptr;
+    }
+
+  Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+  if (ipv4 == nullptr)
+    {
+      return nullptr;
+    }
+
+  return Ipv4RoutingHelper::GetRouting<OspfRouting> (ipv4->GetRoutingProtocol ());
+}
+
+inline Ptr<Ipv4Route>
+LookupOspfRoute (Ptr<Node> node, Ipv4Address destination, Ptr<NetDevice> oif = nullptr,
+                 Socket::SocketErrno *sockerrOut = nullptr)
+{
+  auto routing = GetOspfRouting (node);
+  if (routing == nullptr)
+    {
+      if (sockerrOut != nullptr)
+        {
+          *sockerrOut = Socket::ERROR_NOROUTETOHOST;
+        }
+      return nullptr;
+    }
+
+  Ipv4Header header;
+  header.SetDestination (destination);
+  Socket::SocketErrno sockerr = Socket::ERROR_NOTERROR;
+  auto route = routing->RouteOutput (Create<Packet> (), header, oif, sockerr);
+  if (sockerrOut != nullptr)
+    {
+      *sockerrOut = sockerr;
+    }
+  return route;
 }
 
 inline void

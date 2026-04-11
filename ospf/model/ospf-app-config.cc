@@ -8,7 +8,7 @@
 
 namespace ns3 {
 void
-OspfApp::SetRouting (Ptr<Ipv4StaticRouting> routing)
+OspfApp::SetRouting (Ptr<OspfRouting> routing)
 {
   m_routing = routing;
 }
