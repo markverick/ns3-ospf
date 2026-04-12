@@ -11,9 +11,7 @@ namespace {
 bool
 ShouldReplaceLsdbEntry (const LsaHeader &incoming, const LsaHeader &current)
 {
-  return incoming.GetSeqNum () > current.GetSeqNum () ||
-         (incoming.GetSeqNum () == current.GetSeqNum () &&
-          incoming.GetAdvertisingRouter () < current.GetAdvertisingRouter ());
+  return incoming.GetSeqNum () > current.GetSeqNum ();
 }
 
 } // namespace

@@ -19,21 +19,20 @@ std::size_t
 OspfApp::OwnerRefHash::operator() (const OwnerRef &owner) const
 {
   const auto kindHash = std::hash<uint8_t> () (static_cast<uint8_t> (owner.kind));
-  const auto idHash = std::hash<uint32_t> () (owner.id);
+  const auto idHash = std::hash<uint64_t> () (owner.id);
   return kindHash ^ (idHash + 0x9e3779b9u + (kindHash << 6) + (kindHash >> 2));
 }
 
 OspfApp::OwnerRef
-OspfApp::MakeOwnerRef (OwnerKind kind, uint32_t id)
+OspfApp::MakeOwnerRef (OwnerKind kind, uint64_t id)
 {
   return OwnerRef{kind, id};
 }
 
-uint32_t
+uint64_t
 OspfApp::MakeGatewayRouteOwnerId (uint32_t ifIndex, uint32_t gateway)
 {
-  const uint32_t mixedIfIndex = ifIndex * 2654435761u;
-  return mixedIfIndex ^ gateway;
+  return (static_cast<uint64_t> (ifIndex) << 32) | static_cast<uint64_t> (gateway);
 }
 
 uint32_t
@@ -155,7 +154,7 @@ OspfApp::RebuildLocalInterfacePrefixOwners ()
     }
 
   std::unordered_map<uint32_t, std::set<SummaryRoute>> routesByInterface;
-  std::unordered_map<uint32_t, std::set<SummaryRoute>> routesByGateway;
+  std::unordered_map<uint64_t, std::set<SummaryRoute>> routesByGateway;
   for (const auto &[ifIndex, dest, mask, addr, metric] : m_interfaceExternalRoutes)
     {
       (void)addr;

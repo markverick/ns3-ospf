@@ -26,10 +26,22 @@ OspfAreaLeaderController::HasLeadershipQuorum () const
       return true;
     }
 
-  const uint32_t knownRouters =
-      std::max (1u, static_cast<uint32_t> (m_app.m_routerLsdb.size ())); 
+  std::set<uint32_t> knownRouters;
+  knownRouters.insert (m_app.m_routerId.Get ());
+  for (const auto &[routerId, routerLsa] : m_app.m_routerLsdb)
+    {
+      (void)routerLsa;
+      knownRouters.insert (routerId);
+    }
+  for (const auto &[routerId, nextHop] : m_app.m_l1NextHop)
+    {
+      (void)nextHop;
+      knownRouters.insert (routerId);
+    }
+
+  const uint32_t knownRouterCount = static_cast<uint32_t> (knownRouters.size ());
   const uint32_t reachableRouters = 1u + static_cast<uint32_t> (m_app.m_l1NextHop.size ());
-  const uint32_t quorum = knownRouters / 2u + 1u;
+  const uint32_t quorum = knownRouterCount / 2u + 1u;
   return reachableRouters >= quorum;
 }
 
@@ -187,10 +199,10 @@ OspfAreaLeaderController::End ()
       m_app.m_pendingLsaRegeneration.erase (pendingSummary);
     }
 
-    Ptr<AreaLsa> emptyArea = Create<AreaLsa> ();
-    Ptr<L2SummaryLsa> emptySummary = Create<L2SummaryLsa> ();
-    m_app.OriginateAreaLsa (emptyArea);
-    m_app.OriginateL2SummaryLsa (emptySummary);
+  Ptr<AreaLsa> emptyArea = Create<AreaLsa> ();
+  Ptr<L2SummaryLsa> emptySummary = Create<L2SummaryLsa> ();
+  m_app.OriginateAreaLsa (emptyArea);
+  m_app.OriginateL2SummaryLsa (emptySummary);
 }
 
 } // namespace ns3

@@ -1242,6 +1242,88 @@ private:
   }
 };
 
+class OspfInjectedGatewayOwnersDoNotCollideTest : public TestCase
+{
+public:
+  OspfInjectedGatewayOwnersDoNotCollideTest ()
+    : TestCase ("Distinct injected gateway owners remain distinct even when their old hashed IDs would collide")
+  {
+  }
+
+private:
+  void DoRun () override
+  {
+    auto context = CreateThreeNodeLine (true);
+
+    Simulator::Stop (Seconds (1.0));
+    Simulator::Run ();
+
+    auto app1 = GetOspfApp (context.nodes.Get (1));
+    NS_TEST_ASSERT_MSG_NE (app1, nullptr, "node1 should host an OspfApp");
+
+    const uint32_t if01 = context.d01.Get (1)->GetIfIndex ();
+    const uint32_t if12 = context.d12.Get (0)->GetIfIndex ();
+    const uint32_t gateway1Value = context.if01.GetAddress (0).Get ();
+    const uint32_t mixingConstant = 2654435761u;
+    const uint32_t gateway2Value =
+      gateway1Value ^ (if01 * mixingConstant) ^ (if12 * mixingConstant);
+    const Ipv4Address gateway1 (gateway1Value);
+    const Ipv4Address gateway2 (gateway2Value);
+    const bool gateway2Usable = gateway2 != Ipv4Address::GetZero ();
+    const bool gateway2Indirect = gateway2 != Ipv4Address::GetAny ();
+
+    NS_TEST_ASSERT_MSG_EQ (gateway2Usable, true,
+                           "the crafted second gateway must be usable for the collision regression");
+    NS_TEST_ASSERT_MSG_EQ (gateway2Indirect, true,
+                           "the crafted second gateway must not collapse into a direct route");
+
+    app1->AddReachableAddress (if01, Ipv4Address ("10.217.0.0"), Ipv4Mask ("255.255.0.0"),
+                               gateway1, 4);
+    app1->AddReachableAddress (if12, Ipv4Address ("10.218.0.0"), Ipv4Mask ("255.255.0.0"),
+                               gateway2, 6);
+
+    Simulator::Stop (Seconds (1.0));
+    Simulator::Run ();
+
+    Socket::SocketErrno errA = Socket::ERROR_NOTERROR;
+    auto routeA = LookupOspfRoute (context.nodes.Get (1), Ipv4Address ("10.217.1.1"), nullptr, &errA);
+    NS_TEST_ASSERT_MSG_EQ (errA, Socket::ERROR_NOTERROR,
+                           "node1 should resolve the first injected prefix");
+    NS_TEST_ASSERT_MSG_NE (routeA, nullptr,
+                           "node1 should return a forwarding entry for the first injected prefix");
+    if (routeA == nullptr)
+      {
+        Simulator::Destroy ();
+        return;
+      }
+
+    Socket::SocketErrno errB = Socket::ERROR_NOTERROR;
+    auto routeB = LookupOspfRoute (context.nodes.Get (1), Ipv4Address ("10.218.1.1"), nullptr, &errB);
+    NS_TEST_ASSERT_MSG_EQ (errB, Socket::ERROR_NOTERROR,
+                           "node1 should resolve the second injected prefix");
+    NS_TEST_ASSERT_MSG_NE (routeB, nullptr,
+                           "node1 should return a forwarding entry for the second injected prefix");
+    if (routeB == nullptr)
+      {
+        Simulator::Destroy ();
+        return;
+      }
+
+    NS_TEST_ASSERT_MSG_EQ (routeA->GetGateway (), gateway1,
+                           "the first injected prefix must retain its own explicit gateway");
+    NS_TEST_ASSERT_MSG_EQ (routeB->GetGateway (), gateway2,
+                           "the second injected prefix must retain its own explicit gateway");
+    const bool routeAUsesIf01 = routeA->GetOutputDevice () == context.d01.Get (1);
+    const bool routeBUsesIf12 = routeB->GetOutputDevice () == context.d12.Get (0);
+    NS_TEST_ASSERT_MSG_EQ (routeAUsesIf01, true,
+                           "the first injected prefix must retain its own interface");
+    NS_TEST_ASSERT_MSG_EQ (routeBUsesIf12, true,
+                           "the second injected prefix must retain its own interface");
+
+    Simulator::Destroy ();
+  }
+};
+
 class OspfMinLsIntervalDefersFreshSelfProcessingTest : public TestCase
 {
 public:
@@ -1369,6 +1451,7 @@ public:
     AddTestCase (new OspfRemoveReachableAddressWithdrawsInjectedPrefixTest, TestCase::QUICK);
     AddTestCase (new OspfSetReachableAddressesReplacesInjectedSetTest, TestCase::QUICK);
     AddTestCase (new OspfInjectedGatewayRoutePreservedLocallyTest, TestCase::QUICK);
+    AddTestCase (new OspfInjectedGatewayOwnersDoNotCollideTest, TestCase::QUICK);
     AddTestCase (new OspfMinLsIntervalDefersFreshSelfProcessingTest, TestCase::QUICK);
   }
 };

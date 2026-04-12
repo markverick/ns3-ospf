@@ -161,9 +161,10 @@ main (int argc, char *argv[])
     {
       Ptr<OspfApp> app = DynamicCast<OspfApp> (ospfAppHelper.Install (c.Get (i)).Get (0));
       app->SetMetrices (metrices[i]);
-      app->AddAllReachableAddresses (0);
       ospfApp.Add (app);
     }
+
+  ospfAppHelper.ConfigureReachablePrefixesFromInterfaces (c);
 
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));

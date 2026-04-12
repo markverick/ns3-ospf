@@ -525,6 +525,123 @@ private:
     Simulator::Destroy ();
   }
 };
+
+class OspfRejectsEqualSeqRouterLsaFromDifferentOriginTest : public TestCase
+{
+public:
+  OspfRejectsEqualSeqRouterLsaFromDifferentOriginTest ()
+    : TestCase ("ProcessRouterLsa ignores equal-sequence Router-LSAs from a different advertising router")
+  {
+  }
+
+private:
+  void DoRun () override
+  {
+    Ptr<OspfApp> app = CreateObject<OspfApp> ();
+    app->SetRouterId (Ipv4Address ("10.0.0.1"));
+
+    Ptr<RouterLsa> current = Create<RouterLsa> ();
+    current->AddLink (RouterLink (Ipv4Address ("10.0.0.2").Get (),
+                                  Ipv4Address ("10.0.0.1").Get (), 1, 3));
+    LsaHeader currentHeader;
+    currentHeader.SetType (LsaHeader::RouterLSAs);
+    currentHeader.SetLsId (Ipv4Address ("10.0.0.9").Get ());
+    currentHeader.SetAdvertisingRouter (Ipv4Address ("10.0.0.9").Get ());
+    currentHeader.SetSeqNum (9);
+    currentHeader.SetLength (20 + current->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, currentHeader, current);
+
+    Ptr<RouterLsa> conflicting = Create<RouterLsa> ();
+    conflicting->AddLink (RouterLink (Ipv4Address ("10.0.0.3").Get (),
+                                      Ipv4Address ("10.0.0.1").Get (), 1, 7));
+    LsaHeader conflictingHeader = currentHeader.Copy ();
+    conflictingHeader.SetAdvertisingRouter (Ipv4Address ("10.0.0.8").Get ());
+    conflictingHeader.SetLength (20 + conflicting->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, conflictingHeader, conflicting);
+
+    auto lsdb = app->GetLsdb ();
+    auto it = lsdb.find (Ipv4Address ("10.0.0.9").Get ());
+    const bool hasRouterEntry = it != lsdb.end ();
+    NS_TEST_ASSERT_MSG_EQ (hasRouterEntry, true,
+                           "expected the Router-LSA entry to remain installed");
+    if (!hasRouterEntry)
+      {
+        Simulator::Destroy ();
+        return;
+      }
+    NS_TEST_ASSERT_MSG_EQ (it->second.first.GetAdvertisingRouter (), Ipv4Address ("10.0.0.9").Get (),
+                           "equal-sequence Router-LSAs from a different origin must not replace the current owner");
+    NS_TEST_ASSERT_MSG_EQ (it->second.second->GetLink (0).m_metric, 3u,
+                           "equal-sequence Router-LSA bodies from a different origin must be ignored");
+
+    Simulator::Destroy ();
+  }
+};
+
+class OspfRejectsEqualSeqL1SummaryLsaFromDifferentOriginTest : public TestCase
+{
+public:
+  OspfRejectsEqualSeqL1SummaryLsaFromDifferentOriginTest ()
+    : TestCase ("ProcessL1SummaryLsa ignores equal-sequence summaries from a different advertising router")
+  {
+  }
+
+private:
+  void DoRun () override
+  {
+    Ptr<OspfApp> app = CreateObject<OspfApp> ();
+    app->SetRouterId (Ipv4Address ("10.0.0.1"));
+
+    Ptr<L1SummaryLsa> current = Create<L1SummaryLsa> ();
+    current->AddRoute (SummaryRoute (Ipv4Address ("10.241.0.0").Get (),
+                                     Ipv4Mask ("255.255.0.0").Get (), 4));
+    LsaHeader currentHeader;
+    currentHeader.SetType (LsaHeader::L1SummaryLSAs);
+    currentHeader.SetLsId (Ipv4Address ("10.0.0.9").Get ());
+    currentHeader.SetAdvertisingRouter (Ipv4Address ("10.0.0.9").Get ());
+    currentHeader.SetSeqNum (12);
+    currentHeader.SetLength (20 + current->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, currentHeader, current);
+
+    Ptr<L1SummaryLsa> conflicting = Create<L1SummaryLsa> ();
+    conflicting->AddRoute (SummaryRoute (Ipv4Address ("10.241.0.0").Get (),
+                                         Ipv4Mask ("255.255.0.0").Get (), 9));
+    LsaHeader conflictingHeader = currentHeader.Copy ();
+    conflictingHeader.SetAdvertisingRouter (Ipv4Address ("10.0.0.8").Get ());
+    conflictingHeader.SetLength (20 + conflicting->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, conflictingHeader, conflicting);
+
+    auto lsdb = app->GetL1SummaryLsdb ();
+    auto it = lsdb.find (Ipv4Address ("10.0.0.9").Get ());
+    const bool hasSummaryEntry = it != lsdb.end ();
+    NS_TEST_ASSERT_MSG_EQ (hasSummaryEntry, true,
+                           "expected the L1 Summary entry to remain installed");
+    if (!hasSummaryEntry)
+      {
+        Simulator::Destroy ();
+        return;
+      }
+    NS_TEST_ASSERT_MSG_EQ (it->second.first.GetAdvertisingRouter (), Ipv4Address ("10.0.0.9").Get (),
+                           "equal-sequence L1 Summary LSAs from a different origin must not replace the current owner");
+    const auto routes = it->second.second->GetRoutes ();
+    const bool hasCurrentMetric =
+      routes.find (SummaryRoute (Ipv4Address ("10.241.0.0").Get (),
+                                 Ipv4Mask ("255.255.0.0").Get (), 4)) != routes.end ();
+    const bool hasConflictingMetric =
+      routes.find (SummaryRoute (Ipv4Address ("10.241.0.0").Get (),
+                                 Ipv4Mask ("255.255.0.0").Get (), 9)) != routes.end ();
+    NS_TEST_ASSERT_MSG_EQ (hasCurrentMetric, true,
+                           "equal-sequence L1 Summary bodies from a different origin must not replace the current route");
+    NS_TEST_ASSERT_MSG_EQ (hasConflictingMetric, false,
+                           "conflicting equal-sequence summary metrics must be ignored");
+
+    Simulator::Destroy ();
+  }
+};
 void
 OspfReachableAreaLeaderRecoveryTest::DoRun ()
 {
@@ -634,6 +751,8 @@ OspfLsaProcessorsTestSuite::OspfLsaProcessorsTestSuite ()
   AddTestCase (new OspfProcessRouterLsaTest, TestCase::QUICK);
   AddTestCase (new OspfRejectsStaleRouterLsaTest, TestCase::QUICK);
   AddTestCase (new OspfRejectsStaleL1SummaryLsaTest, TestCase::QUICK);
+  AddTestCase (new OspfRejectsEqualSeqRouterLsaFromDifferentOriginTest, TestCase::QUICK);
+  AddTestCase (new OspfRejectsEqualSeqL1SummaryLsaFromDifferentOriginTest, TestCase::QUICK);
   AddTestCase (new OspfProcessAreaLsaTest, TestCase::QUICK);
   AddTestCase (new OspfStaticAreaLeaderModeTest, TestCase::QUICK);
   AddTestCase (new OspfReachableAreaLeaderRecoveryTest, TestCase::QUICK);

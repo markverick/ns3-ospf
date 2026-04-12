@@ -418,7 +418,7 @@ private:
   struct OwnerRef
   {
     OwnerKind kind = OwnerKind::Interface;
-    uint32_t id = 0;
+    uint64_t id = 0;
 
     bool operator== (const OwnerRef &other) const
     {
@@ -454,8 +454,8 @@ private:
     uint32_t pathMetric = 0;
   };
 
-  static OwnerRef MakeOwnerRef (OwnerKind kind, uint32_t id);
-  static uint32_t MakeGatewayRouteOwnerId (uint32_t ifIndex, uint32_t gateway);
+  static OwnerRef MakeOwnerRef (OwnerKind kind, uint64_t id);
+  static uint64_t MakeGatewayRouteOwnerId (uint32_t ifIndex, uint32_t gateway);
   static uint32_t PrefixLengthToMaskValue (uint8_t prefixLength);
   static uint32_t MaskNetwork (uint32_t address, uint8_t prefixLength);
   static bool IsOwnerPreferred (const OwnerRef &candidate, const OwnerRef &current);
