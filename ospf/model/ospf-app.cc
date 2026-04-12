@@ -105,6 +105,21 @@ OspfApp::GetTypeId (void)
           .AddAttribute ("EnableAreaProxy", "Enable area proxy for area routing",
                          BooleanValue (true), MakeBooleanAccessor (&OspfApp::m_enableAreaProxy),
                          MakeBooleanChecker ())
+          .AddAttribute ("AreaLeaderMode",
+                         "Area-leader selection policy: lowest known router ID, static router ID, or lowest graph-reachable router ID.",
+                         EnumValue (OspfApp::AREA_LEADER_REACHABLE_LOWEST_ROUTER_ID),
+                         MakeEnumAccessor (&OspfApp::m_areaLeaderMode),
+                         MakeEnumChecker (OspfApp::AREA_LEADER_LOWEST_ROUTER_ID,
+                                          "LowestRouterId",
+                                          OspfApp::AREA_LEADER_STATIC,
+                                          "Static",
+                                          OspfApp::AREA_LEADER_REACHABLE_LOWEST_ROUTER_ID,
+                                          "ReachableLowestRouterId"))
+          .AddAttribute ("StaticAreaLeaderRouterId",
+                         "Router ID to treat as the area leader when AreaLeaderMode is Static.",
+                         Ipv4AddressValue (Ipv4Address::GetZero ()),
+                         MakeIpv4AddressAccessor (&OspfApp::m_staticAreaLeaderRouterId),
+                         MakeIpv4AddressChecker ())
           .AddAttribute ("ShortestPathUpdateDelay", "Delay to re-calculate the shortest path",
                          TimeValue (Seconds (5)),
                          MakeTimeAccessor (&OspfApp::m_shortestPathUpdateDelay), MakeTimeChecker ())

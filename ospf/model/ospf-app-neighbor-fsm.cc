@@ -12,6 +12,26 @@ OspfNeighborFsm::OspfNeighborFsm (OspfApp &app)
 }
 
 void
+OspfNeighborFsm::RestartAdjacencyNegotiation (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor,
+                                              const char *reason)
+{
+  if (neighbor == nullptr)
+    {
+      return;
+    }
+
+  NS_LOG_WARN ("Restart adjacency negotiation on interface " << ifIndex << " for neighbor "
+                                                              << neighbor->GetNeighborString ()
+                                                              << ": " << reason);
+  neighbor->RemoveTimeout ();
+  neighbor->ClearKeyedTimeouts ();
+  neighbor->ClearAdjacencySyncState ();
+  neighbor->SetState (OspfNeighbor::ExStart);
+  neighbor->SetDDSeqNum (m_app.m_randomVariableSeq->GetInteger ());
+  NegotiateDbd (ifIndex, neighbor, true);
+}
+
+void
 OspfNeighborFsm::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                               Ptr<OspfHello> hello)
 {
@@ -165,8 +185,7 @@ OspfNeighborFsm::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader os
       // Self is slave. Neighbor is Master
       if (m_app.m_routerId.Get () > neighbor->GetRouterId ().Get ())
         {
-          // TODO: Reset adjacency
-          NS_LOG_ERROR ("Both neighbors cannot be masters");
+          RestartAdjacencyNegotiation (ifIndex, neighbor, "both neighbors elected master");
           return;
         }
       HandleMasterDbd (ifIndex, neighbor, dbd);
@@ -177,8 +196,7 @@ OspfNeighborFsm::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader os
       // Self is Master. Neighbor is Slave
       if (m_app.m_routerId.Get () < neighbor->GetRouterId ().Get ())
         {
-          // TODO: Reset adjacency
-          NS_LOG_ERROR ("Both neighbors cannot be slaves");
+          RestartAdjacencyNegotiation (ifIndex, neighbor, "both neighbors elected slave");
           return;
         }
       HandleSlaveDbd (ifIndex, neighbor, dbd);
@@ -188,6 +206,8 @@ OspfNeighborFsm::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader os
 void
 OspfNeighborFsm::HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd)
 {
+  neighbor->ClearAdjacencySyncState ();
+
   // Neighbor is Master
   if (m_app.m_routerId.Get () < neighbor->GetRouterId ().Get ())
     {
@@ -268,7 +288,7 @@ OspfNeighborFsm::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, 
   if (dbd->GetDDSeqNum () < neighbor->GetDDSeqNum () ||
       dbd->GetDDSeqNum () > neighbor->GetDDSeqNum () + 1)
     {
-      // Drop the packet if out of order
+      // Drop the packet if out of order.
       NS_LOG_ERROR ("DD sequence number is out-of-order " << neighbor->GetDDSeqNum () << " <> "
                                                           << dbd->GetDDSeqNum ());
       return;
@@ -328,7 +348,7 @@ OspfNeighborFsm::HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, P
   Ptr<OspfInterface> interface = m_app.m_ospfInterfaces[ifIndex];
   if (dbd->GetDDSeqNum () != neighbor->GetDDSeqNum ())
     {
-      // Out-of-order
+      // Out-of-order.
       NS_LOG_ERROR ("DD sequence number is out-of-order");
       return;
     }
@@ -364,9 +384,6 @@ OspfNeighborFsm::HelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 
   NS_LOG_DEBUG ("Interface " << ifIndex << " has removed routerId: " << neighbor->GetRouterId ()
                              << ", remoteIp" << neighbor->GetIpAddress () << " neighbors");
-
-  // Remove the neighbor for scalability (TODO: delay the removal)
-  m_app.m_ospfInterfaces[ifIndex]->RemoveNeighbor (neighbor->GetRouterId (), neighbor->GetIpAddress ());
 }
 
 void
@@ -395,14 +412,8 @@ void
 OspfNeighborFsm::FallbackToInit (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   NS_LOG_INFO ("Move to Init");
-  // TODO: Defer router lsa update until when the link is fully down
   neighbor->SetState (OspfNeighbor::Init);
-
-  // Fill in the current Router LSDB (throttled to prevent LSA storms)
-  m_app.ThrottledRecomputeRouterLsa ();
-
-  // Process the new LSA and generate/flood Area LSA if needed
-  m_app.ProcessLsa (m_app.m_routerLsdb[m_app.m_routerId.Get ()]);
+  neighbor->ClearAdjacencySyncState ();
 
   // Clear timeouts
   neighbor->RemoveTimeout ();
@@ -415,6 +426,7 @@ OspfNeighborFsm::FallbackToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   NS_LOG_INFO ("Hello timeout. Move to Down");
   neighbor->SetState (OspfNeighbor::Down);
+  neighbor->ClearAdjacencySyncState ();
   // Fill in the current Router LSDB (throttled to prevent LSA storms)
   m_app.ThrottledRecomputeRouterLsa ();
 

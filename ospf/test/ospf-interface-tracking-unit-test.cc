@@ -272,7 +272,7 @@ class OspfAutoSyncNoPollingDoesNotReactToUpTransitionUnitTestCase : public TestC
 {
 public:
   OspfAutoSyncNoPollingDoesNotReactToUpTransitionUnitTestCase ()
-    : TestCase ("AutoSync without polling does not react to later interface-up")
+    : TestCase ("AutoSync without polling still reacts to interface-up events")
   {
   }
 
@@ -336,8 +336,8 @@ public:
     Simulator::Run ();
 
     NS_TEST_ASSERT_MSG_EQ (txBeforeUp, 0u, "expected no Tx before interface is brought up");
-    NS_TEST_ASSERT_MSG_EQ (txAfterUp, 0u,
-                           "expected no Tx after interface-up when InterfaceSyncInterval=0");
+    NS_TEST_ASSERT_MSG_GT (txAfterUp, txBeforeUp,
+                 "expected interface-up notification to trigger OSPF Tx even when InterfaceSyncInterval=0");
 
     Simulator::Destroy ();
   }

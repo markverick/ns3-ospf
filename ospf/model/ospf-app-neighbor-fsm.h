@@ -45,6 +45,9 @@ public:
   void AdvanceToFull (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor);
 
 private:
+  void RestartAdjacencyNegotiation (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor,
+                                    const char *reason);
+
   OspfApp &m_app;
 };
 

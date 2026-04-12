@@ -70,13 +70,17 @@ public:
 
   /**
    * Populate each node's reachable prefixes from its configured IPv4
-   * point-to-point interfaces.
+    * interfaces.
    *
    * This is intended for scenarios/tests that want nodes to advertise connected
    * interface networks without relying on Preload().
    */
   void ConfigureReachablePrefixesFromInterfaces (NodeContainer c) const;
 
+    /**
+    * Seed neighbors, self-originated LSAs, and area-proxy LSAs for deterministic
+    * startup in point-to-point OSPF topologies.
+    */
   void Preload (NodeContainer c);
 
 private:

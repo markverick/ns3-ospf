@@ -10,6 +10,11 @@ OspfApp::GetL1SummaryLsa ()
   Ptr<L1SummaryLsa> l1SummaryLsa = Create<L1SummaryLsa> ();
   for (auto &[ifIndex, dest, mask, addr, metric] : m_externalRoutes)
     {
+      if (ifIndex >= m_ospfInterfaces.size () || m_ospfInterfaces[ifIndex] == nullptr ||
+          !m_ospfInterfaces[ifIndex]->IsUp ())
+        {
+          continue;
+        }
       (void)ifIndex;
       (void)addr;
       l1SummaryLsa->AddRoute (SummaryRoute (dest, mask, metric));
@@ -50,6 +55,62 @@ OspfApp::GetAreaLsa ()
 }
 
 void
+OspfApp::OriginateAreaLsa (Ptr<AreaLsa> areaLsa)
+{
+  auto lsaKey = std::make_tuple (LsaHeader::LsType::AreaLSAs, m_areaId, m_routerId.Get ());
+
+  if (!m_minLsInterval.IsZero ())
+    {
+      m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
+    }
+
+  if (m_seqNumbers.find (lsaKey) == m_seqNumbers.end ())
+    {
+      m_seqNumbers[lsaKey] = 0;
+    }
+
+  m_seqNumbers[lsaKey]++;
+
+  LsaHeader lsaHeader (lsaKey);
+  lsaHeader.SetLength (20 + areaLsa->GetSerializedSize ());
+  lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
+  m_areaLsdb[m_areaId] = std::make_pair (lsaHeader, areaLsa);
+
+  Ptr<LsUpdate> lsUpdateArea = Create<LsUpdate> ();
+  lsUpdateArea->AddLsa (m_areaLsdb[m_areaId]);
+  FloodLsu (0, lsUpdateArea);
+  ScheduleUpdateL2ShortestPath ();
+}
+
+void
+OspfApp::OriginateL2SummaryLsa (Ptr<L2SummaryLsa> summary)
+{
+  auto lsaKey = std::make_tuple (LsaHeader::LsType::L2SummaryLSAs, m_areaId, m_routerId.Get ());
+
+  if (!m_minLsInterval.IsZero ())
+    {
+      m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
+    }
+
+  if (m_seqNumbers.find (lsaKey) == m_seqNumbers.end ())
+    {
+      m_seqNumbers[lsaKey] = 0;
+    }
+
+  m_seqNumbers[lsaKey]++;
+
+  LsaHeader lsaHeader (lsaKey);
+  lsaHeader.SetLength (20 + summary->GetSerializedSize ());
+  lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
+  m_l2SummaryLsdb[m_areaId] = std::make_pair (lsaHeader, summary);
+
+  Ptr<LsUpdate> lsUpdateSummary = Create<LsUpdate> ();
+  lsUpdateSummary->AddLsa (m_l2SummaryLsdb[m_areaId]);
+  FloodLsu (0, lsUpdateSummary);
+  UpdateRouting ();
+}
+
+void
 OspfApp::RecomputeRouterLsa ()
 {
   NS_LOG_FUNCTION (this);
@@ -77,6 +138,11 @@ OspfApp::RecomputeRouterLsa ()
   m_routerLsdb[m_routerId.Get ()] = std::make_pair (lsaHeader, routerLsa);
 
   ScheduleUpdateL1ShortestPath ();
+
+  if (m_enableAreaProxy && m_isAreaLeader)
+    {
+      ThrottledRecomputeAreaLsa ();
+    }
 
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
   lsUpdate->AddLsa (m_routerLsdb[m_routerId.Get ()]);
@@ -114,6 +180,11 @@ OspfApp::RecomputeL1SummaryLsa ()
   lsUpdate->AddLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
   FloodLsu (0, lsUpdate);
 
+  if (m_enableAreaProxy && m_isAreaLeader)
+    {
+      ThrottledRecomputeL2SummaryLsa ();
+    }
+
   UpdateRouting ();
 }
 
@@ -130,29 +201,7 @@ OspfApp::RecomputeAreaLsa ()
       return false;
     }
 
-  auto lsaKey = std::make_tuple (LsaHeader::LsType::AreaLSAs, m_areaId, m_routerId.Get ());
-
-  if (!m_minLsInterval.IsZero ())
-    {
-      m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
-    }
-
-  if (m_seqNumbers.find (lsaKey) == m_seqNumbers.end ())
-    {
-      m_seqNumbers[lsaKey] = 0;
-    }
-
-  m_seqNumbers[lsaKey]++;
-
-  LsaHeader lsaHeader (lsaKey);
-  lsaHeader.SetLength (20 + areaLsa->GetSerializedSize ());
-  lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
-  m_areaLsdb[m_areaId] = std::make_pair (lsaHeader, areaLsa);
-
-  Ptr<LsUpdate> lsUpdateArea = Create<LsUpdate> ();
-  lsUpdateArea->AddLsa (m_areaLsdb[m_areaId]);
-  FloodLsu (0, lsUpdateArea);
-  ScheduleUpdateL2ShortestPath ();
+  OriginateAreaLsa (areaLsa);
   return true;
 }
 
@@ -179,29 +228,7 @@ OspfApp::RecomputeL2SummaryLsa ()
         }
     }
 
-  auto lsaKey = std::make_tuple (LsaHeader::LsType::L2SummaryLSAs, m_areaId, m_routerId.Get ());
-
-  if (!m_minLsInterval.IsZero ())
-    {
-      m_lastLsaOriginationTime[lsaKey] = Simulator::Now ();
-    }
-
-  if (m_seqNumbers.find (lsaKey) == m_seqNumbers.end ())
-    {
-      m_seqNumbers[lsaKey] = 0;
-    }
-
-  m_seqNumbers[lsaKey]++;
-
-  LsaHeader lsaHeader (lsaKey);
-  lsaHeader.SetLength (20 + summary->GetSerializedSize ());
-  lsaHeader.SetSeqNum (m_seqNumbers[lsaKey]);
-  m_l2SummaryLsdb[m_areaId] = std::make_pair (lsaHeader, summary);
-
-  Ptr<LsUpdate> lsUpdateSummary = Create<LsUpdate> ();
-  lsUpdateSummary->AddLsa (m_l2SummaryLsdb[m_areaId]);
-  FloodLsu (0, lsUpdateSummary);
-  UpdateRouting ();
+  OriginateL2SummaryLsa (summary);
   return true;
 }
 

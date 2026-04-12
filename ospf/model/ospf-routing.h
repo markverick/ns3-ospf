@@ -39,28 +39,8 @@ protected:
   void DoDispose (void) override;
 
 private:
-  enum RouteClass : uint8_t
-  {
-    ROUTE_LOCAL = 0,
-    ROUTE_L1 = 1,
-    ROUTE_L2 = 2,
-  };
-
-  struct CandidateRoute
-  {
-    bool found = false;
-    Ipv4Address network = Ipv4Address::GetZero ();
-    Ipv4Mask mask = Ipv4Mask::GetZero ();
-    Ipv4Address gateway = Ipv4Address::GetZero ();
-    uint32_t ifIndex = 0;
-    uint32_t metric = 0;
-    RouteClass routeClass = ROUTE_L2;
-  };
-
   Ptr<Ipv4Route> Lookup (Ipv4Address destination, Ptr<NetDevice> oif) const;
-  void ConsiderCandidate (CandidateRoute &best, Ipv4Address network, Ipv4Mask mask,
-                          Ipv4Address gateway, uint32_t ifIndex, uint32_t metric,
-                          RouteClass routeClass) const;
+  bool IsInterfaceUsable (uint32_t ifIndex) const;
   bool MatchesOutputInterface (uint32_t ifIndex, Ptr<NetDevice> oif) const;
   bool IsActive () const;
 

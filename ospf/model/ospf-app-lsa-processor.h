@@ -17,7 +17,11 @@ class Lsa;
 class LsAck;
 class LsRequest;
 class LsUpdate;
+class AreaLsa;
+class L1SummaryLsa;
+class L2SummaryLsa;
 class OspfApp;
+class RouterLsa;
 
 class OspfLsaProcessor
 {
@@ -33,6 +37,11 @@ public:
   void HandleLsAck (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader, Ptr<LsAck> lsAck);
 
 private:
+  void ProcessL1SummaryLsa (LsaHeader lsaHeader, Ptr<L1SummaryLsa> l1SummaryLsa);
+  void ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
+  void ProcessAreaLsa (LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa);
+  void ProcessL2SummaryLsa (LsaHeader lsaHeader, Ptr<L2SummaryLsa> l2SummaryLsa);
+
   OspfApp &m_app;
 };
 

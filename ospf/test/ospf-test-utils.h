@@ -6,6 +6,10 @@
 #include "ns3/core-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/ipv4-routing-helper.h"
+#include "ns3/ipv4-header.h"
+#include "ns3/lsa.h"
+#include "ns3/ospf-dbd.h"
+#include "ns3/ospf-header.h"
 
 #include "ns3/ospf-app-helper.h"
 #include "ns3/ospf-app.h"
@@ -17,6 +21,32 @@
 #include <optional>
 #include <sstream>
 #include <string>
+
+namespace ns3 {
+
+class OspfAppTestPeer
+{
+public:
+  static void ReceiveDbd (OspfApp &app, uint32_t ifIndex, Ipv4Address remoteIp,
+                          Ipv4Address remoteRouterId, uint32_t area, Ptr<OspfDbd> dbd)
+  {
+    Ipv4Header ipHeader;
+    ipHeader.SetSource (remoteIp);
+
+    OspfHeader ospfHeader;
+    ospfHeader.SetRouterId (remoteRouterId.Get ());
+    ospfHeader.SetArea (area);
+
+    app.HandleDbd (ifIndex, ipHeader, ospfHeader, dbd);
+  }
+
+  static void ProcessLsa (const Ptr<OspfApp> &app, LsaHeader lsaHeader, Ptr<Lsa> lsa)
+  {
+    app->ProcessLsa (lsaHeader, lsa);
+  }
+};
+
+} // namespace ns3
 
 namespace ns3::ospf_test_utils {
 
@@ -32,6 +62,7 @@ ReadAll (const std::filesystem::path &path)
 inline bool
 HasRouteLine (const std::string &table, const std::string &dst, const std::string &gw)
 {
+  std::vector<std::string> matchingOwners;
   std::istringstream iss (table);
   for (std::string line; std::getline (iss, line);)
     {
@@ -41,7 +72,40 @@ HasRouteLine (const std::string &table, const std::string &dst, const std::strin
         {
           return true;
         }
+      if (trimmed.find ("next-hop=" + gw) != std::string::npos)
+        {
+          const auto ownerEnd = trimmed.find (' ');
+          if (ownerEnd != std::string::npos)
+            {
+              matchingOwners.push_back (trimmed.substr (0, ownerEnd));
+            }
+        }
     }
+
+  if (matchingOwners.empty ())
+    {
+      return false;
+    }
+
+  std::istringstream prefixStream (table);
+  for (std::string line; std::getline (prefixStream, line);)
+    {
+      const auto firstNonSpace = line.find_first_not_of (" \t");
+      const auto trimmed = firstNonSpace == std::string::npos ? std::string () : line.substr (firstNonSpace);
+      if (trimmed.rfind (dst, 0) != 0)
+        {
+          continue;
+        }
+
+      for (const auto &owner : matchingOwners)
+        {
+          if (trimmed.find ("[" + owner + " metric=") != std::string::npos)
+            {
+              return true;
+            }
+        }
+    }
+
   return false;
 }
 
@@ -62,16 +126,52 @@ HasRouteLineViaAnyGateway (const std::string &table, const std::string &dst,
 inline bool
 HasRouteDest (const std::string &table, const std::string &dst)
 {
+  std::vector<std::string> resolvedOwners;
   std::istringstream iss (table);
   for (std::string line; std::getline (iss, line);)
     {
       const auto firstNonSpace = line.find_first_not_of (" \t");
       const auto trimmed = firstNonSpace == std::string::npos ? std::string () : line.substr (firstNonSpace);
-      if (trimmed.rfind (dst, 0) == 0)
+      if (trimmed.rfind (dst, 0) == 0 && trimmed.find ('[') == std::string::npos)
         {
           return true;
         }
+      const auto ownerEnd = trimmed.find (' ');
+      if (ownerEnd != std::string::npos)
+        {
+          const auto owner = trimmed.substr (0, ownerEnd);
+          if (owner.rfind ("if=", 0) == 0 || owner.rfind ("router=", 0) == 0 ||
+                owner.rfind ("area=", 0) == 0 || owner.rfind ("gw=", 0) == 0)
+            {
+              resolvedOwners.push_back (owner);
+            }
+        }
     }
+
+  if (resolvedOwners.empty ())
+    {
+      return false;
+    }
+
+  std::istringstream prefixStream (table);
+  for (std::string line; std::getline (prefixStream, line);)
+    {
+      const auto firstNonSpace = line.find_first_not_of (" \t");
+      const auto trimmed = firstNonSpace == std::string::npos ? std::string () : line.substr (firstNonSpace);
+      if (trimmed.rfind (dst, 0) != 0)
+        {
+          continue;
+        }
+
+      for (const auto &owner : resolvedOwners)
+        {
+          if (trimmed.find ("[" + owner + " metric=") != std::string::npos)
+            {
+              return true;
+            }
+        }
+    }
+
   return false;
 }
 

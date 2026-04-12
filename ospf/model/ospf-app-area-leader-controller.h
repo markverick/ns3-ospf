@@ -3,6 +3,8 @@
 #ifndef OSPF_APP_AREA_LEADER_CONTROLLER_H
 #define OSPF_APP_AREA_LEADER_CONTROLLER_H
 
+#include <cstdint>
+
 namespace ns3 {
 
 class OspfApp;
@@ -19,6 +21,11 @@ public:
   void End ();
 
 private:
+  bool ShouldUseStaticLeader () const;
+  bool ShouldUseReachableLowestLeader () const;
+  bool HasLeadershipQuorum () const;
+  bool IsStaticLeader () const;
+  uint32_t SelectLeaderCandidateRouterId () const;
   OspfApp &m_app;
 };
 

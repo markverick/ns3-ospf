@@ -20,6 +20,7 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
   m_boundDevices = devs;
   m_lastHelloReceived.resize (devs.GetN ());
   m_helloTimeouts.resize (devs.GetN ());
+  m_advertiseInterfacePrefixes.resize (devs.GetN (), false);
 
   // Create interface database
   Ptr<Ipv4> ipv4 = GetNode ()->GetObject<Ipv4> ();
@@ -68,6 +69,37 @@ OspfApp::SetBoundNetDevices (NetDeviceContainer devs)
     }
 }
 
+void
+OspfApp::SetInterfacePrefixRoutable (uint32_t ifIndex, bool enabled)
+{
+  if (ifIndex >= m_advertiseInterfacePrefixes.size ())
+    {
+      m_advertiseInterfacePrefixes.resize (ifIndex + 1, false);
+    }
+
+  if (m_advertiseInterfacePrefixes[ifIndex] == enabled)
+    {
+      return;
+    }
+
+  m_advertiseInterfacePrefixes[ifIndex] = enabled;
+  if (enabled)
+    {
+      Ptr<Ipv4> ipv4 = GetNode ()->GetObject<Ipv4> ();
+      RefreshOspfInterfaceStateFromIpv4 (ipv4, ifIndex);
+    }
+  if (m_protocolRunning)
+    {
+      RefreshReachableRoutesAndAdvertise ();
+    }
+}
+
+bool
+OspfApp::GetInterfacePrefixRoutable (uint32_t ifIndex) const
+{
+  return ifIndex < m_advertiseInterfacePrefixes.size () && m_advertiseInterfacePrefixes[ifIndex];
+}
+
 bool
 OspfApp::SelectPrimaryInterfaceAddress (Ptr<Ipv4> ipv4, uint32_t ifIndex, Ipv4InterfaceAddress &out)
 {
@@ -92,6 +124,211 @@ OspfApp::SelectPrimaryInterfaceAddress (Ptr<Ipv4> ipv4, uint32_t ifIndex, Ipv4In
   return false;
 }
 
+OspfApp::ReachableRouteList
+OspfApp::CollectInterfaceReachableRoutesFromIpv4 (Ptr<Ipv4> ipv4) const
+{
+  ReachableRouteList interfaceRoutes;
+  if (ipv4 == nullptr)
+    {
+      return interfaceRoutes;
+    }
+
+  const uint32_t nIf = ipv4->GetNInterfaces ();
+  for (uint32_t ifIndex = 1; ifIndex < nIf; ++ifIndex)
+    {
+      if (!GetInterfacePrefixRoutable (ifIndex))
+        {
+          continue;
+        }
+
+      Ipv4InterfaceAddress ifAddr;
+      if (!SelectPrimaryInterfaceAddress (ipv4, ifIndex, ifAddr))
+        {
+          continue;
+        }
+
+      const auto addr = ifAddr.GetAddress ();
+      const auto mask = ifAddr.GetMask ();
+      const auto dest = addr.CombineMask (mask);
+      interfaceRoutes.emplace_back (ifIndex, dest.Get (), mask.Get (), addr.Get (), 1);
+    }
+
+  return interfaceRoutes;
+}
+
+bool
+OspfApp::RefreshOspfInterfaceStateFromIpv4 (Ptr<Ipv4> ipv4, uint32_t ifIndex)
+{
+  if (ipv4 == nullptr || ifIndex >= ipv4->GetNInterfaces ())
+    {
+      return false;
+    }
+
+  if (m_lastHelloReceived.size () <= ifIndex)
+    {
+      m_lastHelloReceived.resize (ifIndex + 1);
+    }
+  if (m_helloTimeouts.size () <= ifIndex)
+    {
+      m_helloTimeouts.resize (ifIndex + 1);
+    }
+  if (m_ospfInterfaces.size () <= ifIndex)
+    {
+      m_ospfInterfaces.resize (ifIndex + 1);
+    }
+
+  bool changed = false;
+  if (m_ospfInterfaces[ifIndex] == nullptr)
+    {
+      m_ospfInterfaces[ifIndex] = Create<OspfInterface> ();
+      changed = true;
+    }
+
+  Ipv4InterfaceAddress ifAddr;
+  const bool hasAddr = SelectPrimaryInterfaceAddress (ipv4, ifIndex, ifAddr);
+  const auto ip = hasAddr ? ifAddr.GetAddress () : Ipv4Address::GetAny ();
+  const auto mask = hasAddr ? ifAddr.GetMask () : Ipv4Mask (0xffffffff);
+  const bool isUp = ipv4->IsUp (ifIndex) && hasAddr;
+
+  auto ospfIf = m_ospfInterfaces[ifIndex];
+  const bool identityChanged = ospfIf->GetAddress () != ip || ospfIf->GetMask () != mask;
+  const bool wasUp = ospfIf->IsUp ();
+
+  if (wasUp && (identityChanged || !isUp))
+    {
+      HandleInterfaceDown (ifIndex);
+      ospfIf->SetUp (false);
+      changed = true;
+    }
+
+  if (ospfIf->GetAddress () != ip)
+    {
+      ospfIf->SetAddress (ip);
+      changed = true;
+    }
+  if (ospfIf->GetMask () != mask)
+    {
+      ospfIf->SetMask (mask);
+      changed = true;
+    }
+  if (wasUp != isUp)
+    {
+      ospfIf->SetUp (isUp);
+      changed = true;
+    }
+  else if (ospfIf->IsUp () != isUp)
+    {
+      ospfIf->SetUp (isUp);
+      changed = true;
+    }
+
+  ospfIf->SetHelloInterval (m_helloInterval.GetMilliSeconds ());
+  ospfIf->SetRouterDeadInterval (m_routerDeadInterval.GetMilliSeconds ());
+  ospfIf->SetArea (m_areaId);
+  ospfIf->SetMetric (1);
+
+  Ptr<NetDevice> dev = ipv4->GetNetDevice (ifIndex);
+  if (dev != nullptr)
+    {
+      ospfIf->SetMtu (dev->GetMtu ());
+    }
+
+  Ipv4Address gw = Ipv4Address::GetBroadcast ();
+  if (dev != nullptr && dev->IsPointToPoint ())
+    {
+      auto ch = DynamicCast<Channel> (dev->GetChannel ());
+      if (ch != nullptr)
+        {
+          for (uint32_t j = 0; j < ch->GetNDevices (); ++j)
+            {
+              Ptr<NetDevice> remoteDev = ch->GetDevice (j);
+              if (remoteDev != nullptr && remoteDev != dev)
+                {
+                  auto remoteIpv4 = remoteDev->GetNode ()->GetObject<Ipv4> ();
+                  Ipv4InterfaceAddress remoteIfAddr;
+                  if (SelectPrimaryInterfaceAddress (remoteIpv4, remoteDev->GetIfIndex (),
+                                                     remoteIfAddr))
+                    {
+                      gw = remoteIfAddr.GetAddress ();
+                    }
+                  break;
+                }
+            }
+        }
+    }
+  if (ospfIf->GetGateway () != gw)
+    {
+      ospfIf->SetGateway (gw);
+      changed = true;
+    }
+
+  return changed;
+}
+
+void
+OspfApp::InitializeSplitReachableRoutesFromCurrentState ()
+{
+  if ((!m_interfaceExternalRoutes.empty () || !m_injectedExternalRoutes.empty ()) ||
+      m_externalRoutes.empty ())
+    {
+      return;
+    }
+
+  Ptr<Ipv4> ipv4 = GetNode ()->GetObject<Ipv4> ();
+  ReachableRouteList currentInterfaceRoutes = CollectInterfaceReachableRoutesFromIpv4 (ipv4);
+
+  m_interfaceExternalRoutes = currentInterfaceRoutes;
+
+  for (const auto &route : m_externalRoutes)
+    {
+      if (std::find (m_interfaceExternalRoutes.begin (), m_interfaceExternalRoutes.end (), route) ==
+          m_interfaceExternalRoutes.end ())
+        {
+          m_injectedExternalRoutes.emplace_back (route);
+        }
+    }
+}
+
+bool
+OspfApp::ApplyAdvertisedReachableRoutes ()
+{
+  ReachableRouteList advertisedRoutes = m_interfaceExternalRoutes;
+  advertisedRoutes.insert (advertisedRoutes.end (), m_injectedExternalRoutes.begin (),
+                           m_injectedExternalRoutes.end ());
+
+  if (m_externalRoutes == advertisedRoutes)
+    {
+      return false;
+    }
+
+  m_externalRoutes = std::move (advertisedRoutes);
+  UpdateRouting ();
+  return true;
+}
+
+void
+OspfApp::RefreshInterfaceReachableRoutesFromIpv4 ()
+{
+  InitializeSplitReachableRoutesFromCurrentState ();
+
+  Ptr<Ipv4> ipv4 = GetNode ()->GetObject<Ipv4> ();
+  ReachableRouteList interfaceRoutes = CollectInterfaceReachableRoutesFromIpv4 (ipv4);
+
+  if (m_interfaceExternalRoutes != interfaceRoutes)
+    {
+      m_interfaceExternalRoutes = std::move (interfaceRoutes);
+    }
+
+  ApplyAdvertisedReachableRoutes ();
+}
+
+void
+OspfApp::RefreshReachableRoutesAndAdvertise ()
+{
+  RefreshInterfaceReachableRoutesFromIpv4 ();
+  ThrottledRecomputeL1SummaryLsa ();
+}
+
 void
 OspfApp::HandleInterfaceDown (uint32_t ifIndex)
 {
@@ -109,18 +346,33 @@ OspfApp::HandleInterfaceDown (uint32_t ifIndex)
   interface->ClearNeighbors ();
 }
 
-bool
-OspfApp::SyncInterfacesFromIpv4 ()
+void
+OspfApp::HandleLocalInterfaceEvent ()
 {
-  if (!m_autoSyncInterfaces)
+  const bool changed = RefreshAllOspfInterfaceStateFromIpv4 ();
+  if (!changed || !m_protocolRunning)
     {
-      return false;
+      return;
     }
 
+  CancelHelloTimeouts ();
+  CloseSockets ();
+  InitializeSockets ();
+
+  m_helloEvent.Remove ();
+  ScheduleTransmitHello (MilliSeconds (0));
+
+  ThrottledRecomputeRouterLsa ();
+  ThrottledRecomputeL1SummaryLsa ();
+}
+
+bool
+OspfApp::RefreshAllOspfInterfaceStateFromIpv4 ()
+{
   Ptr<Ipv4> ipv4 = GetNode ()->GetObject<Ipv4> ();
   if (ipv4 == nullptr)
     {
-      NS_LOG_WARN ("AutoSyncInterfaces enabled but node has no Ipv4 object");
+      NS_LOG_WARN ("RefreshAllOspfInterfaceStateFromIpv4 called but node has no Ipv4 object");
       return false;
     }
 
@@ -171,6 +423,10 @@ OspfApp::SyncInterfacesFromIpv4 ()
       m_ospfInterfaces.resize (nIf);
       changed = true;
     }
+  if (m_advertiseInterfacePrefixes.size () != nIf)
+    {
+      m_advertiseInterfacePrefixes.resize (nIf, false);
+    }
 
   if (m_ospfInterfaces[0] == nullptr)
     {
@@ -180,82 +436,17 @@ OspfApp::SyncInterfacesFromIpv4 ()
 
   for (uint32_t i = 1; i < nIf; ++i)
     {
-      if (m_ospfInterfaces[i] == nullptr)
+      if (RefreshOspfInterfaceStateFromIpv4 (ipv4, i))
         {
-          m_ospfInterfaces[i] = Create<OspfInterface> ();
           changed = true;
         }
+    }
 
-      Ipv4InterfaceAddress ifAddr;
-      const bool hasAddr = SelectPrimaryInterfaceAddress (ipv4, i, ifAddr);
-      const auto ip = hasAddr ? ifAddr.GetAddress () : Ipv4Address::GetAny ();
-      const auto mask = hasAddr ? ifAddr.GetMask () : Ipv4Mask (0xffffffff);
-      const bool isUp = ipv4->IsUp (i) && hasAddr;
-
-      auto ospfIf = m_ospfInterfaces[i];
-      if (ospfIf->GetAddress () != ip)
-        {
-          ospfIf->SetAddress (ip);
-          changed = true;
-        }
-      if (ospfIf->GetMask () != mask)
-        {
-          ospfIf->SetMask (mask);
-          changed = true;
-        }
-
-      const bool wasUp = ospfIf->IsUp ();
-      if (wasUp && !isUp)
-        {
-          HandleInterfaceDown (i);
-          changed = true;
-        }
-      if (wasUp != isUp)
-        {
-          ospfIf->SetUp (isUp);
-          changed = true;
-        }
-
-      // Keep common parameters aligned with app attributes.
-      ospfIf->SetHelloInterval (m_helloInterval.GetMilliSeconds ());
-      ospfIf->SetRouterDeadInterval (m_routerDeadInterval.GetMilliSeconds ());
-      ospfIf->SetArea (m_areaId);
-      ospfIf->SetMetric (1);
-      if (m_boundDevices.Get (i) != nullptr)
-        {
-          ospfIf->SetMtu (m_boundDevices.Get (i)->GetMtu ());
-        }
-
-      // Gateway selection (only meaningful for point-to-point).
-      Ipv4Address gw = Ipv4Address::GetBroadcast ();
-      if (m_boundDevices.Get (i) != nullptr && m_boundDevices.Get (i)->IsPointToPoint ())
-        {
-          auto dev = m_boundDevices.Get (i);
-          Ptr<Channel> ch = DynamicCast<Channel> (dev->GetChannel ());
-          if (ch != nullptr)
-            {
-              for (uint32_t j = 0; j < ch->GetNDevices (); j++)
-                {
-                  Ptr<NetDevice> remoteDev = ch->GetDevice (j);
-                  if (remoteDev != nullptr && remoteDev != dev)
-                    {
-                      auto remoteIpv4 = remoteDev->GetNode ()->GetObject<Ipv4> ();
-                      Ipv4InterfaceAddress remoteIfAddr;
-                      if (SelectPrimaryInterfaceAddress (remoteIpv4, remoteDev->GetIfIndex (),
-                                                         remoteIfAddr))
-                        {
-                          gw = remoteIfAddr.GetAddress ();
-                        }
-                      break;
-                    }
-                }
-            }
-        }
-      if (ospfIf->GetGateway () != gw)
-        {
-          ospfIf->SetGateway (gw);
-          changed = true;
-        }
+  const auto oldExternalRoutes = m_externalRoutes;
+  RefreshInterfaceReachableRoutesFromIpv4 ();
+  if (m_externalRoutes != oldExternalRoutes)
+    {
+      changed = true;
     }
 
   return changed;
@@ -265,36 +456,43 @@ void
 OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address dest, Ipv4Mask mask,
                               Ipv4Address gateway, uint32_t metric)
 {
-  // Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
-  // ipv4->AddAddress (0, Ipv4InterfaceAddress (dest, mask));
-  // std::cout << "Inject: " << ifIndex << ", " << dest << ", " << mask << ", " << gateway << ", " << metric << std::endl;
-  m_externalRoutes.emplace_back (ifIndex, dest.Get (), mask.Get (), gateway.Get (), metric);
-  ThrottledRecomputeL1SummaryLsa ();
-  // Process the new LSA and generate/flood L2 Summary LSA if needed
-  ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
+  InitializeSplitReachableRoutesFromCurrentState ();
+  m_injectedExternalRoutes.emplace_back (ifIndex, dest.Get (), mask.Get (), gateway.Get (), metric);
+  RefreshReachableRoutesAndAdvertise ();
 }
 
 void
 OspfApp::AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask)
 {
-  m_externalRoutes.emplace_back (ifIndex, address.Get (), mask.Get (),
-                                 Ipv4Address::GetAny ().Get (), 0);
-  ThrottledRecomputeL1SummaryLsa ();
-  // Process the new LSA and generate/flood L2 Summary LSA if needed
-  ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
+  InitializeSplitReachableRoutesFromCurrentState ();
+  m_injectedExternalRoutes.emplace_back (ifIndex, address.Get (), mask.Get (),
+                                         Ipv4Address::GetAny ().Get (), 0);
+  RefreshReachableRoutesAndAdvertise ();
 }
 
 bool
-OspfApp::SetReachableAddresses (
-    std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>> reachableAddresses)
+OspfApp::SetReachableAddresses (ReachableRouteList reachableAddresses)
 {
-  // Flood when the content is different
-  if (m_externalRoutes != reachableAddresses)
+  InitializeSplitReachableRoutesFromCurrentState ();
+  if (m_injectedExternalRoutes != reachableAddresses)
     {
-      m_externalRoutes = std::move (reachableAddresses);
+      m_injectedExternalRoutes = std::move (reachableAddresses);
+      ApplyAdvertisedReachableRoutes ();
       ThrottledRecomputeL1SummaryLsa ();
-      // Process the new LSA and generate/flood L2 Summary LSA if needed
-      ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
+      return true;
+    }
+  return false;
+}
+
+bool
+OspfApp::SetInterfaceReachableAddresses (ReachableRouteList reachableAddresses)
+{
+  InitializeSplitReachableRoutesFromCurrentState ();
+  if (m_interfaceExternalRoutes != reachableAddresses)
+    {
+      m_interfaceExternalRoutes = std::move (reachableAddresses);
+      ApplyAdvertisedReachableRoutes ();
+      ThrottledRecomputeL1SummaryLsa ();
       return true;
     }
   return false;
@@ -304,17 +502,16 @@ void
 OspfApp::AddAllReachableAddresses (uint32_t ifIndex)
 {
   Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
+  InitializeSplitReachableRoutesFromCurrentState ();
   for (uint32_t i = 1; i < m_boundDevices.GetN (); i++)
     {
       if (ifIndex == i)
         continue;
-      AddReachableAddress (
-          ifIndex, m_ospfInterfaces[i]->GetAddress ().CombineMask (m_ospfInterfaces[i]->GetMask ()),
-          m_ospfInterfaces[i]->GetMask (), m_ospfInterfaces[i]->GetAddress (), 0);
+      m_injectedExternalRoutes.emplace_back (
+          ifIndex, m_ospfInterfaces[i]->GetAddress ().CombineMask (m_ospfInterfaces[i]->GetMask ()).Get (),
+          m_ospfInterfaces[i]->GetMask ().Get (), m_ospfInterfaces[i]->GetAddress ().Get (), 0);
     }
-  ThrottledRecomputeL1SummaryLsa ();
-  // Process the new LSA and generate/flood L2 Summary LSA if needed
-  ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
+  RefreshReachableRoutesAndAdvertise ();
 }
 
 
@@ -336,8 +533,28 @@ OspfApp::ClearReachableAddresses (uint32_t ifIndex)
 void
 OspfApp::RemoveReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask)
 {
-  Ptr<Ipv4> ipv4 = m_node->GetObject<Ipv4> ();
-  ipv4->RemoveAddress (0, address);
+  InitializeSplitReachableRoutesFromCurrentState ();
+
+  const auto exact = address.Get ();
+  const auto network = address.CombineMask (mask).Get ();
+  const auto maskValue = mask.Get ();
+
+  auto newEnd = std::remove_if (m_injectedExternalRoutes.begin (), m_injectedExternalRoutes.end (),
+                                [ifIndex, exact, network, maskValue] (const auto &route) {
+                                  const auto routeIfIndex = std::get<0> (route);
+                                  const auto routeDest = std::get<1> (route);
+                                  const auto routeMask = std::get<2> (route);
+                                  return routeIfIndex == ifIndex && routeMask == maskValue &&
+                                         (routeDest == exact || routeDest == network);
+                                });
+
+  if (newEnd == m_injectedExternalRoutes.end ())
+    {
+      return;
+    }
+
+  m_injectedExternalRoutes.erase (newEnd, m_injectedExternalRoutes.end ());
+  RefreshReachableRoutesAndAdvertise ();
 }
 
 void
@@ -361,6 +578,12 @@ void
 OspfApp::SetAreaLeader (bool isLeader)
 {
   m_isAreaLeader = isLeader;
+}
+
+bool
+OspfApp::IsAreaLeader () const
+{
+  return m_isAreaLeader;
 }
 
 void

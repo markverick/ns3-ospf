@@ -82,6 +82,7 @@ OspfApp::Enable ()
   m_protocolRunning = true;
 
   StartInterfaceSyncIfEnabled ();
+  RefreshInterfaceReachableRoutesFromIpv4 ();
   InitializeSockets ();
 
   // Start sending Hello
@@ -90,9 +91,7 @@ OspfApp::Enable ()
   if (m_doInitialize)
     {
       // Create AS External LSA from Router ID for L1 routing prefix
-      RecomputeL1SummaryLsa ();
-      // Process the new LSA and generate/flood L2 Summary LSA if needed
-      ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
+      RecomputeL1SummaryLsaAndProcessSelf ();
       if (m_enableAreaProxy)
         {
           m_areaLeader->ScheduleInitialLeadershipAttempt ();
@@ -100,6 +99,10 @@ OspfApp::Enable ()
     }
   else
     {
+      // Preloaded/imported instances still need to re-originate current self state once sockets are up.
+      RecomputeRouterLsaAndProcessSelf ();
+      RecomputeL1SummaryLsaAndProcessSelf ();
+      RebuildPrefixOwnerTable ();
       UpdateL1ShortestPath ();
       UpdateL2ShortestPath ();
     }
@@ -179,6 +182,16 @@ OspfApp::ResetStateForRestart ()
   m_advertisingPrefixes.clear ();
   m_l1NextHop.clear ();
   m_l1Addresses.clear ();
+  m_externalRoutes.clear ();
+  m_injectedExternalRoutes.clear ();
+  for (auto &bucket : m_prefixOwnersByLength)
+    {
+      bucket.clear ();
+    }
+  m_ownerToPrefixes.clear ();
+  m_ownerResolutionTable.clear ();
+  m_l1ShortestPathRunCount = 0;
+  m_l2ShortestPathRunCount = 0;
 
   m_areaLsdb.clear ();
   m_l2SummaryLsdb.clear ();
@@ -213,7 +226,7 @@ OspfApp::StartInterfaceSyncIfEnabled ()
     }
 
   // Seed from current Ipv4 interfaces before sockets are created.
-  SyncInterfacesFromIpv4 ();
+  RefreshAllOspfInterfaceStateFromIpv4 ();
 
   if (m_interfaceSyncInterval.IsZero ())
     {
@@ -236,7 +249,7 @@ OspfApp::InterfaceSyncTick ()
       return;
     }
 
-  const bool changed = SyncInterfacesFromIpv4 ();
+  const bool changed = RefreshAllOspfInterfaceStateFromIpv4 ();
   if (changed)
     {
       // Rebind sockets to match the current interface set.

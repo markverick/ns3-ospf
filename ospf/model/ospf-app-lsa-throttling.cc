@@ -64,6 +64,20 @@ OspfApp::RecomputeAreaLsaWrapper ()
 }
 
 void
+OspfApp::RecomputeRouterLsaAndProcessSelf ()
+{
+  RecomputeRouterLsa ();
+  ProcessLsa (m_routerLsdb[m_routerId.Get ()]);
+}
+
+void
+OspfApp::RecomputeL1SummaryLsaAndProcessSelf ()
+{
+  RecomputeL1SummaryLsa ();
+  ProcessLsa (m_l1SummaryLsdb[m_routerId.Get ()]);
+}
+
+void
 OspfApp::RecomputeL2SummaryLsaWrapper ()
 {
   RecomputeL2SummaryLsa ();
@@ -99,7 +113,7 @@ OspfApp::ThrottledRecomputeRouterLsa ()
         {
           ++m_lsaThrottleImmediate;
         }
-      RecomputeRouterLsa ();
+      RecomputeRouterLsaAndProcessSelf ();
     }
   else if (m_pendingLsaRegeneration.find (lsaKey) == m_pendingLsaRegeneration.end ())
     {
@@ -109,7 +123,7 @@ OspfApp::ThrottledRecomputeRouterLsa ()
           ++m_lsaThrottleDeferredScheduled;
         }
       m_pendingLsaRegeneration[lsaKey] =
-          Simulator::Schedule (delay, &OspfApp::RecomputeRouterLsa, this);
+          Simulator::Schedule (delay, &OspfApp::RecomputeRouterLsaAndProcessSelf, this);
     }
   else
     {
@@ -150,7 +164,7 @@ OspfApp::ThrottledRecomputeL1SummaryLsa ()
         {
           ++m_lsaThrottleImmediate;
         }
-      RecomputeL1SummaryLsa ();
+      RecomputeL1SummaryLsaAndProcessSelf ();
     }
   else if (m_pendingLsaRegeneration.find (lsaKey) == m_pendingLsaRegeneration.end ())
     {
@@ -160,7 +174,7 @@ OspfApp::ThrottledRecomputeL1SummaryLsa ()
           ++m_lsaThrottleDeferredScheduled;
         }
       m_pendingLsaRegeneration[lsaKey] =
-          Simulator::Schedule (delay, &OspfApp::RecomputeL1SummaryLsa, this);
+          Simulator::Schedule (delay, &OspfApp::RecomputeL1SummaryLsaAndProcessSelf, this);
     }
   else
     {

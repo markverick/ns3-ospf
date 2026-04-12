@@ -2,12 +2,15 @@
 
 #include "ospf-app-private.h"
 
+#include "ospf-app-area-leader-controller.h"
+
 namespace ns3 {
 
 void
 OspfApp::UpdateL1ShortestPath ()
 {
   NS_LOG_FUNCTION (this);
+  ++m_l1ShortestPathRunCount;
 
   std::unordered_map<uint32_t, uint32_t> distanceTo;
   std::unordered_map<uint32_t, uint32_t> prevHop;
@@ -151,6 +154,11 @@ OspfApp::UpdateL1ShortestPath ()
         }
     }
 
+  if (m_enableAreaProxy)
+    {
+      m_areaLeader->UpdateLeadershipEligibility ();
+    }
+
   UpdateRouting ();
 }
 
@@ -158,6 +166,7 @@ void
 OspfApp::UpdateL2ShortestPath ()
 {
   NS_LOG_FUNCTION (this);
+  ++m_l2ShortestPathRunCount;
 
   std::unordered_map<uint32_t, uint32_t> distanceTo;
   std::unordered_map<uint32_t, uint32_t> prevHop;

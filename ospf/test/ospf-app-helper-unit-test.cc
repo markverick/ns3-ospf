@@ -9,6 +9,7 @@
 #include "ns3/ipv4-address-helper.h"
 #include "ns3/lsa-header.h"
 #include "ns3/l1-summary-lsa.h"
+#include "ns3/l2-summary-lsa.h"
 #include "ns3/ospf-app-helper.h"
 #include "ns3/ospf-app.h"
 
@@ -38,6 +39,19 @@ FetchSelfL1Summary (const Ptr<OspfApp> &app)
       return nullptr;
     }
   return DynamicCast<L1SummaryLsa> (pair.second);
+}
+
+Ptr<L2SummaryLsa>
+FetchAreaL2Summary (const Ptr<OspfApp> &app, uint32_t advertisingRouter)
+{
+  const auto key =
+      std::make_tuple (LsaHeader::LsType::L2SummaryLSAs, app->GetArea (), advertisingRouter);
+  auto pair = app->FetchLsa (key);
+  if (pair.second == nullptr)
+    {
+      return nullptr;
+    }
+  return DynamicCast<L2SummaryLsa> (pair.second);
 }
 
 } // namespace
@@ -192,6 +206,65 @@ public:
   }
 };
 
+class OspfPreloadSeedsAreaSummaryTestCase : public TestCase
+{
+public:
+  OspfPreloadSeedsAreaSummaryTestCase ()
+    : TestCase ("OspfAppHelper::Preload seeds L2SummaryLSA routes for the area leader")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    NodeContainer nodes;
+    nodes.Create (3);
+
+    InternetStackHelper internet;
+    internet.Install (nodes);
+
+    PointToPointHelper p2p;
+    p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+    p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+
+    NetDeviceContainer d01 = p2p.Install (NodeContainer (nodes.Get (0), nodes.Get (1)));
+    NetDeviceContainer d12 = p2p.Install (NodeContainer (nodes.Get (1), nodes.Get (2)));
+
+    Ipv4AddressHelper ipv4;
+    ipv4.SetBase ("10.1.1.0", "255.255.255.252");
+    ipv4.Assign (d01);
+    ipv4.SetBase ("10.1.2.0", "255.255.255.252");
+    ipv4.Assign (d12);
+
+    OspfAppHelper ospf;
+    ApplicationContainer apps = ospf.Install (nodes);
+
+    Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
+    Ptr<OspfApp> app1 = DynamicCast<OspfApp> (apps.Get (1));
+    NS_TEST_EXPECT_MSG_NE (app0, nullptr, "expected OspfApp on node0");
+    NS_TEST_EXPECT_MSG_NE (app1, nullptr, "expected OspfApp on node1");
+
+    ospf.Preload (nodes);
+
+    Ptr<L2SummaryLsa> l20 = FetchAreaL2Summary (app0, app0->GetRouterId ().Get ());
+    NS_TEST_EXPECT_MSG_NE (l20, nullptr, "expected node0 area leader to have a preloaded L2SummaryLSA");
+
+    const Ipv4Mask mask ("255.255.255.252");
+    NS_TEST_EXPECT_MSG_EQ (HasSummaryRoute (l20->GetRoutes (), Ipv4Address ("10.1.1.0"), mask, 1),
+                           true, "area summary should include 10.1.1.0/30");
+    NS_TEST_EXPECT_MSG_EQ (HasSummaryRoute (l20->GetRoutes (), Ipv4Address ("10.1.2.0"), mask, 1),
+                           true, "area summary should include 10.1.2.0/30");
+
+    Ptr<L2SummaryLsa> l21 = FetchAreaL2Summary (app1, app0->GetRouterId ().Get ());
+    NS_TEST_EXPECT_MSG_NE (l21, nullptr, "expected non-leader to receive the preloaded L2SummaryLSA");
+    const bool sameRoutes = l21->GetRoutes () == l20->GetRoutes ();
+    NS_TEST_EXPECT_MSG_EQ (sameRoutes, true,
+                           "all nodes in the area should observe the same preloaded L2SummaryLSA");
+
+    Simulator::Destroy ();
+  }
+};
+
 class OspfAppHelperUnitTestSuite : public TestSuite
 {
 public:
@@ -200,6 +273,7 @@ public:
   {
     AddTestCase (new OspfConfigureReachablePrefixesHelperTestCase (), TestCase::QUICK);
     AddTestCase (new OspfPreloadSeedsL1SummaryTestCase (), TestCase::QUICK);
+    AddTestCase (new OspfPreloadSeedsAreaSummaryTestCase (), TestCase::QUICK);
     AddTestCase (new OspfHelperEmptyContainerNoCrashTestCase (), TestCase::QUICK);
   }
 };

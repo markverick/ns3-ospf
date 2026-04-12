@@ -2,11 +2,23 @@
 
 #include "ns3/test.h"
 
+#include "ns3/internet-stack-helper.h"
 #include "ns3/ipv4-address.h"
+#include "ns3/ipv4-address-helper.h"
+#include "ns3/ipv4-header.h"
+#include "ns3/ls-request.h"
 #include "ns3/lsa-header.h"
+#include "ns3/net-device-container.h"
+#include "ns3/node-container.h"
+#include "ns3/ospf-app.h"
+#include "ns3/ospf-dbd.h"
+#include "ns3/ospf-header.h"
 #include "ns3/ospf-interface.h"
 #include "ns3/ospf-neighbor.h"
+#include "ns3/point-to-point-helper.h"
 #include "ns3/simulator.h"
+
+#include "ospf-test-utils.h"
 
 namespace ns3 {
 
@@ -27,6 +39,17 @@ MakeLsaHeader (LsaHeader::LsType type, Ipv4Address lsId, Ipv4Address advRouter, 
   h.SetSeqNum (seq);
   h.SetLength (h.GetSerializedSize ());
   return h;
+}
+
+NetDeviceContainer
+CollectNodeDevices (Ptr<Node> node)
+{
+  NetDeviceContainer devices;
+  for (uint32_t i = 0; i < node->GetNDevices (); ++i)
+    {
+      devices.Add (node->GetDevice (i));
+    }
+  return devices;
 }
 
 } // namespace
@@ -240,6 +263,146 @@ public:
   }
 };
 
+class OspfNeighborAdjacencySyncResetTestCase : public TestCase
+{
+public:
+  OspfNeighborAdjacencySyncResetTestCase ()
+    : TestCase ("OspfNeighbor clears adjacency sync state cleanly")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    Ptr<OspfNeighbor> n = Create<OspfNeighbor> (Ipv4Address ("10.0.0.2"),
+                                                Ipv4Address ("10.0.0.2"),
+                                                1,
+                                                OspfNeighbor::Exchange);
+
+    LsaHeader h1 = MakeLsaHeader (LsaHeader::RouterLSAs,
+                                  Ipv4Address ("10.0.0.2"),
+                                  Ipv4Address ("10.0.0.2"),
+                                  7);
+    LsaHeader h2 = MakeLsaHeader (LsaHeader::L1SummaryLSAs,
+                                  Ipv4Address ("10.0.0.3"),
+                                  Ipv4Address ("10.0.0.2"),
+                                  9);
+
+    n->SetLastDbdSent (Create<OspfDbd> (1500, 0, 0, 0, 1, 1, 11));
+    n->SetLastLsrSent (Create<LsRequest> (std::vector<LsaHeader::LsaKey>{h1.GetKey ()}));
+    n->AddDbdQueue (h1);
+    n->AddDbdQueue (h2);
+    n->InsertLsaKey (h1);
+    n->AddOutdatedLsaKeysToQueue ({h2});
+
+    NS_TEST_EXPECT_MSG_EQ (n->IsDbdQueueEmpty (), false, "DBD queue seeded");
+    NS_TEST_EXPECT_MSG_EQ (n->IsLsrQueueEmpty (), false, "LSR queue seeded");
+    NS_TEST_EXPECT_MSG_NE (n->GetLastDbdSent (), nullptr, "last DBD seeded");
+    NS_TEST_EXPECT_MSG_NE (n->GetLastLsrSent (), nullptr, "last LSR seeded");
+    NS_TEST_EXPECT_MSG_EQ (n->GetLsaKeySeqNum (h1.GetKey ()), 7u, "LSA cache seeded");
+
+    n->ClearAdjacencySyncState ();
+
+    NS_TEST_EXPECT_MSG_EQ (n->IsDbdQueueEmpty (), true, "DBD queue cleared");
+    NS_TEST_EXPECT_MSG_EQ (n->IsLsrQueueEmpty (), true, "LSR queue cleared");
+    NS_TEST_EXPECT_MSG_EQ (n->GetLastDbdSent (), nullptr, "last DBD cleared");
+    NS_TEST_EXPECT_MSG_EQ (n->GetLastLsrSent (), nullptr, "last LSR cleared");
+    NS_TEST_EXPECT_MSG_EQ (n->GetLsaKeySeqNum (h1.GetKey ()), 0u, "LSA cache cleared");
+  }
+};
+
+class OspfNeighborRoleConflictRestartTestCase : public TestCase
+{
+public:
+  OspfNeighborRoleConflictRestartTestCase (const std::string &name,
+                                           Ipv4Address localRouterId,
+                                           Ipv4Address remoteRouterId,
+                                           bool remoteClaimsMaster)
+    : TestCase (name),
+      m_localRouterId (localRouterId),
+      m_remoteRouterId (remoteRouterId),
+      m_remoteClaimsMaster (remoteClaimsMaster)
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    NodeContainer nodes;
+    nodes.Create (2);
+
+    InternetStackHelper internet;
+    internet.Install (nodes);
+
+    PointToPointHelper p2p;
+    NetDeviceContainer devices = p2p.Install (nodes);
+
+    Ipv4AddressHelper ipv4;
+    ipv4.SetBase ("10.0.0.0", "255.255.255.0");
+    Ipv4InterfaceContainer ifaces = ipv4.Assign (devices);
+
+    Ptr<OspfApp> app = CreateObject<OspfApp> ();
+    nodes.Get (0)->AddApplication (app);
+      app->SetRouterId (m_localRouterId);
+    app->SetArea (7);
+    app->SetBoundNetDevices (CollectNodeDevices (nodes.Get (0)));
+
+    Ptr<OspfNeighbor> neighbor =
+        Create<OspfNeighbor> (m_remoteRouterId, ifaces.GetAddress (1), 7, OspfNeighbor::Exchange);
+    neighbor->SetDDSeqNum (41);
+
+    LsaHeader h1 = MakeLsaHeader (LsaHeader::RouterLSAs,
+                                  Ipv4Address ("10.0.0.10"),
+                                    m_remoteRouterId,
+                                  5);
+    LsaHeader h2 = MakeLsaHeader (LsaHeader::L1SummaryLSAs,
+                                  Ipv4Address ("10.0.0.20"),
+                                    m_remoteRouterId,
+                                  6);
+
+      neighbor->SetLastDbdSent (Create<OspfDbd> (1500, 0, 0, 0, 1,
+                                                 m_remoteClaimsMaster, 41));
+    neighbor->SetLastLsrSent (Create<LsRequest> (std::vector<LsaHeader::LsaKey>{h1.GetKey ()}));
+    neighbor->AddDbdQueue (h1);
+    neighbor->AddDbdQueue (h2);
+    neighbor->InsertLsaKey (h1);
+    neighbor->AddOutdatedLsaKeysToQueue ({h2});
+    neighbor->BindTimeout (Simulator::Schedule (Seconds (10), &DoNothing));
+    neighbor->BindKeyedTimeout (h2.GetKey (), Simulator::Schedule (Seconds (11), &DoNothing));
+
+    app->AddNeighbor (1, neighbor);
+
+    Ptr<OspfDbd> conflictingDbd =
+          Create<OspfDbd> (1500, 0, 0, 0, 1, m_remoteClaimsMaster, 41);
+    OspfAppTestPeer::ReceiveDbd (*app, 1, ifaces.GetAddress (1), m_remoteRouterId, 7,
+                                   conflictingDbd);
+
+    NS_TEST_EXPECT_MSG_EQ (neighbor->GetState (), OspfNeighbor::ExStart,
+                           "role conflict should restart negotiation in ExStart");
+    NS_TEST_EXPECT_MSG_EQ (neighbor->IsDbdQueueEmpty (), true,
+                           "role conflict restart should clear DBD queue");
+    NS_TEST_EXPECT_MSG_EQ (neighbor->IsLsrQueueEmpty (), true,
+                           "role conflict restart should clear LSR queue");
+    NS_TEST_EXPECT_MSG_EQ (neighbor->GetLastDbdSent (), nullptr,
+                           "role conflict restart should clear last DBD");
+    NS_TEST_EXPECT_MSG_EQ (neighbor->GetLastLsrSent (), nullptr,
+                           "role conflict restart should clear last LSR");
+    NS_TEST_EXPECT_MSG_EQ (neighbor->GetLsaKeySeqNum (h1.GetKey ()), 0u,
+                           "role conflict restart should clear cached neighbor LSA state");
+    NS_TEST_EXPECT_MSG_EQ (neighbor->HasKeyedTimeout (h2.GetKey ()), false,
+               "role conflict restart should clear keyed retransmission timeouts");
+    NS_TEST_EXPECT_MSG_EQ (neighbor->HasTimeout (), false,
+               "role conflict restart should clear the neighbor retransmission timeout");
+
+    Simulator::Destroy ();
+  }
+
+private:
+  Ipv4Address m_localRouterId;
+  Ipv4Address m_remoteRouterId;
+  bool m_remoteClaimsMaster;
+};
+
 class OspfNeighborInterfaceTestSuite : public TestSuite
 {
 public:
@@ -251,6 +414,15 @@ public:
     AddTestCase (new OspfInterfaceActiveRouterLinksEmptyTestCase, TestCase::QUICK);
     AddTestCase (new OspfNeighborDbdQueueTestCase, TestCase::QUICK);
     AddTestCase (new OspfNeighborOutdatedKeysAndTimeoutsTestCase, TestCase::QUICK);
+    AddTestCase (new OspfNeighborAdjacencySyncResetTestCase, TestCase::QUICK);
+      AddTestCase (new OspfNeighborRoleConflictRestartTestCase (
+                       "OspfNeighbor restarts adjacency negotiation on master-master DBD conflict",
+                       Ipv4Address ("10.0.0.2"), Ipv4Address ("10.0.0.1"), true),
+                   TestCase::QUICK);
+      AddTestCase (new OspfNeighborRoleConflictRestartTestCase (
+                       "OspfNeighbor restarts adjacency negotiation on slave-slave DBD conflict",
+                       Ipv4Address ("10.0.0.1"), Ipv4Address ("10.0.0.2"), false),
+                   TestCase::QUICK);
   }
 };
 

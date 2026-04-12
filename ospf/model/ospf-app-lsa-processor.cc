@@ -6,6 +6,29 @@
 
 namespace ns3 {
 
+namespace {
+
+LsaHeader::LsaKey
+MakeLsaKey (const LsaHeader &header)
+{
+  return std::make_tuple (header.GetType (), header.GetLsId (), header.GetAdvertisingRouter ());
+}
+
+template <typename T>
+void
+IndexLsdb (const std::map<uint32_t, std::pair<LsaHeader, Ptr<T>>> &lsdb,
+           std::map<LsaHeader::LsaKey, std::pair<LsaHeader, Ptr<Lsa>>> &indexed)
+{
+  for (const auto &[id, lsa] : lsdb)
+    {
+      (void)id;
+      indexed.emplace (MakeLsaKey (lsa.first),
+                       std::make_pair (lsa.first, StaticCast<Lsa> (lsa.second)));
+    }
+}
+
+} // namespace
+
 OspfLsaProcessor::OspfLsaProcessor (OspfApp &app)
   : m_app (app)
 {
@@ -33,59 +56,49 @@ OspfLsaProcessor::HandleLsr (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader o
     {
       NS_LOG_WARN ("Received LSR when the state is not at least Loading");
     }
-  // Construct LS Update as implicit ACK based on received lsr
+
+  std::map<LsaHeader::LsaKey, std::pair<LsaHeader, Ptr<Lsa>>> indexedLsdb;
+  IndexLsdb (m_app.m_routerLsdb, indexedLsdb);
+  IndexLsdb (m_app.m_l1SummaryLsdb, indexedLsdb);
+  IndexLsdb (m_app.m_areaLsdb, indexedLsdb);
+  IndexLsdb (m_app.m_l2SummaryLsdb, indexedLsdb);
+
+  std::vector<std::pair<LsaHeader, Ptr<Lsa>>> requestedLsas;
+  requestedLsas.reserve (lsr->GetNLsaKeys ());
+  for (const auto &lsaKey : lsr->GetLsaKeys ())
+    {
+      auto it = indexedLsdb.find (lsaKey);
+      if (it == indexedLsdb.end ())
+        {
+          NS_LOG_WARN ("Requested LSA is unavailable for key=" << LsaHeader::GetKeyString (lsaKey));
+          continue;
+        }
+      requestedLsas.emplace_back (it->second);
+    }
+
+  if (requestedLsas.empty ())
+    {
+      NS_LOG_WARN ("No LSAs available to satisfy LSR on interface " << ifIndex);
+      return;
+    }
+
+  // Construct LS Updates as implicit ACKs based on the received LSR.
   std::vector<Ptr<LsUpdate>> lsUpdates;
   Ptr<LsUpdate> lsUpdate = Create<LsUpdate> ();
-  // TODO: Clean up
-  for (auto &[remoteRouterId, lsa] : m_app.m_routerLsdb)
+  for (const auto &[header, lsa] : requestedLsas)
     {
-      if (lsr->HasLsaKey (lsa.first.GetKey ()))
+      if (lsUpdate->GetSerializedSize () + header.GetLength () > interface->GetMtu () - 100 &&
+          lsUpdate->GetNLsa () > 0)
         {
-          if (lsUpdate->GetSerializedSize () + lsa.first.GetLength () > interface->GetMtu () - 100)
-            {
-              lsUpdates.emplace_back (lsUpdate);
-              lsUpdate = Create<LsUpdate> ();
-            }
-          lsUpdate->AddLsa (lsa.first, lsa.second);
+          lsUpdates.emplace_back (lsUpdate);
+          lsUpdate = Create<LsUpdate> ();
         }
+      lsUpdate->AddLsa (header, lsa);
     }
-  for (auto &[remoteRouterId, lsa] : m_app.m_l1SummaryLsdb)
+  if (lsUpdate->GetNLsa () > 0)
     {
-      if (lsr->HasLsaKey (lsa.first.GetKey ()))
-        {
-          if (lsUpdate->GetSerializedSize () + lsa.first.GetLength () > interface->GetMtu () - 100)
-            {
-              lsUpdates.emplace_back (lsUpdate);
-              lsUpdate = Create<LsUpdate> ();
-            }
-          lsUpdate->AddLsa (lsa.first, lsa.second);
-        }
+      lsUpdates.emplace_back (lsUpdate);
     }
-  for (auto &[remoteAreaId, lsa] : m_app.m_areaLsdb)
-    {
-      if (lsr->HasLsaKey (lsa.first.GetKey ()))
-        {
-          if (lsUpdate->GetSerializedSize () + lsa.first.GetLength () > interface->GetMtu () - 100)
-            {
-              lsUpdates.emplace_back (lsUpdate);
-              lsUpdate = Create<LsUpdate> ();
-            }
-          lsUpdate->AddLsa (lsa.first, lsa.second);
-        }
-    }
-  for (auto &[remoteAreaId, lsa] : m_app.m_l2SummaryLsdb)
-    {
-      if (lsr->HasLsaKey (lsa.first.GetKey ()))
-        {
-          if (lsUpdate->GetSerializedSize () + lsa.first.GetLength () > interface->GetMtu () - 100)
-            {
-              lsUpdates.emplace_back (lsUpdate);
-              lsUpdate = Create<LsUpdate> ();
-            }
-          lsUpdate->AddLsa (lsa.first, lsa.second);
-        }
-    }
-  lsUpdates.emplace_back (lsUpdate);
   NS_LOG_INFO ("Received LSR (" << lsr->GetNLsaKeys () << ") from interface: " << ifIndex);
   for (auto lsUpdate : lsUpdates)
     {
@@ -229,16 +242,16 @@ OspfLsaProcessor::ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa)
   switch (lsaHeader.GetType ())
     {
     case LsaHeader::RouterLSAs:
-      m_app.ProcessRouterLsa (lsaHeader, DynamicCast<RouterLsa> (lsa));
+      ProcessRouterLsa (lsaHeader, DynamicCast<RouterLsa> (lsa));
       break;
     case LsaHeader::L1SummaryLSAs:
-      m_app.ProcessL1SummaryLsa (lsaHeader, DynamicCast<L1SummaryLsa> (lsa));
+      ProcessL1SummaryLsa (lsaHeader, DynamicCast<L1SummaryLsa> (lsa));
       break;
     case LsaHeader::AreaLSAs:
-      m_app.ProcessAreaLsa (lsaHeader, DynamicCast<AreaLsa> (lsa));
+      ProcessAreaLsa (lsaHeader, DynamicCast<AreaLsa> (lsa));
       break;
     case LsaHeader::L2SummaryLSAs:
-      m_app.ProcessL2SummaryLsa (lsaHeader, DynamicCast<L2SummaryLsa> (lsa));
+      ProcessL2SummaryLsa (lsaHeader, DynamicCast<L2SummaryLsa> (lsa));
       break;
     default:
       NS_LOG_WARN ("Received unsupport LSA type in received LS Update");

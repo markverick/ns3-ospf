@@ -22,7 +22,6 @@
 #define OSPF_APP_H
 
 #include "ns3/application.h"
-#include "ns3/event-id.h"
 #include "ns3/ptr.h"
 #include "ns3/address.h"
 #include "ns3/net-device-container.h"
@@ -45,6 +44,8 @@
 #include "queue"
 #include "filesystem"
 
+#include <array>
+#include <iosfwd>
 #include <memory>
 
 namespace ns3 {
@@ -73,6 +74,16 @@ class Ipv4InterfaceAddress;
 class OspfApp : public Application
 {
 public:
+  using ReachableRoute = std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>;
+  using ReachableRouteList = std::vector<ReachableRoute>;
+
+  enum AreaLeaderMode
+  {
+    AREA_LEADER_LOWEST_ROUTER_ID = 0,
+    AREA_LEADER_STATIC = 1,
+    AREA_LEADER_REACHABLE_LOWEST_ROUTER_ID = 2,
+  };
+
   /**
    * \brief Get the type ID.
    * \return the object TypeId
@@ -84,9 +95,7 @@ public:
   /**
    * \brief Enable/disable the OSPF protocol at runtime.
    *
-   * This is separate from the ns-3 Application lifecycle and is intended to
-   * model "adding/removing" an OSPF router during a simulation by starting or
-   * stopping protocol traffic and state.
+   * Enable or disable protocol activity without destroying the application.
    */
   void Enable ();
   void Disable ();
@@ -94,21 +103,23 @@ public:
 
   /**
    * \brief Set a pointer to a routing table.
-    * \param ipv4Routing OSPF forwarding plane
+   * \param ipv4Routing OSPF forwarding plane
    */
-    void SetRouting (Ptr<OspfRouting> ipv4Routing);
+  void SetRouting (Ptr<OspfRouting> ipv4Routing);
 
   /**
-   * \brief Register network devices as OSPF interfaces.Abs
-   * 
-   * 0th index must be loopback TODO: make this more elegant #14
-   * 
-   * \param devs Net device container to beregisted
+   * \brief Register network devices as OSPF interfaces.
+   *
+   * Index 0 is reserved for loopback to match the attached Ipv4 stack layout.
+   *
+   * \param devs Net device container to be registered
    */
   void SetBoundNetDevices (NetDeviceContainer devs);
+  void SetInterfacePrefixRoutable (uint32_t ifIndex, bool enabled);
+  bool GetInterfacePrefixRoutable (uint32_t ifIndex) const;
 
   /**
-   * \brief Add reachable address and mask
+   * \brief Add an explicitly injected reachable prefix.
    * \param ifIndex interface to bind
    * \param address address assigned to the ID
    * \param mask the area prefix mask
@@ -116,10 +127,8 @@ public:
   void AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask,
                             Ipv4Address gateway, uint32_t metric);
   void AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask);
-  // Not a deep copy. TODO: make it a proper class with a proper, faster comparator
-  // Return whether the prefixes have changed
-  bool SetReachableAddresses (
-      std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>>);
+  // Return whether the injected prefixes have changed.
+  bool SetReachableAddresses (ReachableRouteList);
 
   /**
    * \brief Add IPs from all interfaces to the ifIndex interface
@@ -176,6 +185,8 @@ public:
    */
   void SetMetrices (std::vector<uint32_t> metrices);
 
+  bool IsAreaLeader () const;
+
   /**
    * \brief Set inteface metrices.
    * \param metrices Routing metrices to be registed
@@ -201,6 +212,21 @@ public:
   std::map<uint32_t, std::pair<LsaHeader, Ptr<L1SummaryLsa>>> GetL1SummaryLsdb ();
   std::map<uint32_t, std::pair<LsaHeader, Ptr<AreaLsa>>> GetAreaLsdb ();
   std::map<uint32_t, std::pair<LsaHeader, Ptr<L2SummaryLsa>>> GetL2SummaryLsdb ();
+  uint64_t GetL1ShortestPathRunCount () const;
+  uint64_t GetL2ShortestPathRunCount () const;
+
+  struct ForwardingEntry
+  {
+    Ipv4Address network = Ipv4Address::GetZero ();
+    Ipv4Mask mask = Ipv4Mask::GetZero ();
+    Ipv4Address nextHop = Ipv4Address::GetZero ();
+    uint32_t ifIndex = 0;
+    uint32_t metric = 0;
+  };
+
+  bool LookupForwardingEntry (Ipv4Address destination, int32_t requiredIfIndex,
+                              ForwardingEntry &entry) const;
+  void PrintForwardingTable (std::ostream &os) const;
   /**
    * \brief Print Router LSDB
    */
@@ -263,6 +289,13 @@ public:
    * \brief Print Area LSDB hash.
    */
   void PrintAreaLsdbHash ();
+
+  /**
+   * \brief Drive DBD reception through the real handler; intended for testing/debugging.
+   */
+  void ReceiveDbdForTesting (uint32_t ifIndex, Ipv4Address remoteIp,
+                             Ipv4Address remoteRouterId, uint32_t area, Ptr<OspfDbd> dbd);
+
   /**
    * \brief AddNeighbor
   */
@@ -374,8 +407,68 @@ protected:
   virtual void DoDispose (void);
 
 private:
+  enum class OwnerKind : uint8_t
+  {
+    Interface = 0,
+      GatewayRoute = 1,
+      Router = 2,
+      Area = 3,
+  };
+
+  struct OwnerRef
+  {
+    OwnerKind kind = OwnerKind::Interface;
+    uint32_t id = 0;
+
+    bool operator== (const OwnerRef &other) const
+    {
+      return kind == other.kind && id == other.id;
+    }
+  };
+
+  struct OwnerRefHash
+  {
+    std::size_t operator() (const OwnerRef &owner) const;
+  };
+
+  struct PrefixKey
+  {
+    uint8_t prefixLength = 0;
+    uint32_t network = 0;
+
+    bool operator== (const PrefixKey &other) const
+    {
+      return prefixLength == other.prefixLength && network == other.network;
+    }
+  };
+
+  struct PrefixOwnerEntry
+  {
+    std::unordered_map<OwnerRef, uint32_t, OwnerRefHash> candidates;
+  };
+
+  struct ResolvedOwner
+  {
+    uint32_t ifIndex = 0;
+    Ipv4Address nextHop = Ipv4Address::GetZero ();
+    uint32_t pathMetric = 0;
+  };
+
+  static OwnerRef MakeOwnerRef (OwnerKind kind, uint32_t id);
+  static uint32_t MakeGatewayRouteOwnerId (uint32_t ifIndex, uint32_t gateway);
+  static uint32_t PrefixLengthToMaskValue (uint8_t prefixLength);
+  static uint32_t MaskNetwork (uint32_t address, uint8_t prefixLength);
+  static bool IsOwnerPreferred (const OwnerRef &candidate, const OwnerRef &current);
+  void RebuildPrefixOwnerTable ();
+  void RebuildLocalInterfacePrefixOwners ();
+  void RebuildOwnerResolutionTable ();
+  void ReplaceOwnedPrefixes (const OwnerRef &owner, const std::set<SummaryRoute> &routes);
+  void RemoveOwnedPrefixes (const OwnerRef &owner);
+  bool TryResolveOwner (const OwnerRef &owner, ResolvedOwner &resolved) const;
+
   void ResetStateForRestart ();
   void FlushOspfRoutes ();
+  friend class OspfAppTestPeer;
   friend class OspfAppIo;
   friend class OspfNeighborFsm;
   friend class OspfLsaProcessor;
@@ -397,6 +490,8 @@ private:
   std::unique_ptr<OspfRoutingEngine> m_routingEngine;
 
   friend class OspfRouting;
+  friend class OspfAppHelper;
+  friend class OspfStateSerializer;
   virtual void StartApplication (void);
   virtual void StopApplication (void);
 
@@ -410,9 +505,17 @@ private:
   void StartInterfaceSyncIfEnabled ();
   void StopInterfaceSync ();
   void InterfaceSyncTick ();
-  bool SyncInterfacesFromIpv4 ();
+  bool RefreshAllOspfInterfaceStateFromIpv4 ();
   static bool SelectPrimaryInterfaceAddress (Ptr<Ipv4> ipv4, uint32_t ifIndex,
                                              Ipv4InterfaceAddress &out);
+  bool RefreshOspfInterfaceStateFromIpv4 (Ptr<Ipv4> ipv4, uint32_t ifIndex);
+  ReachableRouteList CollectInterfaceReachableRoutesFromIpv4 (Ptr<Ipv4> ipv4) const;
+  void HandleLocalInterfaceEvent ();
+  void RefreshInterfaceReachableRoutesFromIpv4 ();
+  void InitializeSplitReachableRoutesFromCurrentState ();
+  bool ApplyAdvertisedReachableRoutes ();
+  bool SetInterfaceReachableAddresses (ReachableRouteList);
+  void RefreshReachableRoutesAndAdvertise ();
   void HandleInterfaceDown (uint32_t ifIndex);
 
   /**
@@ -563,33 +666,8 @@ private:
    * \param ospfHeader OSPF Header
    * \param lsa LS Advertisement
    */
-  // TODO: seperate processor as objects
   void ProcessLsa (LsaHeader lsaHeader, Ptr<Lsa> lsa);
   void ProcessLsa (std::pair<LsaHeader, Ptr<Lsa>> lsa);
-  /**
-   * \brief Process Router-LSA during Full.
-   * \param lsaHeader LSA Header
-   * \param asExternalLsa AS External LSA Payload
-   */
-  void ProcessL1SummaryLsa (LsaHeader lsaHeader, Ptr<L1SummaryLsa> asExternalLsa);
-  /**
-   * \brief Process Router-LSA during Full.
-   * \param lsaHeader LSA Header
-   * \param routerLsa Router LSA Payload
-   */
-  void ProcessRouterLsa (LsaHeader lsaHeader, Ptr<RouterLsa> routerLsa);
-  /**
-   * \brief Process Area-LSA.
-   * \param lsaHeader LSA Header
-   * \param areaLsa Area LSA Payload
-   */
-  void ProcessAreaLsa (LsaHeader lsaHeader, Ptr<AreaLsa> areaLsa);
-  /**
-   * \brief Process Summary-LSA (Area).
-   * \param lsaHeader LSA Header
-   * \param summaryLsa Area Summary LSA Payload
-   */
-  void ProcessL2SummaryLsa (LsaHeader lsaHeader, Ptr<L2SummaryLsa> summaryLsa);
   /**
    * \brief Process LS Acknowledge as a response for LS Update during Full.
    * \param ipHeader IPv4 Header
@@ -619,6 +697,8 @@ private:
    * \return Summary-LSA containing all prefixes in the areas
    */
   Ptr<L2SummaryLsa> GetL2SummaryLsa ();
+  void OriginateAreaLsa (Ptr<AreaLsa> areaLsa);
+  void OriginateL2SummaryLsa (Ptr<L2SummaryLsa> summary);
   /**
    * \brief Generate local Router-LSA based on adjacencies (Full), filtered by areaId
    * \param areaId Area ID to filter
@@ -633,6 +713,7 @@ private:
    * \brief Throttled version of RecomputeRouterLsa that respects MinLsInterval
    */
   void ThrottledRecomputeRouterLsa ();
+  void RecomputeRouterLsaAndProcessSelf ();
   /**
    * \brief Recompute L1 Summary-LSA, increment its Sequence Number, and inject to L1 Summary LSDB
    */
@@ -641,6 +722,7 @@ private:
    * \brief Throttled version of RecomputeL1SummaryLsa that respects MinLsInterval
    */
   void ThrottledRecomputeL1SummaryLsa ();
+  void RecomputeL1SummaryLsaAndProcessSelf ();
   /**
    * \brief Recompute local Area-LSA, increment its Sequence Number, and inject to Area LSDB
    */
@@ -734,11 +816,11 @@ private:
   // Init
   /**
    * \brief Move the neighbor state to Init.
-   * 
+    *
    * Move the neighbor state to Init, flooding LSAs to update
-   * its neighbors TODO: Defer the Router-LSA update and flooding
-   * until it stops receiving two-way Hello within dead interval.
-   * 
+    * its neighbors. Router-LSA updates are currently emitted immediately
+    * instead of being deferred until the dead interval expires.
+    *
    * \param ifIndex Interface index
    * \param neighbor OSPF neighbor
    */
@@ -858,18 +940,31 @@ private:
 
   // Interface
   std::vector<Ptr<OspfInterface>> m_ospfInterfaces; // !< Router interfaces
+  std::vector<bool> m_advertiseInterfacePrefixes;
 
   // Routing
   Ptr<OspfRouting> m_routing; // !< OSPF forwarding plane
   std::unordered_map<uint32_t, NextHop> m_l1NextHop; //!< Next Hopto routers
   std::unordered_map<uint32_t, std::vector<uint32_t>> m_l1Addresses; //!< Addresses for L1 routers
   Time m_shortestPathUpdateDelay; // !< Shortest path before shortest path calculation
-  std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>> m_externalRoutes;
+  // Interface-derived prefixes, normally sourced from the node's active Ipv4 interfaces.
+    ReachableRouteList m_interfaceExternalRoutes;
+  // Effective advertised prefixes used by the lookup and LSA code.
+    ReachableRouteList m_externalRoutes;
+  // Additional advertised prefixes explicitly injected by the caller and not derived from Ipv4 interfaces.
+    ReachableRouteList m_injectedExternalRoutes;
+  std::array<std::unordered_map<uint32_t, PrefixOwnerEntry>, 33> m_prefixOwnersByLength;
+  std::unordered_map<OwnerRef, std::vector<PrefixKey>, OwnerRefHash> m_ownerToPrefixes;
+  std::unordered_map<OwnerRef, ResolvedOwner, OwnerRefHash> m_ownerResolutionTable;
+  uint64_t m_l1ShortestPathRunCount = 0;
+  uint64_t m_l2ShortestPathRunCount = 0;
 
   // Area
   std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>>
       m_l2NextHop; //!< <next hop, distance> to areas
-  bool m_isAreaLeader;
+  bool m_isAreaLeader = false;
+  AreaLeaderMode m_areaLeaderMode = AREA_LEADER_REACHABLE_LOWEST_ROUTER_ID;
+  Ipv4Address m_staticAreaLeaderRouterId = Ipv4Address::GetZero ();
 
   // LSA
   bool m_enableAreaProxy; // True if Proxied L2 LSAs are generated
