@@ -48,7 +48,6 @@
 #include "ospf-app-lsa-processor.h"
 #include "ospf-app-neighbor-fsm.h"
 #include "ospf-app-rng.h"
-#include "ospf-app-routing-engine.h"
 #include "ospf-app-sockets.h"
 #include "ospf-app-state-serializer.h"
 
@@ -171,8 +170,7 @@ OspfApp::OspfApp ()
     m_socketsMgr (std::make_unique<OspfAppSockets> (*this)),
     m_logging (std::make_unique<OspfAppLogging> (*this)),
     m_rng (std::make_unique<OspfAppRng> (*this)),
-    m_areaLeader (std::make_unique<OspfAreaLeaderController> (*this)),
-    m_routingEngine (std::make_unique<OspfRoutingEngine> (*this))
+    m_areaLeader (std::make_unique<OspfAreaLeaderController> (*this))
 {
   NS_LOG_FUNCTION (this);
 }

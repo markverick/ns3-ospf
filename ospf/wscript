@@ -20,7 +20,6 @@ def build(bld):
         'model/ospf-app-logging.cc',
         'model/ospf-app-rng.cc',
         'model/ospf-app-area-leader-controller.cc',
-        'model/ospf-app-routing-engine.cc',
         'model/ospf-app-lsa-processor.cc',
         'model/ospf-app-import-export.cc',
         'model/ospf-app-state-serializer.cc',
@@ -47,6 +46,9 @@ def build(bld):
     module_test = bld.create_ns3_module_test_library('ospf')
     module_test.source = [
         'test/ospf-app-helper-unit-test.cc',
+        'test/ospf-app-helper-default-install-test.cc',
+        'test/ospf-app-helper-selection-test.cc',
+        'test/ospf-app-helper-regression-test.cc',
         'test/ospf-packet-helper-test.cc',
         'test/ospf-lsa-serialization-test.cc',
         'test/ospf-packets-serialization-test.cc',

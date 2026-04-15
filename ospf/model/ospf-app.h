@@ -57,7 +57,6 @@ class OspfAppSockets;
 class OspfAppLogging;
 class OspfAppRng;
 class OspfAreaLeaderController;
-class OspfRoutingEngine;
 class Ipv4;
 class Ipv4InterfaceAddress;
  
@@ -110,53 +109,82 @@ public:
   /**
    * \brief Register network devices as OSPF interfaces.
    *
-   * Index 0 is reserved for loopback to match the attached Ipv4 stack layout.
+    * The selected devices are resolved to existing IPv4 interface indices on
+    * the owning node. Every selected device must already be registered with
+    * the node's IPv4 stack. Index 0 remains reserved for loopback to match the
+    * attached IPv4 stack layout.
    *
    * \param devs Net device container to be registered
    */
   void SetBoundNetDevices (NetDeviceContainer devs);
+  /**
+   * \brief Enable or disable connected-prefix advertisement for one selected interface.
+    * \param ifIndex IPv4 interface index on the owning node
+    * \param enabled whether the interface prefix should be advertised
+   */
   void SetInterfacePrefixRoutable (uint32_t ifIndex, bool enabled);
+  /**
+   * \brief Check whether connected-prefix advertisement is enabled for one interface.
+    * \param ifIndex IPv4 interface index on the owning node
+    * \returns true if the interface prefix is advertised
+   */
   bool GetInterfacePrefixRoutable (uint32_t ifIndex) const;
 
   /**
    * \brief Add an explicitly injected reachable prefix.
-   * \param ifIndex interface to bind
-   * \param address address assigned to the ID
-   * \param mask the area prefix mask
+    * \param ifIndex IPv4 interface index that owns the injected prefix
+    * \param address network or host prefix to advertise
+    * \param mask prefix mask
+    * \param gateway next hop used for the local forwarding entry
+    * \param metric advertised metric for the injected prefix
    */
   void AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask,
                             Ipv4Address gateway, uint32_t metric);
+    /**
+    * \brief Add an explicitly injected reachable prefix with a direct next hop.
+    * \param ifIndex IPv4 interface index that owns the injected prefix
+    * \param address network or host prefix to advertise
+    * \param mask prefix mask
+    */
   void AddReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask);
-  // Return whether the injected prefixes have changed.
+    /**
+    * \brief Replace the injected prefix set.
+    *
+    * Each tuple stores `(ifIndex, network, mask, gateway, metric)` where
+    * `ifIndex` is an IPv4 interface index on the owning node.
+    *
+    * \returns true if the injected prefix set changed
+    */
   bool SetReachableAddresses (ReachableRouteList);
 
   /**
-   * \brief Add IPs from all interfaces to the ifIndex interface
-   * \param ifIndex interface index
+    * \brief Inject the connected prefixes of all selected interfaces onto one origin interface.
+    * \param ifIndex IPv4 interface index used as the origin for injected prefixes
    */
   void AddAllReachableAddresses (uint32_t ifIndex);
 
   /**
    * \brief Remove addresses from the interface until empty or hitting localhost
-   * \param ifIndex interface index
+    * \param ifIndex IPv4 interface index on the owning node
    */
   void ClearReachableAddresses (uint32_t ifIndex);
 
   /**
-   * \brief Remove reachable address and mask
-   * \param address address assigned to the ID
-   * \param mask the area prefix mask
+    * \brief Remove one injected reachable prefix.
+    * \param ifIndex IPv4 interface index that owns the injected prefix
+    * \param address network or host prefix to remove
+    * \param mask prefix mask
    */
   void RemoveReachableAddress (uint32_t ifIndex, Ipv4Address address, Ipv4Mask mask);
 
   /**
-   * \brief Set inteface areas.
+    * \brief Set the default area used by this app's selected interfaces.
    * \param area the area ID
    */
   void SetArea (uint32_t area);
 
   /**
-   * \brief Get inteface areas.
+    * \brief Get the default area used by this app.
    * \return the area ID
    */
   uint32_t GetArea ();
@@ -180,16 +208,16 @@ public:
   Ipv4Mask GetAreaMask ();
 
   /**
-   * \brief Set inteface metrices.
-   * \param metrices Routing metrices to be registed
+    * \brief Set interface metrics by IPv4 interface index.
+    * \param metrices Routing metrics indexed by IPv4 interface index
    */
   void SetMetrices (std::vector<uint32_t> metrices);
 
   bool IsAreaLeader () const;
 
   /**
-   * \brief Set inteface metrices.
-   * \param metrices Routing metrices to be registed
+    * \brief Get the metric for one selected interface.
+    * \param ifIndex IPv4 interface index on the owning node
    */
   uint32_t GetMetric (uint32_t ifIndex);
 
@@ -477,7 +505,6 @@ private:
   friend class OspfAppLogging;
   friend class OspfAppRng;
   friend class OspfAreaLeaderController;
-  friend class OspfRoutingEngine;
 
   std::unique_ptr<OspfAppIo> m_io;
   std::unique_ptr<OspfNeighborFsm> m_neighborFsm;
@@ -487,7 +514,6 @@ private:
   std::unique_ptr<OspfAppLogging> m_logging;
   std::unique_ptr<OspfAppRng> m_rng;
   std::unique_ptr<OspfAreaLeaderController> m_areaLeader;
-  std::unique_ptr<OspfRoutingEngine> m_routingEngine;
 
   friend class OspfRouting;
   friend class OspfAppHelper;
@@ -501,13 +527,35 @@ private:
   void CancelHelloTimeouts ();
   void CloseSockets ();
 
-  // Optional: keep m_boundDevices/m_ospfInterfaces in sync with Ipv4 interfaces.
+  // Optional: keep OSPF interface state in sync with Ipv4 interfaces.
   void StartInterfaceSyncIfEnabled ();
   void StopInterfaceSync ();
   void InterfaceSyncTick ();
+  void EnsureInterfacePolicySize (uint32_t nIf);
+  int32_t ResolveIpv4InterfaceIndex (Ptr<NetDevice> dev) const;
+  std::vector<uint32_t> CollectSelectedInterfaces (Ptr<Ipv4> ipv4,
+                                                   NetDeviceContainer devs) const;
+  void ApplyBoundInterfaceSelection (Ptr<Ipv4> ipv4,
+                                     const std::vector<uint32_t> &selectedInterfaces);
+  void RestoreAdvertisedInterfacePrefixes (
+      const std::vector<uint32_t> &selectedInterfaces,
+      const std::vector<bool> &previousAdvertiseInterfacePrefixes);
+  void CancelPendingLsaRegeneration (const LsaHeader::LsaKey &lsaKey);
+  void ClearPendingLsaRegenerationState ();
+  void ClearSelfOriginatedLsaStateForRouterId (Ipv4Address routerId);
+  void UpdateRouterId (Ipv4Address routerId);
+  void RebuildSelectedOspfInterfaces (Ptr<Ipv4> ipv4);
+  void StopProtocolForInterfaceRebind ();
+  void RestartProtocolAfterInterfaceRebind ();
   bool RefreshAllOspfInterfaceStateFromIpv4 ();
+  Ipv4Address SelectAutomaticRouterId () const;
+  uint32_t GetConfiguredInterfaceMetric (uint32_t ifIndex) const;
+  bool HasOspfInterface (uint32_t ifIndex) const;
+  Ptr<OspfInterface> GetOspfInterface (uint32_t ifIndex) const;
+  Ptr<NetDevice> GetNetDeviceForInterface (uint32_t ifIndex) const;
   static bool SelectPrimaryInterfaceAddress (Ptr<Ipv4> ipv4, uint32_t ifIndex,
                                              Ipv4InterfaceAddress &out);
+  Ipv4Address ResolvePointToPointGateway (Ptr<NetDevice> dev) const;
   bool RefreshOspfInterfaceStateFromIpv4 (Ptr<Ipv4> ipv4, uint32_t ifIndex);
   ReachableRouteList CollectInterfaceReachableRoutesFromIpv4 (Ptr<Ipv4> ipv4) const;
   void HandleLocalInterfaceEvent ();
@@ -517,6 +565,7 @@ private:
   bool SetInterfaceReachableAddresses (ReachableRouteList);
   void RefreshReachableRoutesAndAdvertise ();
   void HandleInterfaceDown (uint32_t ifIndex);
+  void ReplaceNeighbors (const std::vector<std::vector<Ptr<OspfNeighbor>>> &neighbors);
 
   /**
    * \brief Helper to schedule hello transmission.
@@ -907,8 +956,10 @@ private:
   // For OSPF
   // Attributes
   Ipv4Address m_routerId;
+  bool m_manualRouterId = false;
   Ipv4Mask m_areaMask; // Area masks
-  NetDeviceContainer m_boundDevices;
+  std::vector<bool> m_boundInterfaceSelection;
+  std::vector<uint32_t> m_interfaceMetrics;
   uint32_t m_areaId; // Only used for default value and for alt area and
   std::string m_logDir; //!< Log directory
   bool m_enableLsaTimingLog; //!< Enable LSA timing logs

@@ -62,7 +62,8 @@ public:
     ConfigureFastColdStart (ospf);
     ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
     apps.Start (Seconds (0.5));
 
@@ -160,7 +161,8 @@ public:
     ConfigureFastColdStart (ospf);
     ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
 
-    ApplicationContainer apps = ospf.Install (routers);
+    ApplicationContainer apps =
+      ospf.Install (routers);
     ospf.ConfigureReachablePrefixesFromInterfaces (routers);
     apps.Start (Seconds (0.5));
 
@@ -398,7 +400,8 @@ public:
     ospf.SetAttribute ("EnableAreaProxy", BooleanValue (true));
     ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
 
-    ApplicationContainer apps = ospf.Install (routers);
+    ApplicationContainer apps =
+      ospf.Install (routers);
     NS_TEST_ASSERT_MSG_EQ (apps.GetN (), routers.GetN (), "expected one OspfApp per router");
 
     for (uint32_t i = 0; i < kNumRouters; ++i)

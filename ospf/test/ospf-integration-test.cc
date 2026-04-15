@@ -29,6 +29,7 @@ using ospf_test_utils::HasRouteLine;
 using ospf_test_utils::HasRouteLineViaAnyGateway;
 using ospf_test_utils::HasRouteDest;
 using ospf_test_utils::Ipv4ToString;
+using ospf_test_utils::Ipv4IfIndex;
 using ospf_test_utils::FindStaticRoute;
 using ospf_test_utils::LookupOspfRoute;
 
@@ -42,6 +43,96 @@ static void
 SnapshotAreaLeader (bool *out, Ptr<OspfApp> app)
 {
   *out = app != nullptr && app->IsAreaLeader ();
+}
+
+struct SparseExplicitRuntimeLineTopology
+{
+  NodeContainer nodes;
+  NetDeviceContainer d01;
+  NetDeviceContainer d12;
+  Ipv4InterfaceContainer if01;
+  Ipv4InterfaceContainer if12;
+  ApplicationContainer apps;
+  Ptr<OspfApp> app0;
+  Ptr<OspfApp> app1;
+  Ptr<OspfApp> app2;
+  uint32_t if0To1 = 0;
+  uint32_t if1To0 = 0;
+  uint32_t if1To2 = 0;
+  uint32_t if2To1 = 0;
+};
+
+static void
+ConfigureFastRuntimeOspf (OspfAppHelper &ospf, bool enableAutoSync)
+{
+  ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
+  ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
+  ospf.SetAttribute ("ShortestPathUpdateDelay", TimeValue (MilliSeconds (50)));
+  ospf.SetAttribute ("InitialHelloDelay", TimeValue (Seconds (0)));
+  ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (200)));
+  ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
+  ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (500)));
+  ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (enableAutoSync));
+  ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (MilliSeconds (50)));
+}
+
+static SparseExplicitRuntimeLineTopology
+BuildSparseExplicitRuntimeLineTopology (OspfAppHelper &ospf)
+{
+  SparseExplicitRuntimeLineTopology topology;
+  topology.nodes.Create (6);
+
+  InternetStackHelper internet;
+  internet.Install (topology.nodes);
+
+  PointToPointHelper p2p;
+  p2p.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+  p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+
+  topology.d01 = p2p.Install (NodeContainer (topology.nodes.Get (0), topology.nodes.Get (1)));
+  topology.d12 = p2p.Install (NodeContainer (topology.nodes.Get (1), topology.nodes.Get (2)));
+  NetDeviceContainer d03 = p2p.Install (NodeContainer (topology.nodes.Get (0), topology.nodes.Get (3)));
+  NetDeviceContainer d14 = p2p.Install (NodeContainer (topology.nodes.Get (1), topology.nodes.Get (4)));
+  NetDeviceContainer d25 = p2p.Install (NodeContainer (topology.nodes.Get (2), topology.nodes.Get (5)));
+
+  Ipv4AddressHelper ipv4;
+  ipv4.SetBase ("10.90.3.0", "255.255.255.252");
+  ipv4.Assign (d03);
+  ipv4.SetBase ("10.90.4.0", "255.255.255.252");
+  ipv4.Assign (d14);
+  ipv4.SetBase ("10.90.5.0", "255.255.255.252");
+  ipv4.Assign (d25);
+  ipv4.SetBase ("10.90.1.0", "255.255.255.252");
+  topology.if01 = ipv4.Assign (topology.d01);
+  ipv4.SetBase ("10.90.2.0", "255.255.255.252");
+  topology.if12 = ipv4.Assign (topology.d12);
+
+  topology.apps.Add (ospf.Install (topology.nodes.Get (0), NetDeviceContainer (topology.d01.Get (0))));
+  NetDeviceContainer node1OspfDevices;
+  node1OspfDevices.Add (topology.d01.Get (1));
+  node1OspfDevices.Add (topology.d12.Get (0));
+  topology.apps.Add (ospf.Install (topology.nodes.Get (1), node1OspfDevices));
+  topology.apps.Add (ospf.Install (topology.nodes.Get (2), NetDeviceContainer (topology.d12.Get (1))));
+
+  topology.app0 = DynamicCast<OspfApp> (topology.apps.Get (0));
+  topology.app1 = DynamicCast<OspfApp> (topology.apps.Get (1));
+  topology.app2 = DynamicCast<OspfApp> (topology.apps.Get (2));
+
+  NodeContainer ospfNodes;
+  ospfNodes.Add (topology.nodes.Get (0));
+  ospfNodes.Add (topology.nodes.Get (1));
+  ospfNodes.Add (topology.nodes.Get (2));
+  ospf.ConfigureReachablePrefixesFromInterfaces (ospfNodes);
+
+  Ptr<Ipv4> ipv40 = topology.nodes.Get (0)->GetObject<Ipv4> ();
+  Ptr<Ipv4> ipv41 = topology.nodes.Get (1)->GetObject<Ipv4> ();
+  Ptr<Ipv4> ipv42 = topology.nodes.Get (2)->GetObject<Ipv4> ();
+  topology.if0To1 = ipv40->GetInterfaceForDevice (topology.d01.Get (0));
+  topology.if1To0 = ipv41->GetInterfaceForDevice (topology.d01.Get (1));
+  topology.if1To2 = ipv41->GetInterfaceForDevice (topology.d12.Get (0));
+  topology.if2To1 = ipv42->GetInterfaceForDevice (topology.d12.Get (1));
+
+  return topology;
 }
 
 } // namespace
@@ -89,7 +180,8 @@ public:
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (3)));
     ospf.SetAttribute ("LSUInterval", TimeValue (Seconds (1)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
     // Preload LSDB/neighbor state for a deterministic system test.
     ospf.Preload (nodes);
@@ -182,7 +274,8 @@ public:
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
     ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (500)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
@@ -328,7 +421,8 @@ public:
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (3)));
     ospf.SetAttribute ("LSUInterval", TimeValue (Seconds (1)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
     ospf.Preload (nodes);
 
@@ -416,7 +510,8 @@ public:
       ospf.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (3)));
       ospf.SetAttribute ("LSUInterval", TimeValue (Seconds (1)));
 
-      ApplicationContainer apps = ospf.Install (nodes);
+      ApplicationContainer apps =
+        ospf.Install (nodes);
       ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
       ospf.Preload (nodes);
 
@@ -505,7 +600,8 @@ public:
       ospf.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (3)));
       ospf.SetAttribute ("LSUInterval", TimeValue (Seconds (1)));
 
-      ApplicationContainer apps = ospf.Install (nodes);
+      ApplicationContainer apps =
+        ospf.Install (nodes);
       ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
       for (uint32_t i = 0; i < nodes.GetN (); ++i)
         {
@@ -599,7 +695,8 @@ public:
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
     ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (500)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
     apps.Start (Seconds (0.0));
     apps.Stop (Seconds (1.0));
@@ -693,7 +790,8 @@ public:
       ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
       ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (500)));
 
-      ApplicationContainer apps = ospf.Install (routers);
+      ApplicationContainer apps =
+        ospf.Install (routers);
       ospf.ConfigureReachablePrefixesFromInterfaces (routers);
       if (apps.GetN () != routers.GetN ())
         {
@@ -789,7 +887,8 @@ public:
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
     ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (500)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
     ospf.Preload (nodes);
 
@@ -881,7 +980,8 @@ public:
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
     ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (500)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
     NS_TEST_ASSERT_MSG_EQ (apps.GetN (), nodes.GetN (), "expected one OspfApp per node");
 
@@ -1033,7 +1133,8 @@ public:
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
     ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (500)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
 
     // Seed adjacencies/LSDB to keep runtime deterministic.
@@ -1124,7 +1225,8 @@ public:
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
     ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (500)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
     ospf.Preload (nodes);
 
@@ -1214,7 +1316,8 @@ public:
     ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
     ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (MilliSeconds (50)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
 
     // Configure reachable prefixes (advertised routes) from each node's interfaces.
@@ -1236,8 +1339,8 @@ public:
     Ptr<Ipv4> ipv42 = nodes.Get (2)->GetObject<Ipv4> ();
     NS_TEST_ASSERT_MSG_NE (ipv41, nullptr, "expected Ipv4");
     NS_TEST_ASSERT_MSG_NE (ipv42, nullptr, "expected Ipv4");
-    const uint32_t if1 = d12.Get (0)->GetIfIndex (); // node1 side of (1,2)
-    const uint32_t if2 = d12.Get (1)->GetIfIndex (); // node2 side of (1,2)
+    const uint32_t if1 = Ipv4IfIndex (nodes.Get (1), d12.Get (0)); // node1 side of (1,2)
+    const uint32_t if2 = Ipv4IfIndex (nodes.Get (2), d12.Get (1)); // node2 side of (1,2)
 
     // Drop the (1,2) link after initial convergence.
     Simulator::Schedule (Seconds (4.0), &Ipv4::SetDown, ipv41, if1);
@@ -1321,7 +1424,8 @@ public:
     // When Disable() is used, reset state so Enable() behaves like a clean re-join.
     ospf.SetAttribute ("ResetStateOnDisable", BooleanValue (true));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
 
     // Configure reachable prefixes (advertised routes) from each node's interfaces.
@@ -1417,7 +1521,8 @@ public:
     // IMPORTANT EDGE CASE: with default ResetStateOnDisable=false, Disable() stops the protocol
     // without discarding LSDB/neighbor state. Forwarding must still stop while disabled, but
     // the preserved state should make forwarding available immediately on re-enable.
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
 
     // Configure reachable prefixes (advertised routes) from each node's interfaces.
@@ -1539,7 +1644,8 @@ public:
     ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
     ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (MilliSeconds (50)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
 
     // Split nodes into two areas: (0,1) in area 0; (2,3) in area 1.
@@ -1571,8 +1677,8 @@ public:
     Ptr<Ipv4> ipv42 = nodes.Get (2)->GetObject<Ipv4> ();
     NS_TEST_ASSERT_MSG_NE (ipv41, nullptr, "expected Ipv4");
     NS_TEST_ASSERT_MSG_NE (ipv42, nullptr, "expected Ipv4");
-    const uint32_t if1 = d12.Get (0)->GetIfIndex (); // node1 side of (1,2)
-    const uint32_t if2 = d12.Get (1)->GetIfIndex (); // node2 side of (1,2)
+    const uint32_t if1 = Ipv4IfIndex (nodes.Get (1), d12.Get (0)); // node1 side of (1,2)
+    const uint32_t if2 = Ipv4IfIndex (nodes.Get (2), d12.Get (1)); // node2 side of (1,2)
 
     Simulator::Schedule (Seconds (4.0), &Ipv4::SetDown, ipv41, if1);
     Simulator::Schedule (Seconds (4.0), &Ipv4::SetDown, ipv42, if2);
@@ -1715,7 +1821,8 @@ public:
     ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
     ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (MilliSeconds (50)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
 
     // Use two areas to exercise inter-area routing.
@@ -1750,10 +1857,10 @@ public:
     NS_TEST_ASSERT_MSG_NE (ipv40, nullptr, "expected Ipv4");
     NS_TEST_ASSERT_MSG_NE (ipv41, nullptr, "expected Ipv4");
     NS_TEST_ASSERT_MSG_NE (ipv44, nullptr, "expected Ipv4");
-    const uint32_t if0To1 = d01.Get (0)->GetIfIndex ();
-    const uint32_t if1To0 = d01.Get (1)->GetIfIndex ();
-    const uint32_t if0To4 = d04.Get (0)->GetIfIndex ();
-    const uint32_t if4To0 = d04.Get (1)->GetIfIndex ();
+    const uint32_t if0To1 = Ipv4IfIndex (nodes.Get (0), d01.Get (0));
+    const uint32_t if1To0 = Ipv4IfIndex (nodes.Get (1), d01.Get (1));
+    const uint32_t if0To4 = Ipv4IfIndex (nodes.Get (0), d04.Get (0));
+    const uint32_t if4To0 = Ipv4IfIndex (nodes.Get (4), d04.Get (1));
 
     Simulator::Schedule (Seconds (1.0), &Ipv4::SetDown, ipv40, if0To4);
     Simulator::Schedule (Seconds (1.0), &Ipv4::SetDown, ipv44, if4To0);
@@ -1849,7 +1956,8 @@ public:
     // Model a node failure / restart with clean state.
     ospf.SetAttribute ("ResetStateOnDisable", BooleanValue (true));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     // Use two areas to exercise inter-area routing.
     DynamicCast<OspfApp> (apps.Get (0))->SetArea (0);
@@ -1950,7 +2058,8 @@ public:
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
     ospf.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (300)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     DynamicCast<OspfApp> (apps.Get (0))->SetArea (0);
     DynamicCast<OspfApp> (apps.Get (1))->SetArea (0);
@@ -2079,7 +2188,8 @@ public:
     ospf.SetAttribute ("AreaLeaderMode",
                        EnumValue (OspfApp::AREA_LEADER_REACHABLE_LOWEST_ROUTER_ID));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     DynamicCast<OspfApp> (apps.Get (0))->SetArea (0);
     DynamicCast<OspfApp> (apps.Get (1))->SetArea (0);
@@ -2097,7 +2207,7 @@ public:
     NS_TEST_ASSERT_MSG_NE (app2, nullptr, "expected OspfApp");
     NS_TEST_ASSERT_MSG_NE (app4, nullptr, "expected OspfApp");
 
-    app4->AddReachableAddress (d34.Get (1)->GetIfIndex (), Ipv4Address ("10.253.0.0"),
+    app4->AddReachableAddress (Ipv4IfIndex (nodes.Get (4), d34.Get (1)), Ipv4Address ("10.253.0.0"),
                                Ipv4Mask ("255.255.0.0"), Ipv4Address::GetAny (), 1);
 
     apps.Start (Seconds (0.0));
@@ -2107,8 +2217,8 @@ public:
     Ptr<Ipv4> ipv43 = nodes.Get (3)->GetObject<Ipv4> ();
     NS_TEST_ASSERT_MSG_NE (ipv42, nullptr, "expected Ipv4 on node2");
     NS_TEST_ASSERT_MSG_NE (ipv43, nullptr, "expected Ipv4 on node3");
-    const uint32_t if23Node2 = d23.Get (0)->GetIfIndex ();
-    const uint32_t if23Node3 = d23.Get (1)->GetIfIndex ();
+    const uint32_t if23Node2 = Ipv4IfIndex (nodes.Get (2), d23.Get (0));
+    const uint32_t if23Node3 = Ipv4IfIndex (nodes.Get (3), d23.Get (1));
 
     bool leaderBefore = false;
     bool leaderDuringPartition = true;
@@ -2159,6 +2269,181 @@ public:
   }
 };
 
+class OspfSparseExplicitColdStartRuntimeIntegrationTestCase : public TestCase
+{
+public:
+  OspfSparseExplicitColdStartRuntimeIntegrationTestCase ()
+    : TestCase ("OSPF sparse explicit install converges at runtime with divergent interface indices")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    RngSeedManager::SetSeed (1);
+    RngSeedManager::SetRun (1);
+
+    OspfAppHelper ospf;
+    ConfigureFastRuntimeOspf (ospf, false);
+    auto topology = BuildSparseExplicitRuntimeLineTopology (ospf);
+
+    NS_TEST_ASSERT_MSG_NE (topology.app0, nullptr, "expected OspfApp on node0");
+    NS_TEST_ASSERT_MSG_NE (topology.app1, nullptr, "expected OspfApp on node1");
+    NS_TEST_ASSERT_MSG_NE (topology.app2, nullptr, "expected OspfApp on node2");
+
+    NS_TEST_ASSERT_MSG_NE (topology.if0To1, topology.d01.Get (0)->GetIfIndex (),
+                           "node0 selected interface must diverge from its net-device index");
+    NS_TEST_ASSERT_MSG_NE (topology.if1To0, topology.d01.Get (1)->GetIfIndex (),
+                           "node1 d01 interface must diverge from its net-device index");
+    NS_TEST_ASSERT_MSG_NE (topology.if1To2, topology.d12.Get (0)->GetIfIndex (),
+                           "node1 d12 interface must diverge from its net-device index");
+    NS_TEST_ASSERT_MSG_NE (topology.if2To1, topology.d12.Get (1)->GetIfIndex (),
+                           "node2 selected interface must diverge from its net-device index");
+
+    UdpServerHelper server (9100);
+    ApplicationContainer serverApps = server.Install (topology.nodes.Get (2));
+    serverApps.Start (Seconds (0.5));
+    serverApps.Stop (Seconds (8.0));
+
+    UdpClientHelper client (topology.if12.GetAddress (1), 9100);
+    client.SetAttribute ("MaxPackets", UintegerValue (5));
+    client.SetAttribute ("Interval", TimeValue (MilliSeconds (100)));
+    client.SetAttribute ("PacketSize", UintegerValue (64));
+    ApplicationContainer clientApps = client.Install (topology.nodes.Get (0));
+    clientApps.Start (Seconds (6.5));
+    clientApps.Stop (Seconds (7.5));
+
+    topology.apps.Start (Seconds (0.5));
+    topology.apps.Stop (Seconds (8.0));
+
+    const std::filesystem::path outDir = CreateTempDirFilename ("ospf-integration-sparse-explicit-cold");
+    std::filesystem::create_directories (outDir);
+    Simulator::Schedule (Seconds (0.2), &OspfApp::PrintRouting, topology.app0, outDir,
+                         "n0.pre.routes");
+    Simulator::Schedule (Seconds (7.0), &OspfApp::PrintRouting, topology.app0, outDir,
+                         "n0.post.routes");
+
+    Simulator::Stop (Seconds (8.0));
+    Simulator::Run ();
+
+    const std::string pre = ReadAll (outDir / "n0.pre.routes");
+    const std::string post = ReadAll (outDir / "n0.post.routes");
+    const std::string gw = Ipv4ToString (topology.if01.GetAddress (1));
+
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (pre, "10.90.2.0", gw), false,
+                           "node0 should not have learned node2's subnet before OSPF starts\n" + pre);
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (post, "10.90.2.0", gw), true,
+                           "node0 should learn node2's subnet over the explicitly selected link\n" + post);
+
+    Socket::SocketErrno sockerr = Socket::ERROR_NOTERROR;
+    auto route = LookupOspfRoute (topology.nodes.Get (0), topology.if12.GetAddress (1), nullptr,
+                                  &sockerr);
+    NS_TEST_ASSERT_MSG_EQ (sockerr, Socket::ERROR_NOTERROR,
+                           "node0 should resolve node2 after sparse explicit cold-start convergence");
+    NS_TEST_ASSERT_MSG_NE (route, nullptr, "node0 should resolve an OSPF route to node2");
+    NS_TEST_ASSERT_MSG_EQ (route->GetGateway (), topology.if01.GetAddress (1),
+                           "node0 should use node1 as the first hop toward node2");
+    NS_TEST_ASSERT_MSG_EQ (route->GetOutputDevice (), topology.d01.Get (0),
+                           "node0 should emit learned traffic on its selected OSPF device");
+
+    Ptr<UdpServer> udpServer = DynamicCast<UdpServer> (serverApps.Get (0));
+    NS_TEST_ASSERT_MSG_NE (udpServer, nullptr, "expected UdpServer application");
+    NS_TEST_ASSERT_MSG_EQ (udpServer->GetReceived (), 5u,
+                           "all user packets should cross the sparse explicit OSPF topology");
+
+    Simulator::Destroy ();
+  }
+};
+
+class OspfSparseExplicitLinkFlapRuntimeIntegrationTestCase : public TestCase
+{
+public:
+  OspfSparseExplicitLinkFlapRuntimeIntegrationTestCase ()
+    : TestCase ("OSPF sparse explicit install re-converges after link flap with divergent interface indices")
+  {
+  }
+
+  void
+  DoRun () override
+  {
+    RngSeedManager::SetSeed (1);
+    RngSeedManager::SetRun (1);
+
+    OspfAppHelper ospf;
+    ConfigureFastRuntimeOspf (ospf, true);
+    auto topology = BuildSparseExplicitRuntimeLineTopology (ospf);
+
+    NS_TEST_ASSERT_MSG_NE (topology.app0, nullptr, "expected OspfApp on node0");
+    NS_TEST_ASSERT_MSG_NE (topology.app1, nullptr, "expected OspfApp on node1");
+    NS_TEST_ASSERT_MSG_NE (topology.app2, nullptr, "expected OspfApp on node2");
+
+    UdpServerHelper server (9101);
+    ApplicationContainer serverApps = server.Install (topology.nodes.Get (2));
+    serverApps.Start (Seconds (0.5));
+    serverApps.Stop (Seconds (10.0));
+
+    UdpClientHelper clientBefore (topology.if12.GetAddress (1), 9101);
+    clientBefore.SetAttribute ("MaxPackets", UintegerValue (3));
+    clientBefore.SetAttribute ("Interval", TimeValue (MilliSeconds (100)));
+    clientBefore.SetAttribute ("PacketSize", UintegerValue (64));
+    ApplicationContainer clientBeforeApps = clientBefore.Install (topology.nodes.Get (0));
+    clientBeforeApps.Start (Seconds (3.0));
+    clientBeforeApps.Stop (Seconds (3.6));
+
+    UdpClientHelper clientAfter (topology.if12.GetAddress (1), 9101);
+    clientAfter.SetAttribute ("MaxPackets", UintegerValue (3));
+    clientAfter.SetAttribute ("Interval", TimeValue (MilliSeconds (100)));
+    clientAfter.SetAttribute ("PacketSize", UintegerValue (64));
+    ApplicationContainer clientAfterApps = clientAfter.Install (topology.nodes.Get (0));
+    clientAfterApps.Start (Seconds (7.4));
+    clientAfterApps.Stop (Seconds (8.0));
+
+    topology.apps.Start (Seconds (0.5));
+    topology.apps.Stop (Seconds (10.0));
+
+    Ptr<Ipv4> ipv41 = topology.nodes.Get (1)->GetObject<Ipv4> ();
+    Ptr<Ipv4> ipv42 = topology.nodes.Get (2)->GetObject<Ipv4> ();
+    NS_TEST_ASSERT_MSG_NE (ipv41, nullptr, "expected Ipv4 on node1");
+    NS_TEST_ASSERT_MSG_NE (ipv42, nullptr, "expected Ipv4 on node2");
+
+    Simulator::Schedule (Seconds (4.0), &Ipv4::SetDown, ipv41, topology.if1To2);
+    Simulator::Schedule (Seconds (4.0), &Ipv4::SetDown, ipv42, topology.if2To1);
+    Simulator::Schedule (Seconds (5.0), &Ipv4::SetUp, ipv41, topology.if1To2);
+    Simulator::Schedule (Seconds (5.0), &Ipv4::SetUp, ipv42, topology.if2To1);
+
+    const std::filesystem::path outDir = CreateTempDirFilename ("ospf-integration-sparse-explicit-flap");
+    std::filesystem::create_directories (outDir);
+    Simulator::Schedule (Seconds (3.5), &OspfApp::PrintRouting, topology.app0, outDir,
+                         "before.routes");
+    Simulator::Schedule (Seconds (4.8), &OspfApp::PrintRouting, topology.app0, outDir,
+                         "down.routes");
+    Simulator::Schedule (Seconds (8.5), &OspfApp::PrintRouting, topology.app0, outDir,
+                         "up.routes");
+
+    Simulator::Stop (Seconds (10.0));
+    Simulator::Run ();
+
+    const std::string before = ReadAll (outDir / "before.routes");
+    const std::string down = ReadAll (outDir / "down.routes");
+    const std::string up = ReadAll (outDir / "up.routes");
+    const std::string gw = Ipv4ToString (topology.if01.GetAddress (1));
+
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (before, "10.90.2.0", gw), true,
+                           "node0 should learn node2's subnet before the selected link goes down\n" + before);
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (down, "10.90.2.0", gw), false,
+                           "node0 should withdraw node2's subnet while the selected link is down\n" + down);
+    NS_TEST_ASSERT_MSG_EQ (HasRouteLine (up, "10.90.2.0", gw), true,
+                           "node0 should re-learn node2's subnet after the selected link returns\n" + up);
+
+    Ptr<UdpServer> udpServer = DynamicCast<UdpServer> (serverApps.Get (0));
+    NS_TEST_ASSERT_MSG_NE (udpServer, nullptr, "expected UdpServer application");
+    NS_TEST_ASSERT_MSG_EQ (udpServer->GetReceived (), 6u,
+                           "user traffic should succeed before the flap and again after re-convergence");
+
+    Simulator::Destroy ();
+  }
+};
+
 class OspfIntegrationTestSuite : public TestSuite
 {
 public:
@@ -2183,6 +2468,8 @@ public:
     AddTestCase (new OspfTwoAreasNodeFailureReroutesIntegrationTestCase (), TestCase::QUICK);
     AddTestCase (new OspfTwoAreasPrefixUpdateIntegrationTestCase (), TestCase::QUICK);
     AddTestCase (new OspfAreaLeaderStepDownWithdrawsSummariesIntegrationTestCase (), TestCase::QUICK);
+    AddTestCase (new OspfSparseExplicitColdStartRuntimeIntegrationTestCase (), TestCase::QUICK);
+    AddTestCase (new OspfSparseExplicitLinkFlapRuntimeIntegrationTestCase (), TestCase::QUICK);
   }
 };
 

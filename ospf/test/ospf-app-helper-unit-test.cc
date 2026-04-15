@@ -7,52 +7,18 @@
 #include "ns3/point-to-point-module.h"
 
 #include "ns3/ipv4-address-helper.h"
-#include "ns3/lsa-header.h"
-#include "ns3/l1-summary-lsa.h"
-#include "ns3/l2-summary-lsa.h"
 #include "ns3/ospf-app-helper.h"
 #include "ns3/ospf-app.h"
 
-#include <set>
-#include <tuple>
+#include "ospf-app-helper-test-utils.h"
 
 namespace ns3 {
 
 namespace {
 
-bool
-HasSummaryRoute (const std::set<SummaryRoute> &routes, Ipv4Address address, Ipv4Mask mask,
-                 uint32_t metric)
-{
-  return routes.find (SummaryRoute (address.Get (), mask.Get (), metric)) != routes.end ();
-}
-
-Ptr<L1SummaryLsa>
-FetchSelfL1Summary (const Ptr<OspfApp> &app)
-{
-  const auto key =
-      std::make_tuple (LsaHeader::LsType::L1SummaryLSAs, app->GetRouterId ().Get (),
-                       app->GetRouterId ().Get ());
-  auto pair = app->FetchLsa (key);
-  if (pair.second == nullptr)
-    {
-      return nullptr;
-    }
-  return DynamicCast<L1SummaryLsa> (pair.second);
-}
-
-Ptr<L2SummaryLsa>
-FetchAreaL2Summary (const Ptr<OspfApp> &app, uint32_t advertisingRouter)
-{
-  const auto key =
-      std::make_tuple (LsaHeader::LsType::L2SummaryLSAs, app->GetArea (), advertisingRouter);
-  auto pair = app->FetchLsa (key);
-  if (pair.second == nullptr)
-    {
-      return nullptr;
-    }
-  return DynamicCast<L2SummaryLsa> (pair.second);
-}
+using ospf_app_helper_test_utils::FetchAreaL2Summary;
+using ospf_app_helper_test_utils::FetchSelfL1Summary;
+using ospf_app_helper_test_utils::HasSummaryRoute;
 
 } // namespace
 
@@ -84,7 +50,8 @@ public:
     ipv4.Assign (d01);
 
     OspfAppHelper ospf;
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     Ptr<OspfApp> app1 = DynamicCast<OspfApp> (apps.Get (1));
@@ -171,7 +138,8 @@ public:
     ipv4.Assign (d12);
 
     OspfAppHelper ospf;
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     Ptr<OspfApp> app1 = DynamicCast<OspfApp> (apps.Get (1));
@@ -237,7 +205,8 @@ public:
     ipv4.Assign (d12);
 
     OspfAppHelper ospf;
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     Ptr<OspfApp> app1 = DynamicCast<OspfApp> (apps.Get (1));

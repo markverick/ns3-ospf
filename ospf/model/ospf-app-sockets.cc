@@ -14,23 +14,42 @@ OspfAppSockets::OspfAppSockets (OspfApp &app)
 void
 OspfAppSockets::InitializeSockets ()
 {
+  const uint32_t nIf = m_app.m_ospfInterfaces.size ();
+
   // Add local null sockets
   m_app.m_sockets.emplace_back (nullptr);
   m_app.m_helloSockets.emplace_back (nullptr);
   m_app.m_lsaSockets.emplace_back (nullptr);
-  for (uint32_t i = 1; i < m_app.m_boundDevices.GetN (); i++)
+  for (uint32_t i = 1; i < nIf; i++)
     {
+      auto ospfIf = m_app.GetOspfInterface (i);
+      if (ospfIf == nullptr)
+        {
+          m_app.m_helloSockets.emplace_back (nullptr);
+          m_app.m_lsaSockets.emplace_back (nullptr);
+          m_app.m_sockets.emplace_back (nullptr);
+          continue;
+        }
+
       // In auto-sync mode, skip sockets for interfaces that are currently down or missing.
       if (m_app.m_autoSyncInterfaces)
         {
-          if (i >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[i] == nullptr ||
-              !m_app.m_ospfInterfaces[i]->IsUp ())
+          if (!ospfIf->IsUp ())
             {
               m_app.m_helloSockets.emplace_back (nullptr);
               m_app.m_lsaSockets.emplace_back (nullptr);
               m_app.m_sockets.emplace_back (nullptr);
               continue;
             }
+        }
+
+      Ptr<NetDevice> dev = m_app.GetNetDeviceForInterface (i);
+      if (dev == nullptr)
+        {
+          m_app.m_helloSockets.emplace_back (nullptr);
+          m_app.m_lsaSockets.emplace_back (nullptr);
+          m_app.m_sockets.emplace_back (nullptr);
+          continue;
         }
 
       // Create sockets
@@ -49,7 +68,7 @@ OspfAppSockets::InitializeSockets ()
       helloSocket->SetAllowBroadcast (true);
       helloSocket->SetAttribute ("Protocol", UintegerValue (89));
       helloSocket->SetIpTtl (1);
-      helloSocket->BindToNetDevice (m_app.m_boundDevices.Get (i));
+      helloSocket->BindToNetDevice (dev);
       helloSocket->SetRecvCallback (MakeCallback (&OspfApp::HandleRead, &m_app));
       m_app.m_helloSockets.emplace_back (helloSocket);
 
@@ -64,7 +83,7 @@ OspfAppSockets::InitializeSockets ()
       lsaSocket->SetAllowBroadcast (true);
       lsaSocket->SetAttribute ("Protocol", UintegerValue (89));
       lsaSocket->SetIpTtl (1);
-      lsaSocket->BindToNetDevice (m_app.m_boundDevices.Get (i));
+      lsaSocket->BindToNetDevice (dev);
       lsaSocket->SetRecvCallback (MakeCallback (&OspfApp::HandleRead, &m_app));
       m_app.m_lsaSockets.emplace_back (lsaSocket);
 
@@ -77,7 +96,7 @@ OspfAppSockets::InitializeSockets ()
       unicastSocket->SetAllowBroadcast (true);
       unicastSocket->SetAttribute ("Protocol", UintegerValue (89));
       unicastSocket->SetIpTtl (1); // Only allow local hop
-      unicastSocket->BindToNetDevice (m_app.m_boundDevices.Get (i));
+      unicastSocket->BindToNetDevice (dev);
       unicastSocket->SetRecvCallback (MakeCallback (&OspfApp::HandleRead, &m_app));
       m_app.m_sockets.emplace_back (unicastSocket);
     }

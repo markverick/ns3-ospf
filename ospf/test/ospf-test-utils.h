@@ -44,6 +44,41 @@ public:
   {
     app->ProcessLsa (lsaHeader, lsa);
   }
+
+  static bool HasOspfInterface (const Ptr<OspfApp> &app, uint32_t ifIndex)
+  {
+    return app != nullptr && app->HasOspfInterface (ifIndex);
+  }
+
+  static Ipv4Address GetInterfaceGateway (const Ptr<OspfApp> &app, uint32_t ifIndex)
+  {
+    if (app == nullptr)
+      {
+        return Ipv4Address::GetZero ();
+      }
+
+    auto ospfIf = app->GetOspfInterface (ifIndex);
+    return ospfIf != nullptr ? ospfIf->GetGateway () : Ipv4Address::GetZero ();
+  }
+
+  static void TrackPendingLsaRegeneration (const Ptr<OspfApp> &app,
+                                           const LsaHeader::LsaKey &lsaKey,
+                                           EventId event,
+                                           Time lastOriginationTime)
+  {
+    if (app != nullptr)
+      {
+        app->m_pendingLsaRegeneration[lsaKey] = event;
+        app->m_lastLsaOriginationTime[lsaKey] = lastOriginationTime;
+      }
+  }
+
+  static bool HasPendingLsaRegeneration (const Ptr<OspfApp> &app,
+                                         const LsaHeader::LsaKey &lsaKey)
+  {
+    return app != nullptr && app->m_pendingLsaRegeneration.find (lsaKey) !=
+                                 app->m_pendingLsaRegeneration.end ();
+  }
 };
 
 } // namespace ns3
@@ -181,6 +216,20 @@ Ipv4ToString (Ipv4Address addr)
   std::ostringstream os;
   os << addr;
   return os.str ();
+}
+
+inline uint32_t
+Ipv4IfIndex (Ptr<Node> node, Ptr<NetDevice> dev)
+{
+  NS_ABORT_MSG_IF (node == nullptr, "Ipv4IfIndex requires a node");
+  NS_ABORT_MSG_IF (dev == nullptr, "Ipv4IfIndex requires a net device");
+
+  Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+  NS_ABORT_MSG_IF (ipv4 == nullptr, "Ipv4IfIndex requires an Ipv4 stack");
+
+  const int32_t ifIndex = ipv4->GetInterfaceForDevice (dev);
+  NS_ABORT_MSG_IF (ifIndex < 0, "NetDevice is not registered with the node Ipv4 stack");
+  return static_cast<uint32_t> (ifIndex);
 }
 
 struct StaticRouteMatch

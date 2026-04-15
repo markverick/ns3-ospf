@@ -37,19 +37,16 @@
 
 namespace ns3 {
 
-namespace {
+NS_LOG_COMPONENT_DEFINE ("OspfAppHelper");
 
-using LsaRecord = std::pair<LsaHeader, Ptr<Lsa>>;
-using AreaLsaSeedMap = std::map<uint32_t, std::vector<LsaRecord>>;
-
-struct PreloadNodeContext
+struct OspfAppHelper::PreloadNodeContext
 {
   Ptr<Node> node;
   Ptr<Ipv4> ipv4;
   Ptr<OspfApp> app;
 };
 
-struct PointToPointAdjacency
+struct OspfAppHelper::PointToPointAdjacency
 {
   uint32_t ifIndex = 0;
   Ipv4Address selfIp;
@@ -59,43 +56,10 @@ struct PointToPointAdjacency
   uint16_t metric = 0;
 };
 
-Ptr<OspfApp>
-FindOspfApp (const Ptr<Node> &node)
-{
-  for (uint32_t i = 0; i < node->GetNApplications (); ++i)
-    {
-      auto app = DynamicCast<OspfApp> (node->GetApplication (i));
-      if (app != nullptr)
-        {
-          return app;
-        }
-    }
-  return nullptr;
-}
+namespace {
 
-bool
-SelectPrimaryInterfaceAddress (Ptr<Ipv4> ipv4, uint32_t ifIndex, Ipv4InterfaceAddress &out)
-{
-  if (ipv4 == nullptr || ifIndex >= ipv4->GetNInterfaces ())
-    {
-      return false;
-    }
-
-  const uint32_t nAddr = ipv4->GetNAddresses (ifIndex);
-  for (uint32_t a = 0; a < nAddr; ++a)
-    {
-      const auto ifAddr = ipv4->GetAddress (ifIndex, a);
-      const auto ip = ifAddr.GetAddress ();
-      if (ip.IsLocalhost () || ip == Ipv4Address::GetAny ())
-        {
-          continue;
-        }
-      out = ifAddr;
-      return true;
-    }
-
-  return false;
-}
+using LsaRecord = std::pair<LsaHeader, Ptr<Lsa>>;
+using AreaLsaSeedMap = std::map<uint32_t, std::vector<LsaRecord>>;
 
 uint16_t
 ToLinkMetric (uint32_t metric, uint32_t ifIndex)
@@ -106,57 +70,6 @@ ToLinkMetric (uint32_t metric, uint32_t ifIndex)
   return static_cast<uint16_t> (metric);
 }
 
-OspfApp::ReachableRouteList
-CollectReachableRoutesFromIpv4 (const PreloadNodeContext &context)
-{
-  OspfApp::ReachableRouteList reachable;
-  const uint32_t nIf = context.ipv4->GetNInterfaces ();
-  for (uint32_t ifIndex = 1; ifIndex < nIf; ++ifIndex)
-    {
-      if (!context.app->GetInterfacePrefixRoutable (ifIndex))
-        {
-          continue;
-        }
-
-      Ipv4InterfaceAddress ifAddr;
-      if (!SelectPrimaryInterfaceAddress (context.ipv4, ifIndex, ifAddr))
-        {
-          continue;
-        }
-
-      const auto addr = ifAddr.GetAddress ();
-      const auto mask = ifAddr.GetMask ();
-      reachable.emplace_back (ifIndex, addr.CombineMask (mask).Get (), mask.Get (), addr.Get (), 1);
-    }
-
-  return reachable;
-}
-
-std::vector<PreloadNodeContext>
-CollectPreloadNodes (NodeContainer c)
-{
-  std::vector<PreloadNodeContext> nodes;
-  nodes.reserve (c.GetN ());
-  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
-    {
-      Ptr<Node> node = *i;
-      Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-      if (ipv4 == nullptr)
-        {
-          continue;
-        }
-
-      auto app = FindOspfApp (node);
-      if (app == nullptr)
-        {
-          continue;
-        }
-
-      nodes.push_back ({node, ipv4, app});
-    }
-  return nodes;
-}
-
 LsaRecord
 MakeLsaRecord (LsaHeader::LsType type, uint32_t lsId, uint32_t advertisingRouter, Ptr<Lsa> lsa)
 {
@@ -164,103 +77,6 @@ MakeLsaRecord (LsaHeader::LsType type, uint32_t lsId, uint32_t advertisingRouter
   header.SetLength (20 + lsa->GetSerializedSize ());
   header.SetSeqNum (1);
   return {header, lsa};
-}
-
-std::vector<PointToPointAdjacency>
-CollectPointToPointAdjacencies (const PreloadNodeContext &context)
-{
-  std::vector<PointToPointAdjacency> adjacencies;
-  const uint32_t nIf = context.ipv4->GetNInterfaces ();
-  for (uint32_t ifIndex = 1; ifIndex < nIf; ++ifIndex)
-    {
-      Ptr<NetDevice> dev = context.node->GetDevice (ifIndex);
-      if (dev == nullptr || !dev->IsPointToPoint ())
-        {
-          continue;
-        }
-
-      Ipv4InterfaceAddress selfIfAddr;
-      if (!SelectPrimaryInterfaceAddress (context.ipv4, ifIndex, selfIfAddr))
-        {
-          continue;
-        }
-
-      auto channel = DynamicCast<Channel> (dev->GetChannel ());
-      if (channel == nullptr)
-        {
-          continue;
-        }
-
-      for (uint32_t j = 0; j < channel->GetNDevices (); ++j)
-        {
-          Ptr<NetDevice> remoteDev = channel->GetDevice (j);
-          if (remoteDev == nullptr || remoteDev == dev)
-            {
-              continue;
-            }
-
-          auto remoteIpv4 = remoteDev->GetNode ()->GetObject<Ipv4> ();
-          auto remoteApp = FindOspfApp (remoteDev->GetNode ());
-          if (remoteIpv4 == nullptr || remoteApp == nullptr)
-            {
-              continue;
-            }
-
-          Ipv4InterfaceAddress remoteIfAddr;
-          if (!SelectPrimaryInterfaceAddress (remoteIpv4, remoteDev->GetIfIndex (), remoteIfAddr))
-            {
-              continue;
-            }
-
-          adjacencies.push_back ({ifIndex,
-                                  selfIfAddr.GetAddress (),
-                                  remoteApp->GetRouterId (),
-                                  remoteIfAddr.GetAddress (),
-                                  remoteApp->GetArea (),
-                                  ToLinkMetric (context.app->GetMetric (ifIndex), ifIndex)});
-          break;
-        }
-    }
-
-  return adjacencies;
-}
-
-void
-SeedRouterLsaAndNeighbors (const PreloadNodeContext &context,
-                           const std::vector<PointToPointAdjacency> &adjacencies,
-                           std::map<uint32_t, std::vector<AreaLink>> &areaAdj,
-                           AreaLsaSeedMap &lsaSeeds)
-{
-  Ptr<RouterLsa> routerLsa = Create<RouterLsa> ();
-
-  for (const auto &adjacency : adjacencies)
-    {
-      context.app->AddNeighbor (
-          adjacency.ifIndex,
-          Create<OspfNeighbor> (adjacency.remoteRouterId, adjacency.remoteIp, adjacency.remoteAreaId,
-                    OspfNeighbor::NeighborState::Full));
-
-      if (adjacency.remoteAreaId == context.app->GetArea ())
-        {
-          routerLsa->AddLink (RouterLink (adjacency.remoteRouterId.Get (),
-                                          adjacency.selfIp.Get (),
-                                          1,
-                                          adjacency.metric));
-        }
-      else
-        {
-          routerLsa->AddLink (
-              RouterLink (adjacency.remoteAreaId, adjacency.selfIp.Get (), 5, adjacency.metric));
-          areaAdj[context.app->GetArea ()].emplace_back (
-              AreaLink (adjacency.remoteAreaId, adjacency.selfIp.Get (), adjacency.metric));
-        }
-    }
-
-  lsaSeeds[context.app->GetArea ()].emplace_back (
-      MakeLsaRecord (LsaHeader::LsType::RouterLSAs,
-                     context.app->GetRouterId ().Get (),
-                     context.app->GetRouterId ().Get (),
-                     routerLsa));
 }
 
 LsaRecord
@@ -337,6 +153,301 @@ OspfAppHelper::OspfAppHelper ()
   m_factory.SetTypeId (OspfApp::GetTypeId ());
 }
 
+Ptr<OspfRouting>
+OspfAppHelper::GetOrCreateRouting (Ptr<Node> node)
+{
+  Ptr<Ipv4> ipv4 = node != nullptr ? node->GetObject<Ipv4> () : nullptr;
+  NS_ABORT_MSG_IF (ipv4 == nullptr, "OspfAppHelper requires an Ipv4 stack on the node");
+
+  Ptr<Ipv4RoutingProtocol> routingProtocol = ipv4->GetRoutingProtocol ();
+  Ptr<OspfRouting> routing = Ipv4RoutingHelper::GetRouting<OspfRouting> (routingProtocol);
+  if (routing != nullptr)
+    {
+      return routing;
+    }
+
+  auto listRouting = DynamicCast<Ipv4ListRouting> (routingProtocol);
+  NS_ABORT_MSG_IF (listRouting == nullptr,
+                   "OspfAppHelper requires Ipv4ListRouting on the node IPv4 stack");
+
+  routing = CreateObject<OspfRouting> ();
+  listRouting->AddRoutingProtocol (routing, 10);
+  return routing;
+}
+
+Ptr<OspfApp>
+OspfAppHelper::FindOspfApp (const Ptr<Node> &node)
+{
+  for (uint32_t i = 0; i < node->GetNApplications (); ++i)
+    {
+      auto app = DynamicCast<OspfApp> (node->GetApplication (i));
+      if (app != nullptr)
+        {
+          return app;
+        }
+    }
+  return nullptr;
+}
+
+bool
+OspfAppHelper::HasSelectedInterface (const Ptr<OspfApp> &app, uint32_t ifIndex)
+{
+  return app != nullptr && app->HasOspfInterface (ifIndex);
+}
+
+bool
+OspfAppHelper::SelectPrimaryInterfaceAddress (Ptr<Ipv4> ipv4, uint32_t ifIndex,
+                                              Ipv4InterfaceAddress &out)
+{
+  return OspfApp::SelectPrimaryInterfaceAddress (ipv4, ifIndex, out);
+}
+
+NetDeviceContainer
+OspfAppHelper::CollectIpv4BoundDevices (Ptr<Ipv4> ipv4)
+{
+  NetDeviceContainer devs;
+  if (ipv4 == nullptr)
+    {
+      return devs;
+    }
+
+  for (uint32_t ifIndex = 0; ifIndex < ipv4->GetNInterfaces (); ++ifIndex)
+    {
+      Ptr<NetDevice> dev = ipv4->GetNetDevice (ifIndex);
+      if (dev != nullptr)
+        {
+          devs.Add (dev);
+        }
+    }
+
+  return devs;
+}
+
+void
+OspfAppHelper::PopulateSelectedReachableRoutes (const Ptr<OspfApp> &app, Ptr<Ipv4> ipv4)
+{
+  if (app == nullptr || ipv4 == nullptr)
+    {
+      return;
+    }
+
+  OspfApp::ReachableRouteList reachable;
+  const uint32_t nIf = ipv4->GetNInterfaces ();
+  for (uint32_t ifIndex = 1; ifIndex < nIf; ++ifIndex)
+    {
+      if (!HasSelectedInterface (app, ifIndex))
+        {
+          continue;
+        }
+
+      Ipv4InterfaceAddress ifAddr;
+      if (!SelectPrimaryInterfaceAddress (ipv4, ifIndex, ifAddr))
+        {
+          continue;
+        }
+
+      app->SetInterfacePrefixRoutable (ifIndex, true);
+      const auto addr = ifAddr.GetAddress ();
+      const auto mask = ifAddr.GetMask ();
+      reachable.emplace_back (ifIndex, addr.CombineMask (mask).Get (), mask.Get (), addr.Get (),
+                              1);
+    }
+
+  app->SetInterfaceReachableAddresses (std::move (reachable));
+}
+
+std::vector<OspfAppHelper::PreloadNodeContext>
+OspfAppHelper::CollectPreloadNodes (NodeContainer c)
+{
+  std::vector<PreloadNodeContext> preloadNodes;
+  preloadNodes.reserve (c.GetN ());
+
+  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+    {
+      Ptr<Node> node = *i;
+      Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+      Ptr<OspfApp> app = FindOspfApp (node);
+      if (ipv4 == nullptr || app == nullptr)
+        {
+          continue;
+        }
+      preloadNodes.push_back ({node, ipv4, app});
+    }
+
+  return preloadNodes;
+}
+
+std::vector<OspfAppHelper::PointToPointAdjacency>
+OspfAppHelper::CollectPointToPointAdjacencies (const PreloadNodeContext &context)
+{
+  std::vector<PointToPointAdjacency> adjacencies;
+  const uint32_t nIf = context.ipv4->GetNInterfaces ();
+  for (uint32_t ifIndex = 1; ifIndex < nIf; ++ifIndex)
+    {
+      if (!HasSelectedInterface (context.app, ifIndex))
+        {
+          continue;
+        }
+
+      Ptr<NetDevice> dev = context.ipv4->GetNetDevice (ifIndex);
+      if (dev == nullptr || !dev->IsPointToPoint ())
+        {
+          continue;
+        }
+
+      Ipv4InterfaceAddress selfIfAddr;
+      if (!SelectPrimaryInterfaceAddress (context.ipv4, ifIndex, selfIfAddr))
+        {
+          continue;
+        }
+
+      auto channel = DynamicCast<Channel> (dev->GetChannel ());
+      if (channel == nullptr)
+        {
+          continue;
+        }
+
+      for (uint32_t j = 0; j < channel->GetNDevices (); ++j)
+        {
+          Ptr<NetDevice> remoteDev = channel->GetDevice (j);
+          if (remoteDev == nullptr || remoteDev == dev)
+            {
+              continue;
+            }
+
+          Ptr<Node> remoteNode = remoteDev->GetNode ();
+          Ptr<Ipv4> remoteIpv4 = remoteNode != nullptr ? remoteNode->GetObject<Ipv4> () : nullptr;
+          Ptr<OspfApp> remoteApp = remoteNode != nullptr ? FindOspfApp (remoteNode) : nullptr;
+          if (remoteIpv4 == nullptr || remoteApp == nullptr ||
+              remoteApp->GetRouterId () == Ipv4Address::GetZero ())
+            {
+              continue;
+            }
+
+          const int32_t remoteIfIndex = remoteIpv4->GetInterfaceForDevice (remoteDev);
+          if (remoteIfIndex <= 0 ||
+              !HasSelectedInterface (remoteApp, static_cast<uint32_t> (remoteIfIndex)))
+            {
+              continue;
+            }
+
+          Ipv4InterfaceAddress remoteIfAddr;
+          if (!SelectPrimaryInterfaceAddress (remoteIpv4,
+                                              static_cast<uint32_t> (remoteIfIndex),
+                                              remoteIfAddr))
+            {
+              continue;
+            }
+
+          adjacencies.push_back ({ifIndex,
+                                  selfIfAddr.GetAddress (),
+                                  remoteApp->GetRouterId (),
+                                  remoteIfAddr.GetAddress (),
+                                  remoteApp->GetArea (),
+                                  ToLinkMetric (context.app->GetMetric (ifIndex), ifIndex)});
+          break;
+        }
+    }
+
+  return adjacencies;
+}
+
+void
+OspfAppHelper::SeedRouterLsaAndNeighbors (const PreloadNodeContext &context,
+                                          const std::vector<PointToPointAdjacency> &adjacencies,
+                                          std::map<uint32_t, std::vector<AreaLink>> &areaAdj,
+                                          AreaLsaSeedMap &lsaList)
+{
+  Ptr<RouterLsa> routerLsa = Create<RouterLsa> ();
+  for (const auto &adjacency : adjacencies)
+    {
+      context.app->AddNeighbor (adjacency.ifIndex,
+                                Create<OspfNeighbor> (adjacency.remoteRouterId,
+                                                      adjacency.remoteIp,
+                                                      adjacency.remoteAreaId,
+                                                      OspfNeighbor::NeighborState::Full));
+
+      if (adjacency.remoteAreaId == context.app->GetArea ())
+        {
+          routerLsa->AddLink (RouterLink (adjacency.remoteRouterId.Get (),
+                                          adjacency.selfIp.Get (),
+                                          1,
+                                          adjacency.metric));
+        }
+      else
+        {
+          routerLsa->AddLink (RouterLink (adjacency.remoteAreaId,
+                                          adjacency.selfIp.Get (),
+                                          5,
+                                          adjacency.metric));
+          areaAdj[context.app->GetArea ()].emplace_back (
+              AreaLink (adjacency.remoteAreaId, adjacency.selfIp.Get (), adjacency.metric));
+        }
+    }
+
+  lsaList[context.app->GetArea ()].emplace_back (
+      MakeLsaRecord (LsaHeader::LsType::RouterLSAs,
+                     context.app->GetRouterId ().Get (),
+                     context.app->GetRouterId ().Get (),
+                     routerLsa));
+}
+
+bool
+OspfAppHelper::SeedPreloadNode (const PreloadNodeContext &context,
+                                std::map<uint32_t, std::set<uint32_t>> &areaMembers,
+                                std::map<uint32_t, std::vector<AreaLink>> &areaAdj,
+                                AreaLsaSeedMap &lsaList)
+{
+  if (context.app->GetRouterId () == Ipv4Address::GetZero ())
+    {
+      NS_LOG_WARN ("Skipping OSPF preload for node with unset router ID");
+      return false;
+    }
+
+  areaMembers[context.app->GetArea ()].insert (context.app->GetRouterId ().Get ());
+  PopulateSelectedReachableRoutes (context.app, context.ipv4);
+
+  const auto l1Key =
+      std::make_tuple (LsaHeader::LsType::L1SummaryLSAs, context.app->GetRouterId ().Get (),
+                       context.app->GetRouterId ().Get ());
+  auto l1 = context.app->FetchLsa (l1Key);
+  if (l1.second != nullptr)
+    {
+      lsaList[context.app->GetArea ()].emplace_back (l1.first.Copy (), l1.second->Copy ());
+    }
+
+  SeedRouterLsaAndNeighbors (context, CollectPointToPointAdjacencies (context), areaAdj, lsaList);
+  return true;
+}
+
+void
+OspfAppHelper::ApplyPreloadedLsas (const std::vector<PreloadNodeContext> &preloadNodes,
+                                   const std::map<uint32_t, std::set<uint32_t>> &areaMembers,
+                                   const AreaLsaSeedMap &lsaList,
+                                   const std::vector<LsaRecord> &proxiedLsaList)
+{
+  for (const auto &context : preloadNodes)
+    {
+      auto membersIt = areaMembers.find (context.app->GetArea ());
+      if (membersIt == areaMembers.end () || membersIt->second.empty ())
+        {
+          continue;
+        }
+
+      const bool isLeader =
+          context.app->GetRouterId ().Get () == *membersIt->second.begin ();
+      context.app->SetDoInitialize (false);
+      context.app->SetAreaLeader (isLeader);
+      context.app->InjectLsa (proxiedLsaList);
+
+      auto lsaIt = lsaList.find (context.app->GetArea ());
+      if (lsaIt != lsaList.end ())
+        {
+          context.app->InjectLsa (lsaIt->second);
+        }
+    }
+}
+
 void
 OspfAppHelper::SetAttribute (std::string name, const AttributeValue &value)
 {
@@ -357,98 +468,56 @@ OspfAppHelper::Install (NodeContainer c) const
 ApplicationContainer
 OspfAppHelper::Install (Ptr<Node> n) const
 {
-  Ptr<Ipv4> ipv4 = n->GetObject<Ipv4> ();
-  Ptr<Ipv4RoutingProtocol> routingProtocol = ipv4->GetRoutingProtocol ();
-  Ptr<OspfRouting> routing = Ipv4RoutingHelper::GetRouting<OspfRouting> (routingProtocol);
-  if (routing == nullptr)
-    {
-      auto listRouting = DynamicCast<Ipv4ListRouting> (routingProtocol);
-      NS_ABORT_MSG_IF (listRouting == nullptr,
-                       "OspfAppHelper requires Ipv4ListRouting on the node IPv4 stack");
-      routing = CreateObject<OspfRouting> ();
-      listRouting->AddRoutingProtocol (routing, 10);
-    }
-  NetDeviceContainer devs;
-  for (uint32_t j = 0; j < n->GetNDevices (); j++)
-    {
-      // Skip non localhost and non p2p
-      if (j > 0 && !n->GetDevice (j)->IsPointToPoint ())
-        continue;
-      devs.Add (n->GetDevice (j));
-    }
-  return InstallPriv (n, routing, devs);
+  Ptr<Ipv4> ipv4 = n != nullptr ? n->GetObject<Ipv4> () : nullptr;
+  NS_ABORT_MSG_IF (ipv4 == nullptr, "OspfAppHelper requires an Ipv4 stack on the node");
+
+  return InstallPriv (n, GetOrCreateRouting (n), CollectIpv4BoundDevices (ipv4));
+}
+
+ApplicationContainer
+OspfAppHelper::Install (Ptr<Node> n, NetDeviceContainer devs) const
+{
+  return InstallPriv (n, GetOrCreateRouting (n), devs);
 }
 
 void
 OspfAppHelper::ConfigureReachablePrefixesFromInterfaces (NodeContainer c) const
 {
-  for (const auto &context : CollectPreloadNodes (c))
+  for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
     {
-      const uint32_t nIf = context.ipv4->GetNInterfaces ();
-      for (uint32_t ifIndex = 1; ifIndex < nIf; ++ifIndex)
+      Ptr<Node> node = *i;
+      Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
+      Ptr<OspfApp> app = FindOspfApp (node);
+      if (ipv4 == nullptr || app == nullptr)
         {
-          Ipv4InterfaceAddress ifAddr;
-          if (!SelectPrimaryInterfaceAddress (context.ipv4, ifIndex, ifAddr))
-            {
-              continue;
-            }
-
-          context.app->SetInterfacePrefixRoutable (ifIndex, true);
+          continue;
         }
-
-      context.app->SetInterfaceReachableAddresses (CollectReachableRoutesFromIpv4 (context));
+      PopulateSelectedReachableRoutes (app, ipv4);
     }
 }
 
 void
 OspfAppHelper::Preload (NodeContainer c)
 {
-  std::vector<LsaRecord> proxiedLsaList;
   AreaLsaSeedMap lsaList;
   std::map<uint32_t, std::vector<AreaLink>> areaAdj;
   std::map<uint32_t, std::set<uint32_t>> areaMembers;
   const auto preloadNodes = CollectPreloadNodes (c);
+  std::vector<PreloadNodeContext> seededNodes;
+  seededNodes.reserve (preloadNodes.size ());
 
   for (const auto &context : preloadNodes)
     {
-      areaMembers[context.app->GetArea ()].insert (context.app->GetRouterId ().Get ());
-
-      const uint32_t nIf = context.ipv4->GetNInterfaces ();
-      for (uint32_t ifIndex = 1; ifIndex < nIf; ++ifIndex)
+      if (SeedPreloadNode (context, areaMembers, areaAdj, lsaList))
         {
-          Ipv4InterfaceAddress ifAddr;
-          if (!SelectPrimaryInterfaceAddress (context.ipv4, ifIndex, ifAddr))
-            {
-              continue;
-            }
-          context.app->SetInterfacePrefixRoutable (ifIndex, true);
+          seededNodes.push_back (context);
         }
-
-      context.app->SetInterfaceReachableAddresses (CollectReachableRoutesFromIpv4 (context));
-      const auto l1Key =
-          std::make_tuple (LsaHeader::LsType::L1SummaryLSAs, context.app->GetRouterId ().Get (),
-                           context.app->GetRouterId ().Get ());
-      auto l1 = context.app->FetchLsa (l1Key);
-      if (l1.second != nullptr)
-        {
-          lsaList[context.app->GetArea ()].emplace_back (l1.first.Copy (), l1.second->Copy ());
-        }
-
-      const auto adjacencies = CollectPointToPointAdjacencies (context);
-      SeedRouterLsaAndNeighbors (context, adjacencies, areaAdj, lsaList);
     }
 
-  proxiedLsaList = BuildProxiedLsas (areaAdj, areaMembers, lsaList);
-
-  for (const auto &context : preloadNodes)
-    {
-      // Process area-leader LSAs
-      bool isLeader = context.app->GetRouterId ().Get () == *areaMembers[context.app->GetArea ()].begin ();
-      context.app->SetDoInitialize (false);
-      context.app->SetAreaLeader (isLeader);
-      context.app->InjectLsa (proxiedLsaList);
-      context.app->InjectLsa (lsaList[context.app->GetArea ()]);
-    }
+  ApplyPreloadedLsas (seededNodes,
+                      areaMembers,
+                      lsaList,
+                      BuildProxiedLsas (areaAdj, areaMembers, lsaList));
 }
 
 Ptr<Application>
@@ -458,9 +527,6 @@ OspfAppHelper::InstallPriv (Ptr<Node> node, Ptr<OspfRouting> routing,
   Ptr<OspfApp> app = m_factory.Create<OspfApp> ();
   app->SetRouting (routing);
   routing->SetApp (app);
-  Ptr<Ipv4> ipv4 = node->GetObject<Ipv4> ();
-  app->SetRouterId (
-      ipv4->GetAddress (1, 0).GetAddress ()); // default to the first interface address
   node->AddApplication (app);
   app->SetBoundNetDevices (devs);
 

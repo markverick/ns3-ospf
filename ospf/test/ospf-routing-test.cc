@@ -28,6 +28,7 @@ using ospf_test_utils::FindStaticRoute;
 using ospf_test_utils::GetOspfApp;
 using ospf_test_utils::GetOspfRouting;
 using ospf_test_utils::Ipv4ToString;
+using ospf_test_utils::Ipv4IfIndex;
 using ospf_test_utils::LookupOspfRoute;
 using ospf_test_utils::ReadAll;
 
@@ -570,7 +571,7 @@ private:
     apps.Stop (Seconds (5.0));
 
     Simulator::Schedule (Seconds (1.0), &OspfApp::SetInterfacePrefixRoutable, app1,
-                         d12.Get (0)->GetIfIndex (), true);
+               Ipv4IfIndex (nodes.Get (1), d12.Get (0)), true);
 
     Simulator::Stop (Seconds (2.5));
     Simulator::Run ();
@@ -646,7 +647,7 @@ private:
     auto ipv41 = context.nodes.Get (1)->GetObject<Ipv4> ();
     NS_TEST_ASSERT_MSG_NE (ipv41, nullptr, "node1 should expose Ipv4");
 
-    const uint32_t ifIndex = context.d12.Get (0)->GetIfIndex ();
+    const uint32_t ifIndex = Ipv4IfIndex (context.nodes.Get (1), context.d12.Get (0));
     ipv41->SetDown (ifIndex);
 
     Socket::SocketErrno sockerr = Socket::ERROR_NOTERROR;
@@ -695,8 +696,8 @@ private:
     NS_TEST_ASSERT_MSG_NE (ipv41, nullptr, "node1 should expose Ipv4");
     NS_TEST_ASSERT_MSG_NE (ipv42, nullptr, "node2 should expose Ipv4");
 
-    const uint32_t if12Node1 = context.d12.Get (0)->GetIfIndex ();
-    const uint32_t if12Node2 = context.d12.Get (1)->GetIfIndex ();
+    const uint32_t if12Node1 = Ipv4IfIndex (context.nodes.Get (1), context.d12.Get (0));
+    const uint32_t if12Node2 = Ipv4IfIndex (context.nodes.Get (2), context.d12.Get (1));
 
     Simulator::Schedule (Seconds (0.0), &Ipv4::SetDown, ipv41, if12Node1);
     Simulator::Schedule (Seconds (0.0), &Ipv4::SetDown, ipv42, if12Node2);
@@ -745,7 +746,7 @@ private:
     const uint64_t beforeSpf2 = app2->GetL1ShortestPathRunCount ();
     NS_TEST_ASSERT_MSG_GT (beforeSpf, 0u, "node0 should have completed initial L1 SPF before churn");
 
-    app2->AddReachableAddress (context.d12.Get (1)->GetIfIndex (), Ipv4Address ("10.200.0.0"),
+    app2->AddReachableAddress (Ipv4IfIndex (context.nodes.Get (2), context.d12.Get (1)), Ipv4Address ("10.200.0.0"),
                    Ipv4Mask ("255.255.255.0"), Ipv4Address::GetAny (), 7);
 
     Simulator::Stop (Seconds (0.6));
@@ -814,7 +815,7 @@ private:
     const uint64_t beforeL1Spf3 = app3->GetL1ShortestPathRunCount ();
     NS_TEST_ASSERT_MSG_GT (beforeSpf, 0u, "node0 should have completed initial L2 SPF before churn");
 
-    app3->AddReachableAddress (context.d23.Get (1)->GetIfIndex (), Ipv4Address ("10.201.0.0"),
+    app3->AddReachableAddress (Ipv4IfIndex (context.nodes.Get (3), context.d23.Get (1)), Ipv4Address ("10.201.0.0"),
                    Ipv4Mask ("255.255.0.0"), Ipv4Address::GetAny (), 9);
 
     Simulator::Stop (Seconds (0.9));
@@ -879,9 +880,9 @@ private:
     NS_TEST_ASSERT_MSG_NE (app1, nullptr, "node1 should host an OspfApp");
     NS_TEST_ASSERT_MSG_NE (app2, nullptr, "node2 should host an OspfApp");
 
-    app1->AddReachableAddress (context.d01.Get (1)->GetIfIndex (), Ipv4Address ("10.210.0.0"),
+    app1->AddReachableAddress (Ipv4IfIndex (context.nodes.Get (1), context.d01.Get (1)), Ipv4Address ("10.210.0.0"),
                    Ipv4Mask ("255.255.0.0"), Ipv4Address::GetAny (), 2);
-    app2->AddReachableAddress (context.d12.Get (1)->GetIfIndex (), Ipv4Address ("10.210.0.0"),
+    app2->AddReachableAddress (Ipv4IfIndex (context.nodes.Get (2), context.d12.Get (1)), Ipv4Address ("10.210.0.0"),
                    Ipv4Mask ("255.255.0.0"), Ipv4Address::GetAny (), 1);
 
     Simulator::Stop (Seconds (0.8));
@@ -929,9 +930,9 @@ private:
     NS_TEST_ASSERT_MSG_NE (app1, nullptr, "node1 should host an OspfApp");
     NS_TEST_ASSERT_MSG_NE (app3, nullptr, "node3 should host an OspfApp");
 
-    app1->AddReachableAddress (context.d01.Get (1)->GetIfIndex (), Ipv4Address ("10.211.0.0"),
+    app1->AddReachableAddress (Ipv4IfIndex (context.nodes.Get (1), context.d01.Get (1)), Ipv4Address ("10.211.0.0"),
                    Ipv4Mask ("255.255.0.0"), Ipv4Address::GetAny (), 3);
-    app3->AddReachableAddress (context.d23.Get (1)->GetIfIndex (), Ipv4Address ("10.211.0.0"),
+    app3->AddReachableAddress (Ipv4IfIndex (context.nodes.Get (3), context.d23.Get (1)), Ipv4Address ("10.211.0.0"),
                    Ipv4Mask ("255.255.0.0"), Ipv4Address::GetAny (), 1);
 
     Simulator::Stop (Seconds (0.9));
@@ -981,9 +982,9 @@ private:
     NS_TEST_ASSERT_MSG_NE (app2, nullptr, "node2 should host an OspfApp");
     NS_TEST_ASSERT_MSG_NE (app3, nullptr, "node3 should host an OspfApp");
 
-    app2->AddReachableAddress (context.d12.Get (1)->GetIfIndex (), Ipv4Address ("10.212.0.0"),
+    app2->AddReachableAddress (Ipv4IfIndex (context.nodes.Get (2), context.d12.Get (1)), Ipv4Address ("10.212.0.0"),
                    Ipv4Mask ("255.255.0.0"), Ipv4Address::GetAny (), 9);
-    app3->AddReachableAddress (context.d23.Get (1)->GetIfIndex (), Ipv4Address ("10.212.0.0"),
+    app3->AddReachableAddress (Ipv4IfIndex (context.nodes.Get (3), context.d23.Get (1)), Ipv4Address ("10.212.0.0"),
                    Ipv4Mask ("255.255.0.0"), Ipv4Address::GetAny (), 1);
 
     const std::filesystem::path outDir = CreateTempDirFilename ("ospf-routing-area-duplicate-metric");
@@ -1040,7 +1041,7 @@ private:
 
     const auto prefix = Ipv4Address ("10.213.0.0");
     const auto mask = Ipv4Mask ("255.255.0.0");
-    const auto ifIndex = context.d12.Get (1)->GetIfIndex ();
+    const auto ifIndex = Ipv4IfIndex (context.nodes.Get (2), context.d12.Get (1));
 
     app2->AddReachableAddress (ifIndex, prefix, mask, Ipv4Address::GetAny (), 4);
 
@@ -1100,7 +1101,7 @@ private:
     NS_TEST_ASSERT_MSG_NE (app2, nullptr, "node2 should host an OspfApp");
 
     std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>> firstInjected;
-    firstInjected.emplace_back (context.d12.Get (1)->GetIfIndex (), Ipv4Address ("10.214.0.0").Get (),
+    firstInjected.emplace_back (Ipv4IfIndex (context.nodes.Get (2), context.d12.Get (1)), Ipv4Address ("10.214.0.0").Get (),
                                 Ipv4Mask ("255.255.0.0").Get (), Ipv4Address::GetAny ().Get (), 4);
     const bool firstChanged = app2->SetReachableAddresses (std::move (firstInjected));
     NS_TEST_ASSERT_MSG_EQ (firstChanged, true,
@@ -1123,7 +1124,7 @@ private:
       }
 
     std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t, uint32_t>> replacementInjected;
-    replacementInjected.emplace_back (context.d12.Get (1)->GetIfIndex (), Ipv4Address ("10.215.0.0").Get (),
+    replacementInjected.emplace_back (Ipv4IfIndex (context.nodes.Get (2), context.d12.Get (1)), Ipv4Address ("10.215.0.0").Get (),
                                       Ipv4Mask ("255.255.0.0").Get (), Ipv4Address::GetAny ().Get (), 6);
     const bool replacementChanged = app2->SetReachableAddresses (std::move (replacementInjected));
     NS_TEST_ASSERT_MSG_EQ (replacementChanged, true,
@@ -1204,7 +1205,7 @@ private:
 
     const auto prefix = Ipv4Address ("10.216.0.0");
     const auto mask = Ipv4Mask ("255.255.0.0");
-    const auto ifIndex = context.d12.Get (1)->GetIfIndex ();
+    const auto ifIndex = Ipv4IfIndex (context.nodes.Get (2), context.d12.Get (1));
     const auto gateway = context.if12.GetAddress (0);
 
     app2->AddReachableAddress (ifIndex, prefix, mask, gateway, 4);
@@ -1261,8 +1262,8 @@ private:
     auto app1 = GetOspfApp (context.nodes.Get (1));
     NS_TEST_ASSERT_MSG_NE (app1, nullptr, "node1 should host an OspfApp");
 
-    const uint32_t if01 = context.d01.Get (1)->GetIfIndex ();
-    const uint32_t if12 = context.d12.Get (0)->GetIfIndex ();
+    const uint32_t if01 = Ipv4IfIndex (context.nodes.Get (1), context.d01.Get (1));
+    const uint32_t if12 = Ipv4IfIndex (context.nodes.Get (1), context.d12.Get (0));
     const uint32_t gateway1Value = context.if01.GetAddress (0).Get ();
     const uint32_t mixingConstant = 2654435761u;
     const uint32_t gateway2Value =
@@ -1388,7 +1389,7 @@ private:
     NS_TEST_ASSERT_MSG_NE (app2, nullptr, "node2 should host an OspfApp");
 
     app2->ResetLsaThrottleStats ();
-    app2->AddReachableAddress (context.d12.Get (1)->GetIfIndex (), Ipv4Address ("10.220.0.0"),
+    app2->AddReachableAddress (Ipv4IfIndex (context.nodes.Get (2), context.d12.Get (1)), Ipv4Address ("10.220.0.0"),
                    Ipv4Mask ("255.255.0.0"), Ipv4Address::GetAny (), 5);
 
     const auto immediateStats = app2->GetLsaThrottleStats ();

@@ -125,7 +125,8 @@ main (int argc, char *argv[])
   ospfAppHelper.SetAttribute ("HelloAddress", Ipv4AddressValue (ospfHelloAddress));
   ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (30)));
   ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
-  ApplicationContainer ospfApp = ospfAppHelper.Install (c);
+  ApplicationContainer ospfApp =
+      ospfAppHelper.Install (c);
   // ospfAppHelper.Preload (c);
 
   // Set error

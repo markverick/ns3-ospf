@@ -109,7 +109,8 @@ main (int argc, char *argv[])
       "AreaLeaderMode",
       EnumValue (OspfApp::AREA_LEADER_REACHABLE_LOWEST_ROUTER_ID));
 
-  ApplicationContainer ospfApps = ospfAppHelper.Install (c);
+  ApplicationContainer ospfApps =
+      ospfAppHelper.Install (c);
   auto app0 = DynamicCast<OspfApp> (ospfApps.Get (0));
   auto app1 = DynamicCast<OspfApp> (ospfApps.Get (1));
   auto app2 = DynamicCast<OspfApp> (ospfApps.Get (2));

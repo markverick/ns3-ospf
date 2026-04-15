@@ -23,6 +23,8 @@ NS_LOG_COMPONENT_DEFINE ("OspfLsaProcessorsTest");
 
 namespace {
 
+using ospf_test_utils::Ipv4IfIndex;
+
 void
 SnapshotLeaderFlag (bool *out, Ptr<OspfApp> app)
 {
@@ -368,7 +370,8 @@ OspfStaticAreaLeaderModeTest::DoRun ()
   ospfHelper.SetAttribute ("AreaLeaderMode", EnumValue (OspfApp::AREA_LEADER_STATIC));
   ospfHelper.SetAttribute ("StaticAreaLeaderRouterId", Ipv4AddressValue (staticLeaderId));
 
-  ApplicationContainer apps = ospfHelper.Install (nodes);
+  ApplicationContainer apps =
+    ospfHelper.Install (nodes);
   apps.Start (Seconds (0.5));
 
   Simulator::Stop (Seconds (6.0));
@@ -674,8 +677,8 @@ OspfReachableAreaLeaderRecoveryTest::DoRun ()
   Ptr<Ipv4> ipv43 = nodes.Get (3)->GetObject<Ipv4> ();
   NS_TEST_ASSERT_MSG_NE (ipv42, nullptr, "expected Ipv4 on node2");
   NS_TEST_ASSERT_MSG_NE (ipv43, nullptr, "expected Ipv4 on node3");
-  const uint32_t if23Node2 = devices23.Get (0)->GetIfIndex ();
-  const uint32_t if23Node3 = devices23.Get (1)->GetIfIndex ();
+  const uint32_t if23Node2 = Ipv4IfIndex (nodes.Get (2), devices23.Get (0));
+  const uint32_t if23Node3 = Ipv4IfIndex (nodes.Get (3), devices23.Get (1));
 
   OspfAppHelper ospfHelper;
   ospfHelper.SetAttribute ("EnableAreaProxy", BooleanValue (true));
@@ -686,7 +689,8 @@ OspfReachableAreaLeaderRecoveryTest::DoRun ()
   ospfHelper.SetAttribute ("AreaLeaderMode",
                            EnumValue (OspfApp::AREA_LEADER_REACHABLE_LOWEST_ROUTER_ID));
 
-  ApplicationContainer apps = ospfHelper.Install (nodes);
+  ApplicationContainer apps =
+    ospfHelper.Install (nodes);
   apps.Start (Seconds (0.5));
   apps.Stop (Seconds (12.0));
 

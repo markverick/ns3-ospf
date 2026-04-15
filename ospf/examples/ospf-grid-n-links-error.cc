@@ -134,7 +134,8 @@ main (int argc, char *argv[])
   ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (600)));
   ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (MilliSeconds (100)));
 
-  ApplicationContainer ospfApp = ospfAppHelper.Install (c);
+  ApplicationContainer ospfApp =
+      ospfAppHelper.Install (c);
 
   // Setting areas
   for (uint32_t area = 0; area < NUM_STRIPES; area++)

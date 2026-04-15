@@ -10,8 +10,8 @@ OspfApp::GetL1SummaryLsa ()
   Ptr<L1SummaryLsa> l1SummaryLsa = Create<L1SummaryLsa> ();
   for (auto &[ifIndex, dest, mask, addr, metric] : m_externalRoutes)
     {
-      if (ifIndex >= m_ospfInterfaces.size () || m_ospfInterfaces[ifIndex] == nullptr ||
-          !m_ospfInterfaces[ifIndex]->IsUp ())
+      auto ospfIf = GetOspfInterface (ifIndex);
+      if (ospfIf == nullptr || !ospfIf->IsUp ())
         {
           continue;
         }
@@ -28,7 +28,13 @@ OspfApp::GetRouterLsa ()
   std::vector<RouterLink> allLinks;
   for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
     {
-      std::vector<RouterLink> links = m_ospfInterfaces[i]->GetActiveRouterLinks ();
+      auto ospfIf = GetOspfInterface (i);
+      if (ospfIf == nullptr)
+        {
+          continue;
+        }
+
+      std::vector<RouterLink> links = ospfIf->GetActiveRouterLinks ();
       for (auto l : links)
         {
           allLinks.emplace_back (l);

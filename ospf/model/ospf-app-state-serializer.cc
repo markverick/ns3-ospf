@@ -95,22 +95,31 @@ OspfStateSerializer::ExportNeighbors (std::filesystem::path dirName, std::string
   // Serialize neighbors
   Buffer buffer;
   uint32_t totalNeighbors = 0;
-  uint32_t serializedSize = 4; // number of interfaces
+  std::vector<uint32_t> activeIfIndices;
   for (uint32_t i = 1; i < m_app.m_ospfInterfaces.size (); i++)
     {
+      if (m_app.GetOspfInterface (i) != nullptr)
+        {
+          activeIfIndices.push_back (i);
+        }
+    }
+  uint32_t serializedSize = 4; // number of interfaces
+  for (uint32_t ifIndex : activeIfIndices)
+    {
+      auto ospfIf = m_app.GetOspfInterface (ifIndex);
       serializedSize += 4; // number of neighbors
-      serializedSize +=
-          m_app.m_ospfInterfaces[i]->GetNeighbors ().size () * 12; // each neighbor is 12 bytes
-      totalNeighbors += m_app.m_ospfInterfaces[i]->GetNeighbors ().size ();
+      serializedSize += ospfIf->GetNeighbors ().size () * 12; // each neighbor is 12 bytes
+      totalNeighbors += ospfIf->GetNeighbors ().size ();
     }
   buffer.AddAtEnd (serializedSize);
   Buffer::Iterator it = buffer.Begin ();
 
-  it.WriteHtonU32 (m_app.m_ospfInterfaces.size () - 1);
-  for (uint32_t i = 1; i < m_app.m_ospfInterfaces.size (); i++)
+  it.WriteHtonU32 (activeIfIndices.size ());
+  for (uint32_t ifIndex : activeIfIndices)
     {
-      it.WriteHtonU32 (m_app.m_ospfInterfaces[i]->GetNeighbors ().size ());
-      for (auto n : m_app.m_ospfInterfaces[i]->GetNeighbors ())
+      auto ospfIf = m_app.GetOspfInterface (ifIndex);
+      it.WriteHtonU32 (ospfIf->GetNeighbors ().size ());
+      for (auto n : ospfIf->GetNeighbors ())
         {
           it.WriteHtonU32 (n->GetRouterId ().Get ());
           it.WriteHtonU32 (n->GetIpAddress ().Get ());
@@ -317,11 +326,12 @@ OspfStateSerializer::ImportLsdb (std::filesystem::path dirName, std::string file
     }
 
   // Commit staged state.
-  m_app.m_routerLsdb.insert (routerLsdb.begin (), routerLsdb.end ());
-  m_app.m_l1SummaryLsdb.insert (l1SummaryLsdb.begin (), l1SummaryLsdb.end ());
-  m_app.m_areaLsdb.insert (areaLsdb.begin (), areaLsdb.end ());
-  m_app.m_l2SummaryLsdb.insert (l2SummaryLsdb.begin (), l2SummaryLsdb.end ());
-  m_app.m_seqNumbers.insert (seqNumbers.begin (), seqNumbers.end ());
+  m_app.ClearPendingLsaRegenerationState ();
+  m_app.m_routerLsdb = std::move (routerLsdb);
+  m_app.m_l1SummaryLsdb = std::move (l1SummaryLsdb);
+  m_app.m_areaLsdb = std::move (areaLsdb);
+  m_app.m_l2SummaryLsdb = std::move (l2SummaryLsdb);
+  m_app.m_seqNumbers = std::move (seqNumbers);
 
   NS_LOG_INFO ("Imported " << lsUpdate->GetNLsa () << " LSAs: " << data.size () << " bytes from "
                             << fullname);
@@ -358,9 +368,19 @@ OspfStateSerializer::ImportNeighbors (std::filesystem::path dirName, std::string
       NS_LOG_ERROR ("Truncated neighbors data: missing interface count");
       return;
     }
-  if (nInterfaces + 1 != m_app.m_ospfInterfaces.size ())
+
+  std::vector<uint32_t> activeIfIndices;
+  for (uint32_t i = 1; i < m_app.m_ospfInterfaces.size (); i++)
     {
-      NS_LOG_ERROR ("Numbers of bound interfaces do not match");
+      if (m_app.GetOspfInterface (i) != nullptr)
+        {
+          activeIfIndices.push_back (i);
+        }
+    }
+
+  if (nInterfaces != activeIfIndices.size ())
+    {
+      NS_LOG_ERROR ("Numbers of selected OSPF interfaces do not match");
       return;
     }
 
@@ -369,13 +389,16 @@ OspfStateSerializer::ImportNeighbors (std::filesystem::path dirName, std::string
   uint32_t ipAddress = 0;
   uint32_t areaId = 0;
   uint32_t totalNeighbors = 0;
-  for (uint32_t i = 1; i < m_app.m_ospfInterfaces.size (); i++)
+  std::vector<std::vector<Ptr<OspfNeighbor>>> importedNeighbors (m_app.m_ospfInterfaces.size ());
+  for (uint32_t ordinal = 0; ordinal < activeIfIndices.size (); ++ordinal)
     {
+      const uint32_t ifIndex = activeIfIndices[ordinal];
       if (!TryReadNtohU32 (it, nNeighbors))
         {
           NS_LOG_ERROR ("Truncated neighbors data: missing neighbor count");
           return;
         }
+
       totalNeighbors += nNeighbors;
       for (uint32_t j = 0; j < nNeighbors; j++)
         {
@@ -387,11 +410,11 @@ OspfStateSerializer::ImportNeighbors (std::filesystem::path dirName, std::string
             }
           auto neighbor = Create<OspfNeighbor> (Ipv4Address (routerId), Ipv4Address (ipAddress),
                                                 areaId, OspfNeighbor::Full);
-          neighbor->RefreshLastHelloReceived ();
-          m_app.RefreshHelloTimeout (i, neighbor);
-          m_app.m_ospfInterfaces[i]->AddNeighbor (neighbor);
+          importedNeighbors[ifIndex].push_back (neighbor);
         }
     }
+
+  m_app.ReplaceNeighbors (importedNeighbors);
 
   NS_LOG_INFO ("Imported " << totalNeighbors << " neighbors: " << data.size () << " bytes from "
                             << fullname);
@@ -469,6 +492,7 @@ OspfStateSerializer::ImportPrefixes (std::filesystem::path dirName, std::string 
   uint32_t c = 0;
   uint32_t d = 0;
   uint32_t e = 0;
+  OspfApp::ReachableRouteList importedRoutes;
   for (uint32_t i = 0; i < routeNum; i++)
     {
       if (!TryReadNtohU32 (it, a) || !TryReadNtohU32 (it, b) || !TryReadNtohU32 (it, c) ||
@@ -477,9 +501,10 @@ OspfStateSerializer::ImportPrefixes (std::filesystem::path dirName, std::string 
           NS_LOG_ERROR ("Truncated external routes: missing route entry");
           return;
         }
-      m_app.m_externalRoutes.emplace_back (a, b, c, d, e);
+      importedRoutes.emplace_back (a, b, c, d, e);
     }
 
+  m_app.m_externalRoutes = std::move (importedRoutes);
   m_app.m_interfaceExternalRoutes.clear ();
   m_app.m_injectedExternalRoutes.clear ();
   m_app.InitializeSplitReachableRoutesFromCurrentState ();

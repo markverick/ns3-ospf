@@ -93,14 +93,18 @@ main (int argc, char *argv[])
   ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (30)));
   ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
 
-  ApplicationContainer ospfApps = ospfAppHelper.Install (routers);
+  ApplicationContainer ospfApps =
+      ospfAppHelper.Install (routers);
   auto app0 = DynamicCast<OspfApp> (ospfApps.Get (0));
   auto app1 = DynamicCast<OspfApp> (ospfApps.Get (1));
   app0->SetRouterId (Ipv4Address ("1.1.1.1"));
   app1->SetRouterId (Ipv4Address ("1.1.1.2"));
   ospfAppHelper.ConfigureReachablePrefixesFromInterfaces (routers);
 
-  const uint32_t gatewayIfIndex = r1gw.Get (0)->GetIfIndex ();
+  Ptr<Ipv4> ipv41 = r1->GetObject<Ipv4> ();
+  NS_ABORT_MSG_IF (ipv41 == nullptr, "Router r1 must have an Ipv4 stack");
+  const int32_t gatewayIfIndex = ipv41->GetInterfaceForDevice (r1gw.Get (0));
+  NS_ABORT_MSG_IF (gatewayIfIndex < 0, "Gateway link device is not registered with r1's Ipv4 stack");
   app1->AddReachableAddress (gatewayIfIndex,
                              Ipv4Address ("192.168.50.0"),
                              Ipv4Mask ("255.255.255.0"),
