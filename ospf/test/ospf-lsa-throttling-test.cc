@@ -115,7 +115,8 @@ public:
     ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
     ospf.SetAttribute ("MinLsInterval", TimeValue (Seconds (5)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
@@ -172,7 +173,8 @@ public:
     ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (50)));
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (200)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
@@ -259,7 +261,8 @@ private:
     ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (100)));
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (400)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app1 = DynamicCast<OspfApp> (apps.Get (1));
     if (app1 == nullptr)
@@ -336,7 +339,8 @@ public:
     ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (100)));
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (400)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
@@ -405,7 +409,8 @@ public:
     ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
     // Do NOT set MinLsInterval - use default
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
@@ -455,7 +460,8 @@ public:
 
     OspfAppHelper ospf;
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
 
@@ -518,7 +524,8 @@ public:
     ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (100)));
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (400)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     Ptr<OspfApp> app1 = DynamicCast<OspfApp> (apps.Get (1));
     NS_TEST_ASSERT_MSG_NE (app1, nullptr, "expected OspfApp");
 

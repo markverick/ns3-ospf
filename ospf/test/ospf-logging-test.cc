@@ -128,7 +128,8 @@ RunTwoNodeOspfWithLogs (bool enablePacketLog, bool includeHello, bool enableLsaT
   ospf.SetAttribute ("IncludeHelloInPacketLog", BooleanValue (includeHello));
   ospf.SetAttribute ("EnableLsaTimingLog", BooleanValue (enableLsaTimingLog));
 
-  ApplicationContainer apps = ospf.Install (nodes);
+  ApplicationContainer apps =
+    ospf.Install (nodes);
   ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
   apps.Start (Seconds (0.5));
   apps.Stop (Seconds (1.4));

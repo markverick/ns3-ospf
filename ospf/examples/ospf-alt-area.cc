@@ -155,18 +155,20 @@ main (int argc, char *argv[])
   ApplicationContainer ospfApp;
   for (uint32_t i = 0; i < c0.GetN (); i++)
     {
-      auto app = DynamicCast<OspfApp> (ospfAppHelper.Install (c0.Get (i)).Get (0));
+        auto app = DynamicCast<OspfApp> (
+          ospfAppHelper.Install (c0.Get (i)).Get (0));
       app->SetArea (0);
-      app->AddAllReachableAddresses (0);
       ospfApp.Add (app);
     }
   for (uint32_t i = 0; i < c1.GetN (); i++)
     {
-      auto app = DynamicCast<OspfApp> (ospfAppHelper.Install (c1.Get (i)).Get (0));
+        auto app = DynamicCast<OspfApp> (
+          ospfAppHelper.Install (c1.Get (i)).Get (0));
       app->SetArea (1);
-      app->AddAllReachableAddresses (0);
       ospfApp.Add (app);
     }
+
+  ospfAppHelper.ConfigureReachablePrefixesFromInterfaces (c);
 
   // ospfAppHelper.Preload (c);
   ospfApp.Start (Seconds (1.0));

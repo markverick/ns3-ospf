@@ -21,6 +21,7 @@ namespace {
 
 using ospf_test_utils::FindStaticRoute;
 using ospf_test_utils::ConfigureFastColdStart;
+using ospf_test_utils::LookupOspfRoute;
 
 } // namespace
 
@@ -61,21 +62,23 @@ public:
     ConfigureFastColdStart (ospf);
     ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     ospf.ConfigureReachablePrefixesFromInterfaces (nodes);
     apps.Start (Seconds (0.5));
 
     Simulator::Stop (Seconds (3.0));
     Simulator::Run ();
 
-    const auto r0to12 = FindStaticRoute (nodes.Get (0), Ipv4Address ("10.1.2.0"),
-                                        Ipv4Mask ("255.255.255.252"));
-    NS_TEST_ASSERT_MSG_EQ (r0to12.has_value (), true,
-                           "node0 should have a route to 10.1.2.0/30");
-    if (r0to12)
+    Socket::SocketErrno sockerr = Socket::ERROR_NOTERROR;
+    auto r0to12 = LookupOspfRoute (nodes.Get (0), Ipv4Address ("10.1.2.2"), nullptr, &sockerr);
+    NS_TEST_ASSERT_MSG_EQ (sockerr, Socket::ERROR_NOTERROR,
+                           "node0 should resolve a route to 10.1.2.2");
+    NS_TEST_ASSERT_MSG_NE (r0to12, nullptr, "node0 should resolve a route to 10.1.2.2");
+    if (r0to12 != nullptr)
       {
         const Ipv4Address expectedGw = if01.GetAddress (1);
-        NS_TEST_ASSERT_MSG_EQ (r0to12->gateway, expectedGw,
+        NS_TEST_ASSERT_MSG_EQ (r0to12->GetGateway (), expectedGw,
                                "node0 should route to 10.1.2.0/30 via node1 (10.1.1.2)");
       }
 
@@ -158,25 +161,28 @@ public:
     ConfigureFastColdStart (ospf);
     ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
 
-    ApplicationContainer apps = ospf.Install (routers);
+    ApplicationContainer apps =
+      ospf.Install (routers);
     ospf.ConfigureReachablePrefixesFromInterfaces (routers);
     apps.Start (Seconds (0.5));
 
     Simulator::Stop (Seconds (4.0));
     Simulator::Run ();
 
-    const auto r0toStub = FindStaticRoute (routers.Get (0), Ipv4Address ("10.99.0.0"),
-                                          Ipv4Mask ("255.255.255.252"));
-    NS_TEST_ASSERT_MSG_EQ (r0toStub.has_value (), true,
+    Socket::SocketErrno sockerr = Socket::ERROR_NOTERROR;
+    auto r0toStub = LookupOspfRoute (routers.Get (0), Ipv4Address ("10.99.0.2"), nullptr, &sockerr);
+    NS_TEST_ASSERT_MSG_EQ (sockerr, Socket::ERROR_NOTERROR,
+                           "router0 should resolve a route to the stub host 10.99.0.2");
+    NS_TEST_ASSERT_MSG_NE (r0toStub, nullptr,
                            "router0 should have a route to stub network 10.99.0.0/30");
 
-    if (r0toStub)
+    if (r0toStub != nullptr)
       {
         const Ipv4Address expectedGw = if01.GetAddress (1); // r1 on r0-r1 link
         const Ipv4Address notExpectedGw = if02.GetAddress (1); // r2 on r0-r2 link
-        NS_TEST_ASSERT_MSG_EQ (r0toStub->gateway, expectedGw,
+        NS_TEST_ASSERT_MSG_EQ (r0toStub->GetGateway (), expectedGw,
                                "router0 should choose the shortest path via r1");
-        NS_TEST_ASSERT_MSG_NE (r0toStub->gateway, notExpectedGw,
+        NS_TEST_ASSERT_MSG_NE (r0toStub->GetGateway (), notExpectedGw,
                                "router0 should not choose the longer path via r2");
       }
 
@@ -394,7 +400,8 @@ public:
     ospf.SetAttribute ("EnableAreaProxy", BooleanValue (true));
     ospf.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.252")));
 
-    ApplicationContainer apps = ospf.Install (routers);
+    ApplicationContainer apps =
+      ospf.Install (routers);
     NS_TEST_ASSERT_MSG_EQ (apps.GetN (), routers.GetN (), "expected one OspfApp per router");
 
     for (uint32_t i = 0; i < kNumRouters; ++i)
@@ -418,14 +425,17 @@ public:
                              const char *label) {
       for (const auto &dst : dstNetworks)
         {
-          const auto r = FindStaticRoute (src, dst, stubMask);
-          NS_TEST_ASSERT_MSG_EQ (r.has_value (), true, label);
-          if (r)
+          Socket::SocketErrno lookupError = Socket::ERROR_NOTERROR;
+          const auto host = Ipv4Address (dst.Get () + 2);
+          const auto r = LookupOspfRoute (src, host, nullptr, &lookupError);
+          NS_TEST_ASSERT_MSG_EQ (lookupError, Socket::ERROR_NOTERROR, label);
+          NS_TEST_ASSERT_MSG_NE (r, nullptr, label);
+          if (r != nullptr)
             {
-              NS_TEST_ASSERT_MSG_EQ (r->gateway, expectedGw, label);
+              NS_TEST_ASSERT_MSG_EQ (r->GetGateway (), expectedGw, label);
               if (forbiddenGw)
                 {
-                  NS_TEST_ASSERT_MSG_NE (r->gateway, *forbiddenGw, label);
+                  NS_TEST_ASSERT_MSG_NE (r->GetGateway (), *forbiddenGw, label);
                 }
             }
         }

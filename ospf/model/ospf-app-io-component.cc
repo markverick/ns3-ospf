@@ -136,7 +136,7 @@ ExtractLsaLevelFromPayload (Ptr<Packet> payload, uint8_t ospfType)
 
   return "";
 }
-} // anonymous namespace
+} // namespace
 
 OspfAppIo::OspfAppIo (OspfApp &app)
   : m_app (app)
@@ -154,20 +154,20 @@ OspfAppIo::SendHello ()
   for (uint32_t i = 1; i < m_app.m_helloSockets.size (); i++)
     {
       auto socket = m_app.m_helloSockets[i];
+      auto ospfIf = m_app.GetOspfInterface (i);
       if (socket == nullptr)
         {
           continue;
         }
-      if (i >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[i] == nullptr)
+      if (ospfIf == nullptr)
         {
           continue;
         }
       socket->GetSockName (helloSocketAddress);
       Ptr<Packet> p = ConstructHelloPacket (
-          Ipv4Address::ConvertFrom (m_app.m_routerId), m_app.m_ospfInterfaces[i]->GetArea (),
-          m_app.m_ospfInterfaces[i]->GetMask (), m_app.m_ospfInterfaces[i]->GetHelloInterval (),
-          m_app.m_ospfInterfaces[i]->GetRouterDeadInterval (),
-          m_app.m_ospfInterfaces[i]->GetNeighbors ());
+          Ipv4Address::ConvertFrom (m_app.m_routerId), ospfIf->GetArea (), ospfIf->GetMask (),
+          ospfIf->GetHelloInterval (), ospfIf->GetRouterDeadInterval (),
+          ospfIf->GetNeighbors ());
       m_app.m_txTrace (p);
 
       // Log Hello packet (type 1, no LSA level)
@@ -187,8 +187,7 @@ OspfAppIo::SendHello ()
         {
           NS_LOG_INFO ("At time " << Simulator::Now ().As (Time::S) << " client sent "
                                   << p->GetSize () << " bytes to " << m_app.m_helloAddress
-                                  << " via interface " << i << " : "
-                                  << m_app.m_ospfInterfaces[i]->GetAddress ());
+                                  << " via interface " << i << " : " << ospfIf->GetAddress ());
         }
     }
   if (!m_app.m_helloSockets.empty ())
@@ -315,10 +314,14 @@ OspfAppIo::FloodLsu (uint32_t inputIfIndex, Ptr<LsUpdate> lsu)
       // Skip the incoming interface
       if (inputIfIndex == i)
         continue;
-      auto interface = m_app.m_ospfInterfaces[i];
+      auto interface = m_app.GetOspfInterface (i);
+      if (interface == nullptr)
+        {
+          continue;
+        }
 
       // Send to neighbors with multicast address (only 1 neighbor for point-to-point)
-      auto neighbors = m_app.m_ospfInterfaces[i]->GetNeighbors ();
+      auto neighbors = interface->GetNeighbors ();
       for (auto neighbor : neighbors)
         {
           if (neighbor->GetState () < OspfNeighbor::TwoWay)
@@ -375,12 +378,25 @@ OspfAppIo::HandleRead (Ptr<Socket> socket)
       packet->RemoveAtEnd (packet->GetSize () - ospfHeader.GetPayloadSize ());
     }
 
+  const int32_t ifIndex = m_app.ResolveIpv4InterfaceIndex (socket->GetBoundNetDevice ());
+  if (ifIndex < 0 || !m_app.HasOspfInterface (static_cast<uint32_t> (ifIndex)))
+    {
+      NS_LOG_WARN ("Dropping packet: socket is not bound to an active OSPF IPv4 interface");
+      return;
+    }
+
+  Ptr<OspfInterface> ospfInterface = m_app.GetOspfInterface (static_cast<uint32_t> (ifIndex));
+  if (ospfInterface == nullptr)
+    {
+      NS_LOG_WARN ("Dropping packet: sparse OSPF interface slot is empty");
+      return;
+    }
+
   // Drop irrelevant packets in multi-access
   if (ipHeader.GetDestination () != m_app.m_lsaAddress &&
       ipHeader.GetDestination () != m_app.m_helloAddress)
     {
-      if (ipHeader.GetDestination () !=
-          m_app.m_ospfInterfaces[socket->GetBoundNetDevice ()->GetIfIndex ()]->GetAddress ())
+      if (ipHeader.GetDestination () != ospfInterface->GetAddress ())
         {
           return;
         }
@@ -400,27 +416,27 @@ OspfAppIo::HandleRead (Ptr<Socket> socket)
   if (ospfHeader.GetType () == OspfHeader::OspfType::OspfHello)
     {
       Ptr<OspfHello> hello = Create<OspfHello> (packet);
-      m_app.HandleHello (socket->GetBoundNetDevice ()->GetIfIndex (), ipHeader, ospfHeader, hello);
+      m_app.HandleHello (ifIndex, ipHeader, ospfHeader, hello);
     }
   else if (ospfHeader.GetType () == OspfHeader::OspfType::OspfDBD)
     {
       Ptr<OspfDbd> dbd = Create<OspfDbd> (packet);
-      m_app.HandleDbd (socket->GetBoundNetDevice ()->GetIfIndex (), ipHeader, ospfHeader, dbd);
+      m_app.HandleDbd (ifIndex, ipHeader, ospfHeader, dbd);
     }
   else if (ospfHeader.GetType () == OspfHeader::OspfType::OspfLSRequest)
     {
       Ptr<LsRequest> lsr = Create<LsRequest> (packet);
-      m_app.HandleLsr (socket->GetBoundNetDevice ()->GetIfIndex (), ipHeader, ospfHeader, lsr);
+      m_app.HandleLsr (ifIndex, ipHeader, ospfHeader, lsr);
     }
   else if (ospfHeader.GetType () == OspfHeader::OspfType::OspfLSUpdate)
     {
       Ptr<LsUpdate> lsu = Create<LsUpdate> (packet);
-      m_app.HandleLsu (socket->GetBoundNetDevice ()->GetIfIndex (), ipHeader, ospfHeader, lsu);
+      m_app.HandleLsu (ifIndex, ipHeader, ospfHeader, lsu);
     }
   else if (ospfHeader.GetType () == OspfHeader::OspfType::OspfLSAck)
     {
       Ptr<LsAck> lsAck = Create<LsAck> (packet);
-      m_app.HandleLsAck (socket->GetBoundNetDevice ()->GetIfIndex (), ipHeader, ospfHeader, lsAck);
+      m_app.HandleLsAck (ifIndex, ipHeader, ospfHeader, lsAck);
     }
   else
     {

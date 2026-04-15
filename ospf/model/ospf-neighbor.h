@@ -102,6 +102,7 @@ public:
   // DB Description queue
   void IncrementDDSeqNum ();
   void ClearDbdQueue ();
+  void ClearLsrQueue ();
   void AddDbdQueue (LsaHeader lsaHeader);
   LsaHeader PopDbdQueue ();
   std::vector<LsaHeader> PopMaxMtuFromDbdQueue (uint32_t mtu);
@@ -115,6 +116,7 @@ public:
   void InsertLsaKey (LsaHeader::LsaKey lsaKey, uint32_t seqNum);
   uint32_t GetLsaKeySeqNum (LsaHeader::LsaKey lsaKey);
   void ClearLsaKey ();
+  void ClearAdjacencySyncState ();
   bool IsLsaKeyOutdated (LsaHeader lsaHeader);
   bool IsLsaKeyOutdated (LsaHeader::LsaKey lsaKey, uint32_t seqNum);
   std::vector<LsaHeader::LsaKey> GetOutdatedLsaKeys (std::vector<LsaHeader> localLsaHeaders);
@@ -133,6 +135,8 @@ public:
   // Neighbor-specific timeout
   void RemoveTimeout ();
   void BindTimeout (EventId event);
+  bool HasTimeout () const;
+  bool HasKeyedTimeout (LsaHeader::LsaKey lsaKey) const;
 
   Ipv4Address m_routerId;
   Ipv4Address m_ipAddress;

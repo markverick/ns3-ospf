@@ -159,11 +159,13 @@ main (int argc, char *argv[])
   Ipv4AddressHelper advertisedIpv4 ("172.16.0.0", mask);
   for (uint32_t i = 0; i < c.GetN (); i++)
     {
-      Ptr<OspfApp> app = DynamicCast<OspfApp> (ospfAppHelper.Install (c.Get (i)).Get (0));
+        Ptr<OspfApp> app = DynamicCast<OspfApp> (
+          ospfAppHelper.Install (c.Get (i)).Get (0));
       app->SetMetrices (metrices[i]);
-      app->AddAllReachableAddresses (0);
       ospfApp.Add (app);
     }
+
+  ospfAppHelper.ConfigureReachablePrefixesFromInterfaces (c);
 
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));

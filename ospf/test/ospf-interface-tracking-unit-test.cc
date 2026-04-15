@@ -12,9 +12,13 @@
 
 #include "ns3/ospf-interface.h"
 
+#include "ospf-test-utils.h"
+
 namespace ns3 {
 
 namespace {
+
+using ospf_test_utils::Ipv4IfIndex;
 
 static void
 IncrementTxCounter (uint32_t *counter, Ptr<const Packet>)
@@ -97,7 +101,7 @@ public:
     // Bring the only non-loopback interface down before app start.
     Ptr<Ipv4> ipv40 = nodes.Get (0)->GetObject<Ipv4> ();
     NS_TEST_ASSERT_MSG_NE (ipv40, nullptr, "expected Ipv4");
-    const uint32_t if0 = d01.Get (0)->GetIfIndex ();
+    const uint32_t if0 = Ipv4IfIndex (nodes.Get (0), d01.Get (0));
     ipv40->SetDown (if0);
 
     OspfAppHelper ospf;
@@ -113,7 +117,8 @@ public:
     ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
     ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (Seconds (0)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
@@ -174,7 +179,8 @@ public:
     ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
     ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (Seconds (0)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
@@ -226,7 +232,7 @@ public:
 
     Ptr<Ipv4> ipv40 = nodes.Get (0)->GetObject<Ipv4> ();
     NS_TEST_ASSERT_MSG_NE (ipv40, nullptr, "expected Ipv4");
-    const uint32_t if0 = d01.Get (0)->GetIfIndex ();
+    const uint32_t if0 = Ipv4IfIndex (nodes.Get (0), d01.Get (0));
     ipv40->SetDown (if0);
 
     OspfAppHelper ospf;
@@ -240,7 +246,8 @@ public:
     ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
     ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (MilliSeconds (20)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
@@ -272,7 +279,7 @@ class OspfAutoSyncNoPollingDoesNotReactToUpTransitionUnitTestCase : public TestC
 {
 public:
   OspfAutoSyncNoPollingDoesNotReactToUpTransitionUnitTestCase ()
-    : TestCase ("AutoSync without polling does not react to later interface-up")
+    : TestCase ("AutoSync without polling still reacts to interface-up events")
   {
   }
 
@@ -300,7 +307,7 @@ public:
 
     Ptr<Ipv4> ipv40 = nodes.Get (0)->GetObject<Ipv4> ();
     NS_TEST_ASSERT_MSG_NE (ipv40, nullptr, "expected Ipv4");
-    const uint32_t if0 = d01.Get (0)->GetIfIndex ();
+    const uint32_t if0 = Ipv4IfIndex (nodes.Get (0), d01.Get (0));
     ipv40->SetDown (if0);
 
     OspfAppHelper ospf;
@@ -315,7 +322,8 @@ public:
     // One-shot sync only; no periodic polling.
     ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (Seconds (0)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
 
@@ -336,8 +344,8 @@ public:
     Simulator::Run ();
 
     NS_TEST_ASSERT_MSG_EQ (txBeforeUp, 0u, "expected no Tx before interface is brought up");
-    NS_TEST_ASSERT_MSG_EQ (txAfterUp, 0u,
-                           "expected no Tx after interface-up when InterfaceSyncInterval=0");
+    NS_TEST_ASSERT_MSG_GT (txAfterUp, txBeforeUp,
+                 "expected interface-up notification to trigger OSPF Tx even when InterfaceSyncInterval=0");
 
     Simulator::Destroy ();
   }
@@ -381,7 +389,8 @@ public:
     ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (50)));
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (200)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
@@ -455,7 +464,8 @@ public:
     ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (50)));
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (200)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");

@@ -13,10 +13,25 @@
 #include "ns3/boolean.h"
 #include "ns3/uinteger.h"
 #include "ns3/double.h"
+#include "ns3/enum.h"
+
+#include "ospf-test-utils.h"
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("OspfLsaProcessorsTest");
+
+namespace {
+
+using ospf_test_utils::Ipv4IfIndex;
+
+void
+SnapshotLeaderFlag (bool *out, Ptr<OspfApp> app)
+{
+  *out = app != nullptr && app->IsAreaLeader ();
+}
+
+} // namespace
 
 /**
  * \ingroup ospf-test
@@ -305,6 +320,426 @@ OspfProcessAreaLsaTest::DoRun (void)
 
 /**
  * \ingroup ospf-test
+ * \brief Test static area leader selection by configured router ID
+ */
+class OspfStaticAreaLeaderModeTest : public TestCase
+{
+public:
+  OspfStaticAreaLeaderModeTest ()
+    : TestCase ("Static area-leader mode selects the configured router ID")
+  {
+  }
+
+private:
+  void DoRun () override;
+};
+
+void
+OspfStaticAreaLeaderModeTest::DoRun ()
+{
+  NodeContainer nodes;
+  nodes.Create (3);
+
+  InternetStackHelper stack;
+  stack.Install (nodes);
+
+  PointToPointHelper p2p;
+  p2p.SetDeviceAttribute ("DataRate", StringValue ("100Mbps"));
+  p2p.SetChannelAttribute ("Delay", StringValue ("1ms"));
+
+  NetDeviceContainer devices01 = p2p.Install (nodes.Get (0), nodes.Get (1));
+  NetDeviceContainer devices12 = p2p.Install (nodes.Get (1), nodes.Get (2));
+  NetDeviceContainer devices20 = p2p.Install (nodes.Get (2), nodes.Get (0));
+
+  Ipv4AddressHelper address;
+  address.SetBase ("10.2.1.0", "255.255.255.0");
+  address.Assign (devices01);
+  address.SetBase ("10.2.2.0", "255.255.255.0");
+  address.Assign (devices12);
+  address.SetBase ("10.2.3.0", "255.255.255.0");
+  address.Assign (devices20);
+
+  Ptr<Ipv4> leaderIpv4 = nodes.Get (2)->GetObject<Ipv4> ();
+  NS_TEST_ASSERT_MSG_NE (leaderIpv4, nullptr, "expected Ipv4 on configured leader node");
+  const Ipv4Address staticLeaderId = leaderIpv4->GetAddress (1, 0).GetAddress ();
+
+  OspfAppHelper ospfHelper;
+  ospfHelper.SetAttribute ("EnableAreaProxy", BooleanValue (true));
+  ospfHelper.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.0")));
+  ospfHelper.SetAttribute ("HelloInterval", TimeValue (Seconds (1.0)));
+  ospfHelper.SetAttribute ("AreaLeaderMode", EnumValue (OspfApp::AREA_LEADER_STATIC));
+  ospfHelper.SetAttribute ("StaticAreaLeaderRouterId", Ipv4AddressValue (staticLeaderId));
+
+  ApplicationContainer apps =
+    ospfHelper.Install (nodes);
+  apps.Start (Seconds (0.5));
+
+  Simulator::Stop (Seconds (6.0));
+  Simulator::Run ();
+
+  for (uint32_t i = 0; i < apps.GetN (); ++i)
+    {
+      Ptr<OspfApp> app = DynamicCast<OspfApp> (apps.Get (i));
+      const bool isConfiguredLeader = app->GetRouterId () == staticLeaderId;
+      NS_TEST_ASSERT_MSG_NE (app, nullptr, "expected OspfApp");
+      NS_TEST_ASSERT_MSG_EQ (app->IsAreaLeader (), isConfiguredLeader,
+                             "static leader mode should only activate on the configured router ID");
+    }
+
+  Simulator::Destroy ();
+}
+
+/**
+ * \ingroup ospf-test
+ * \brief Test reachable-lowest leader mode recovers across partition and heal
+ */
+class OspfReachableAreaLeaderRecoveryTest : public TestCase
+{
+public:
+  OspfReachableAreaLeaderRecoveryTest ()
+    : TestCase ("Reachable-lowest area leader mode honors majority partition and heals back")
+  {
+  }
+
+private:
+  void DoRun () override;
+};
+
+
+class OspfRejectsStaleRouterLsaTest : public TestCase
+{
+public:
+  OspfRejectsStaleRouterLsaTest ()
+    : TestCase ("ProcessRouterLsa ignores older Router-LSAs")
+  {
+  }
+
+private:
+  void DoRun () override
+  {
+    Ptr<OspfApp> app = CreateObject<OspfApp> ();
+    app->SetRouterId (Ipv4Address ("10.0.0.1"));
+
+    Ptr<RouterLsa> newer = Create<RouterLsa> ();
+    newer->AddLink (RouterLink (Ipv4Address ("10.0.0.2").Get (),
+                                Ipv4Address ("10.0.0.1").Get (), 1, 3));
+    LsaHeader newerHeader;
+    newerHeader.SetType (LsaHeader::RouterLSAs);
+    newerHeader.SetLsId (Ipv4Address ("10.0.0.9").Get ());
+    newerHeader.SetAdvertisingRouter (Ipv4Address ("10.0.0.9").Get ());
+    newerHeader.SetSeqNum (9);
+    newerHeader.SetLength (20 + newer->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, newerHeader, newer);
+
+    Ptr<RouterLsa> stale = Create<RouterLsa> ();
+    stale->AddLink (RouterLink (Ipv4Address ("10.0.0.3").Get (),
+                                Ipv4Address ("10.0.0.1").Get (), 1, 7));
+    LsaHeader staleHeader = newerHeader.Copy ();
+    staleHeader.SetSeqNum (8);
+    staleHeader.SetLength (20 + stale->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, staleHeader, stale);
+
+    auto lsdb = app->GetLsdb ();
+    NS_TEST_ASSERT_MSG_EQ (lsdb.size (), 1u, "expected exactly one Router-LSA entry");
+    auto it = lsdb.find (Ipv4Address ("10.0.0.9").Get ());
+    const bool hasRouterEntry = it != lsdb.end ();
+    NS_TEST_ASSERT_MSG_EQ (hasRouterEntry, true,
+                 "expected the Router-LSA to remain installed");
+    if (it == lsdb.end ())
+      {
+        Simulator::Destroy ();
+        return;
+      }
+    NS_TEST_ASSERT_MSG_EQ (it->second.first.GetSeqNum (), 9u,
+                           "older Router-LSA must not replace the newer sequence number");
+    NS_TEST_ASSERT_MSG_EQ (it->second.second->GetNLink (), 1u,
+                           "older Router-LSA body must not replace the newer body");
+    NS_TEST_ASSERT_MSG_EQ (it->second.second->GetLink (0).m_metric, 3u,
+                           "older Router-LSA metric must not replace the newer metric");
+
+    Simulator::Destroy ();
+  }
+};
+
+class OspfRejectsStaleL1SummaryLsaTest : public TestCase
+{
+public:
+  OspfRejectsStaleL1SummaryLsaTest ()
+    : TestCase ("ProcessL1SummaryLsa ignores older L1 Summary LSAs")
+  {
+  }
+
+private:
+  void DoRun () override
+  {
+    Ptr<OspfApp> app = CreateObject<OspfApp> ();
+    app->SetRouterId (Ipv4Address ("10.0.0.1"));
+
+    Ptr<L1SummaryLsa> newer = Create<L1SummaryLsa> ();
+    newer->AddRoute (SummaryRoute (Ipv4Address ("10.240.0.0").Get (),
+                                   Ipv4Mask ("255.255.0.0").Get (), 4));
+    LsaHeader newerHeader;
+    newerHeader.SetType (LsaHeader::L1SummaryLSAs);
+    newerHeader.SetLsId (Ipv4Address ("10.0.0.9").Get ());
+    newerHeader.SetAdvertisingRouter (Ipv4Address ("10.0.0.9").Get ());
+    newerHeader.SetSeqNum (12);
+    newerHeader.SetLength (20 + newer->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, newerHeader, newer);
+
+    Ptr<L1SummaryLsa> stale = Create<L1SummaryLsa> ();
+    stale->AddRoute (SummaryRoute (Ipv4Address ("10.240.0.0").Get (),
+                                   Ipv4Mask ("255.255.0.0").Get (), 9));
+    LsaHeader staleHeader = newerHeader.Copy ();
+    staleHeader.SetSeqNum (11);
+    staleHeader.SetLength (20 + stale->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, staleHeader, stale);
+
+    auto lsdb = app->GetL1SummaryLsdb ();
+    NS_TEST_ASSERT_MSG_EQ (lsdb.size (), 1u, "expected exactly one L1 Summary LSA entry");
+    auto it = lsdb.find (Ipv4Address ("10.0.0.9").Get ());
+    const bool hasSummaryEntry = it != lsdb.end ();
+    NS_TEST_ASSERT_MSG_EQ (hasSummaryEntry, true,
+                 "expected the L1 Summary LSA to remain installed");
+    if (it == lsdb.end ())
+      {
+        Simulator::Destroy ();
+        return;
+      }
+    NS_TEST_ASSERT_MSG_EQ (it->second.first.GetSeqNum (), 12u,
+                           "older L1 Summary LSA must not replace the newer sequence number");
+    const auto routes = it->second.second->GetRoutes ();
+    const bool hasNewerMetric =
+      routes.find (SummaryRoute (Ipv4Address ("10.240.0.0").Get (),
+                                 Ipv4Mask ("255.255.0.0").Get (), 4)) != routes.end ();
+    const bool hasStaleMetric =
+      routes.find (SummaryRoute (Ipv4Address ("10.240.0.0").Get (),
+                                 Ipv4Mask ("255.255.0.0").Get (), 9)) != routes.end ();
+    NS_TEST_ASSERT_MSG_EQ (hasNewerMetric,
+                           true,
+                           "older L1 Summary route metric must not replace the newer metric");
+    NS_TEST_ASSERT_MSG_EQ (hasStaleMetric,
+                           false,
+                           "stale L1 Summary route metric must be ignored");
+
+    Simulator::Destroy ();
+  }
+};
+
+class OspfRejectsEqualSeqRouterLsaFromDifferentOriginTest : public TestCase
+{
+public:
+  OspfRejectsEqualSeqRouterLsaFromDifferentOriginTest ()
+    : TestCase ("ProcessRouterLsa ignores equal-sequence Router-LSAs from a different advertising router")
+  {
+  }
+
+private:
+  void DoRun () override
+  {
+    Ptr<OspfApp> app = CreateObject<OspfApp> ();
+    app->SetRouterId (Ipv4Address ("10.0.0.1"));
+
+    Ptr<RouterLsa> current = Create<RouterLsa> ();
+    current->AddLink (RouterLink (Ipv4Address ("10.0.0.2").Get (),
+                                  Ipv4Address ("10.0.0.1").Get (), 1, 3));
+    LsaHeader currentHeader;
+    currentHeader.SetType (LsaHeader::RouterLSAs);
+    currentHeader.SetLsId (Ipv4Address ("10.0.0.9").Get ());
+    currentHeader.SetAdvertisingRouter (Ipv4Address ("10.0.0.9").Get ());
+    currentHeader.SetSeqNum (9);
+    currentHeader.SetLength (20 + current->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, currentHeader, current);
+
+    Ptr<RouterLsa> conflicting = Create<RouterLsa> ();
+    conflicting->AddLink (RouterLink (Ipv4Address ("10.0.0.3").Get (),
+                                      Ipv4Address ("10.0.0.1").Get (), 1, 7));
+    LsaHeader conflictingHeader = currentHeader.Copy ();
+    conflictingHeader.SetAdvertisingRouter (Ipv4Address ("10.0.0.8").Get ());
+    conflictingHeader.SetLength (20 + conflicting->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, conflictingHeader, conflicting);
+
+    auto lsdb = app->GetLsdb ();
+    auto it = lsdb.find (Ipv4Address ("10.0.0.9").Get ());
+    const bool hasRouterEntry = it != lsdb.end ();
+    NS_TEST_ASSERT_MSG_EQ (hasRouterEntry, true,
+                           "expected the Router-LSA entry to remain installed");
+    if (!hasRouterEntry)
+      {
+        Simulator::Destroy ();
+        return;
+      }
+    NS_TEST_ASSERT_MSG_EQ (it->second.first.GetAdvertisingRouter (), Ipv4Address ("10.0.0.9").Get (),
+                           "equal-sequence Router-LSAs from a different origin must not replace the current owner");
+    NS_TEST_ASSERT_MSG_EQ (it->second.second->GetLink (0).m_metric, 3u,
+                           "equal-sequence Router-LSA bodies from a different origin must be ignored");
+
+    Simulator::Destroy ();
+  }
+};
+
+class OspfRejectsEqualSeqL1SummaryLsaFromDifferentOriginTest : public TestCase
+{
+public:
+  OspfRejectsEqualSeqL1SummaryLsaFromDifferentOriginTest ()
+    : TestCase ("ProcessL1SummaryLsa ignores equal-sequence summaries from a different advertising router")
+  {
+  }
+
+private:
+  void DoRun () override
+  {
+    Ptr<OspfApp> app = CreateObject<OspfApp> ();
+    app->SetRouterId (Ipv4Address ("10.0.0.1"));
+
+    Ptr<L1SummaryLsa> current = Create<L1SummaryLsa> ();
+    current->AddRoute (SummaryRoute (Ipv4Address ("10.241.0.0").Get (),
+                                     Ipv4Mask ("255.255.0.0").Get (), 4));
+    LsaHeader currentHeader;
+    currentHeader.SetType (LsaHeader::L1SummaryLSAs);
+    currentHeader.SetLsId (Ipv4Address ("10.0.0.9").Get ());
+    currentHeader.SetAdvertisingRouter (Ipv4Address ("10.0.0.9").Get ());
+    currentHeader.SetSeqNum (12);
+    currentHeader.SetLength (20 + current->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, currentHeader, current);
+
+    Ptr<L1SummaryLsa> conflicting = Create<L1SummaryLsa> ();
+    conflicting->AddRoute (SummaryRoute (Ipv4Address ("10.241.0.0").Get (),
+                                         Ipv4Mask ("255.255.0.0").Get (), 9));
+    LsaHeader conflictingHeader = currentHeader.Copy ();
+    conflictingHeader.SetAdvertisingRouter (Ipv4Address ("10.0.0.8").Get ());
+    conflictingHeader.SetLength (20 + conflicting->GetSerializedSize ());
+
+    OspfAppTestPeer::ProcessLsa (app, conflictingHeader, conflicting);
+
+    auto lsdb = app->GetL1SummaryLsdb ();
+    auto it = lsdb.find (Ipv4Address ("10.0.0.9").Get ());
+    const bool hasSummaryEntry = it != lsdb.end ();
+    NS_TEST_ASSERT_MSG_EQ (hasSummaryEntry, true,
+                           "expected the L1 Summary entry to remain installed");
+    if (!hasSummaryEntry)
+      {
+        Simulator::Destroy ();
+        return;
+      }
+    NS_TEST_ASSERT_MSG_EQ (it->second.first.GetAdvertisingRouter (), Ipv4Address ("10.0.0.9").Get (),
+                           "equal-sequence L1 Summary LSAs from a different origin must not replace the current owner");
+    const auto routes = it->second.second->GetRoutes ();
+    const bool hasCurrentMetric =
+      routes.find (SummaryRoute (Ipv4Address ("10.241.0.0").Get (),
+                                 Ipv4Mask ("255.255.0.0").Get (), 4)) != routes.end ();
+    const bool hasConflictingMetric =
+      routes.find (SummaryRoute (Ipv4Address ("10.241.0.0").Get (),
+                                 Ipv4Mask ("255.255.0.0").Get (), 9)) != routes.end ();
+    NS_TEST_ASSERT_MSG_EQ (hasCurrentMetric, true,
+                           "equal-sequence L1 Summary bodies from a different origin must not replace the current route");
+    NS_TEST_ASSERT_MSG_EQ (hasConflictingMetric, false,
+                           "conflicting equal-sequence summary metrics must be ignored");
+
+    Simulator::Destroy ();
+  }
+};
+void
+OspfReachableAreaLeaderRecoveryTest::DoRun ()
+{
+  NodeContainer nodes;
+  nodes.Create (5);
+
+  InternetStackHelper stack;
+  stack.Install (nodes);
+
+  PointToPointHelper p2p;
+  p2p.SetDeviceAttribute ("DataRate", StringValue ("100Mbps"));
+  p2p.SetChannelAttribute ("Delay", StringValue ("1ms"));
+
+  NetDeviceContainer devices01 = p2p.Install (nodes.Get (0), nodes.Get (1));
+  NetDeviceContainer devices12 = p2p.Install (nodes.Get (1), nodes.Get (2));
+  NetDeviceContainer devices23 = p2p.Install (nodes.Get (2), nodes.Get (3));
+  NetDeviceContainer devices34 = p2p.Install (nodes.Get (3), nodes.Get (4));
+
+  Ipv4AddressHelper address;
+  address.SetBase ("10.3.1.0", "255.255.255.0");
+  address.Assign (devices01);
+  address.SetBase ("10.3.2.0", "255.255.255.0");
+  address.Assign (devices12);
+  address.SetBase ("10.3.3.0", "255.255.255.0");
+  address.Assign (devices23);
+  address.SetBase ("10.3.4.0", "255.255.255.0");
+  address.Assign (devices34);
+
+  Ptr<Ipv4> ipv42 = nodes.Get (2)->GetObject<Ipv4> ();
+  Ptr<Ipv4> ipv43 = nodes.Get (3)->GetObject<Ipv4> ();
+  NS_TEST_ASSERT_MSG_NE (ipv42, nullptr, "expected Ipv4 on node2");
+  NS_TEST_ASSERT_MSG_NE (ipv43, nullptr, "expected Ipv4 on node3");
+  const uint32_t if23Node2 = Ipv4IfIndex (nodes.Get (2), devices23.Get (0));
+  const uint32_t if23Node3 = Ipv4IfIndex (nodes.Get (3), devices23.Get (1));
+
+  OspfAppHelper ospfHelper;
+  ospfHelper.SetAttribute ("EnableAreaProxy", BooleanValue (true));
+  ospfHelper.SetAttribute ("AreaMask", Ipv4MaskValue (Ipv4Mask ("255.255.255.0")));
+  ospfHelper.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (100)));
+  ospfHelper.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (300)));
+  ospfHelper.SetAttribute ("ShortestPathUpdateDelay", TimeValue (MilliSeconds (50)));
+  ospfHelper.SetAttribute ("AreaLeaderMode",
+                           EnumValue (OspfApp::AREA_LEADER_REACHABLE_LOWEST_ROUTER_ID));
+
+  ApplicationContainer apps =
+    ospfHelper.Install (nodes);
+  apps.Start (Seconds (0.5));
+  apps.Stop (Seconds (12.0));
+
+  Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
+  Ptr<OspfApp> app3 = DynamicCast<OspfApp> (apps.Get (3));
+  NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp on node0");
+  NS_TEST_ASSERT_MSG_NE (app3, nullptr, "expected OspfApp on node3");
+
+  bool initialLeader0 = false;
+  bool initialLeader3 = false;
+  bool partitionLeader0 = false;
+  bool partitionLeader3 = false;
+  bool healedLeader0 = false;
+  bool healedLeader3 = false;
+
+  Simulator::Schedule (Seconds (4.5), &SnapshotLeaderFlag, &initialLeader0, app0);
+  Simulator::Schedule (Seconds (4.5), &SnapshotLeaderFlag, &initialLeader3, app3);
+
+  Simulator::Schedule (Seconds (5.0), &Ipv4::SetDown, ipv42, if23Node2);
+  Simulator::Schedule (Seconds (5.0), &Ipv4::SetDown, ipv43, if23Node3);
+
+  Simulator::Schedule (Seconds (7.5), &SnapshotLeaderFlag, &partitionLeader0, app0);
+  Simulator::Schedule (Seconds (7.5), &SnapshotLeaderFlag, &partitionLeader3, app3);
+
+  Simulator::Schedule (Seconds (8.0), &Ipv4::SetUp, ipv42, if23Node2);
+  Simulator::Schedule (Seconds (8.0), &Ipv4::SetUp, ipv43, if23Node3);
+
+  Simulator::Schedule (Seconds (10.5), &SnapshotLeaderFlag, &healedLeader0, app0);
+  Simulator::Schedule (Seconds (10.5), &SnapshotLeaderFlag, &healedLeader3, app3);
+
+  Simulator::Stop (Seconds (11.0));
+  Simulator::Run ();
+
+  NS_TEST_ASSERT_MSG_EQ (initialLeader3, false,
+                         "expected node3 not to be leader before partition");
+  NS_TEST_ASSERT_MSG_EQ (partitionLeader0, true,
+                         "expected node0 to remain leader in the majority partition");
+  NS_TEST_ASSERT_MSG_EQ (partitionLeader3, false,
+                         "expected minority partition not to elect a leader without quorum");
+  NS_TEST_ASSERT_MSG_EQ (healedLeader0, true,
+                         "expected node0 to regain global leadership after healing");
+  NS_TEST_ASSERT_MSG_EQ (healedLeader3, false,
+                         "expected node3 to remain follower after the area heals");
+
+  Simulator::Destroy ();
+}
+
+/**
+ * \ingroup ospf-test
  * \brief Test Suite for LSA Processors
  */
 class OspfLsaProcessorsTestSuite : public TestSuite
@@ -318,7 +753,13 @@ OspfLsaProcessorsTestSuite::OspfLsaProcessorsTestSuite ()
 {
   AddTestCase (new OspfProcessL1SummaryLsaTest, TestCase::QUICK);
   AddTestCase (new OspfProcessRouterLsaTest, TestCase::QUICK);
+  AddTestCase (new OspfRejectsStaleRouterLsaTest, TestCase::QUICK);
+  AddTestCase (new OspfRejectsStaleL1SummaryLsaTest, TestCase::QUICK);
+  AddTestCase (new OspfRejectsEqualSeqRouterLsaFromDifferentOriginTest, TestCase::QUICK);
+  AddTestCase (new OspfRejectsEqualSeqL1SummaryLsaFromDifferentOriginTest, TestCase::QUICK);
   AddTestCase (new OspfProcessAreaLsaTest, TestCase::QUICK);
+  AddTestCase (new OspfStaticAreaLeaderModeTest, TestCase::QUICK);
+  AddTestCase (new OspfReachableAreaLeaderRecoveryTest, TestCase::QUICK);
 }
 
 static OspfLsaProcessorsTestSuite g_ospfLsaProcessorsTestSuite;

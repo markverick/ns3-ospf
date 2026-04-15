@@ -117,7 +117,8 @@ main (int argc, char *argv[])
   ospfAppHelper.SetAttribute ("RouterDeadInterval", TimeValue (Seconds (30)));
   ospfAppHelper.SetAttribute ("LSUInterval", TimeValue (Seconds (5)));
 
-  ApplicationContainer ospfApp = ospfAppHelper.Install (c);
+  ApplicationContainer ospfApp =
+      ospfAppHelper.Install (c);
   ospfApp.Start (Seconds (1.0));
   ospfApp.Stop (Seconds (SIM_SECONDS));
 
@@ -142,11 +143,9 @@ main (int argc, char *argv[])
   auto app1 = DynamicCast<OspfApp> (c.Get (1)->GetApplication (0));
   auto app2 = DynamicCast<OspfApp> (c.Get (2)->GetApplication (0));
   app0->SetArea (0);
-  app0->AddAllReachableAddresses (0);
   app1->SetArea (1);
-  app1->AddAllReachableAddresses (0);
   app2->SetArea (2);
-  app2->AddAllReachableAddresses (0);
+  ospfAppHelper.ConfigureReachablePrefixesFromInterfaces (c);
 
   apps.Start (Seconds (2.0));
   apps.Stop (Seconds (SIM_SECONDS));

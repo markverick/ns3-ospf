@@ -11,9 +11,13 @@
 #include "ns3/ospf-app.h"
 #include "ns3/ipv4.h"
 
+#include "ospf-test-utils.h"
+
 namespace ns3 {
 
 namespace {
+
+using ospf_test_utils::Ipv4IfIndex;
 
 static void
 IncrementTxCounter (uint32_t *counter, Ptr<const Packet>)
@@ -67,7 +71,8 @@ public:
     ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (50)));
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (200)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
@@ -144,7 +149,8 @@ public:
     ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
     ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (MilliSeconds (20)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
@@ -214,14 +220,15 @@ public:
     ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
     ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (MilliSeconds (20)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
 
     Ptr<Ipv4> ipv40 = nodes.Get (0)->GetObject<Ipv4> ();
     NS_TEST_ASSERT_MSG_NE (ipv40, nullptr, "expected Ipv4");
-    const uint32_t if0 = d01.Get (0)->GetIfIndex ();
+    const uint32_t if0 = Ipv4IfIndex (nodes.Get (0), d01.Get (0));
 
     uint32_t tx = 0;
     app0->TraceConnectWithoutContext ("Tx", MakeBoundCallback (&IncrementTxCounter, &tx));
@@ -297,7 +304,8 @@ public:
     ospf.SetAttribute ("HelloInterval", TimeValue (MilliSeconds (50)));
     ospf.SetAttribute ("RouterDeadInterval", TimeValue (MilliSeconds (200)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");
@@ -366,7 +374,7 @@ public:
 
     Ptr<Ipv4> ipv40 = nodes.Get (0)->GetObject<Ipv4> ();
     NS_TEST_ASSERT_MSG_NE (ipv40, nullptr, "expected Ipv4");
-    const uint32_t if0 = d01.Get (0)->GetIfIndex ();
+    const uint32_t if0 = Ipv4IfIndex (nodes.Get (0), d01.Get (0));
 
     OspfAppHelper ospf;
     ospf.SetAttribute ("HelloAddress", Ipv4AddressValue (Ipv4Address ("224.0.0.5")));
@@ -379,7 +387,8 @@ public:
     ospf.SetAttribute ("AutoSyncInterfaces", BooleanValue (true));
     ospf.SetAttribute ("InterfaceSyncInterval", TimeValue (MilliSeconds (20)));
 
-    ApplicationContainer apps = ospf.Install (nodes);
+    ApplicationContainer apps =
+      ospf.Install (nodes);
 
     Ptr<OspfApp> app0 = DynamicCast<OspfApp> (apps.Get (0));
     NS_TEST_ASSERT_MSG_NE (app0, nullptr, "expected OspfApp");

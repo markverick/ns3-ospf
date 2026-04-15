@@ -12,18 +12,35 @@ OspfNeighborFsm::OspfNeighborFsm (OspfApp &app)
 }
 
 void
+OspfNeighborFsm::RestartAdjacencyNegotiation (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor,
+                                              const char *reason)
+{
+  if (neighbor == nullptr)
+    {
+      return;
+    }
+
+  NS_LOG_WARN ("Restart adjacency negotiation on interface " << ifIndex << " for neighbor "
+                                                              << neighbor->GetNeighborString ()
+                                                              << ": " << reason);
+  neighbor->RemoveTimeout ();
+  neighbor->ClearKeyedTimeouts ();
+  neighbor->ClearAdjacencySyncState ();
+  neighbor->SetState (OspfNeighbor::ExStart);
+  neighbor->SetDDSeqNum (m_app.m_randomVariableSeq->GetInteger ());
+  NegotiateDbd (ifIndex, neighbor, true);
+}
+
+void
 OspfNeighborFsm::HandleHello (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                               Ptr<OspfHello> hello)
 {
-
-  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+  Ptr<OspfInterface> ospfInterface = m_app.GetOspfInterface (ifIndex);
+  if (ospfInterface == nullptr)
     {
       NS_LOG_WARN ("Hello dropped due to invalid ifIndex: " << ifIndex);
       return;
     }
-
-  // Get relevant interface
-  Ptr<OspfInterface> ospfInterface = m_app.m_ospfInterfaces[ifIndex];
 
   // Check if the paremeters match
   if (hello->GetHelloInterval () != ospfInterface->GetHelloInterval ())
@@ -112,12 +129,12 @@ void
 OspfNeighborFsm::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader ospfHeader,
                             Ptr<OspfDbd> dbd)
 {
-  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+  auto ospfInterface = m_app.GetOspfInterface (ifIndex);
+  if (ospfInterface == nullptr)
     {
       NS_LOG_WARN ("DBD dropped due to invalid ifIndex: " << ifIndex);
       return;
     }
-  auto ospfInterface = m_app.m_ospfInterfaces[ifIndex];
   Ptr<OspfNeighbor> neighbor =
       ospfInterface->GetNeighbor (Ipv4Address (ospfHeader.GetRouterId ()), ipHeader.GetSource ());
   if (neighbor == nullptr)
@@ -165,8 +182,7 @@ OspfNeighborFsm::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader os
       // Self is slave. Neighbor is Master
       if (m_app.m_routerId.Get () > neighbor->GetRouterId ().Get ())
         {
-          // TODO: Reset adjacency
-          NS_LOG_ERROR ("Both neighbors cannot be masters");
+          RestartAdjacencyNegotiation (ifIndex, neighbor, "both neighbors elected master");
           return;
         }
       HandleMasterDbd (ifIndex, neighbor, dbd);
@@ -177,8 +193,7 @@ OspfNeighborFsm::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader os
       // Self is Master. Neighbor is Slave
       if (m_app.m_routerId.Get () < neighbor->GetRouterId ().Get ())
         {
-          // TODO: Reset adjacency
-          NS_LOG_ERROR ("Both neighbors cannot be slaves");
+          RestartAdjacencyNegotiation (ifIndex, neighbor, "both neighbors elected slave");
           return;
         }
       HandleSlaveDbd (ifIndex, neighbor, dbd);
@@ -188,6 +203,8 @@ OspfNeighborFsm::HandleDbd (uint32_t ifIndex, Ipv4Header ipHeader, OspfHeader os
 void
 OspfNeighborFsm::HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd)
 {
+  neighbor->ClearAdjacencySyncState ();
+
   // Neighbor is Master
   if (m_app.m_routerId.Get () < neighbor->GetRouterId ().Get ())
     {
@@ -259,16 +276,16 @@ OspfNeighborFsm::HandleNegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbo
 void
 OspfNeighborFsm::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd)
 {
-  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+  Ptr<OspfInterface> interface = m_app.GetOspfInterface (ifIndex);
+  if (interface == nullptr)
     {
       NS_LOG_WARN ("Master DBD dropped due to invalid ifIndex: " << ifIndex);
       return;
     }
-  Ptr<OspfInterface> interface = m_app.m_ospfInterfaces[ifIndex];
   if (dbd->GetDDSeqNum () < neighbor->GetDDSeqNum () ||
       dbd->GetDDSeqNum () > neighbor->GetDDSeqNum () + 1)
     {
-      // Drop the packet if out of order
+      // Drop the packet if out of order.
       NS_LOG_ERROR ("DD sequence number is out-of-order " << neighbor->GetDDSeqNum () << " <> "
                                                           << dbd->GetDDSeqNum ());
       return;
@@ -320,15 +337,15 @@ OspfNeighborFsm::HandleMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, 
 void
 OspfNeighborFsm::HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, Ptr<OspfDbd> dbd)
 {
-  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+  Ptr<OspfInterface> interface = m_app.GetOspfInterface (ifIndex);
+  if (interface == nullptr)
     {
       NS_LOG_WARN ("Slave DBD dropped due to invalid ifIndex: " << ifIndex);
       return;
     }
-  Ptr<OspfInterface> interface = m_app.m_ospfInterfaces[ifIndex];
   if (dbd->GetDDSeqNum () != neighbor->GetDDSeqNum ())
     {
-      // Out-of-order
+      // Out-of-order.
       NS_LOG_ERROR ("DD sequence number is out-of-order");
       return;
     }
@@ -354,7 +371,7 @@ OspfNeighborFsm::HandleSlaveDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, P
 void
 OspfNeighborFsm::HelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
-  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+  if (m_app.GetOspfInterface (ifIndex) == nullptr)
     {
       NS_LOG_WARN ("Hello timeout ignored due to invalid ifIndex: " << ifIndex);
       return;
@@ -364,15 +381,13 @@ OspfNeighborFsm::HelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 
   NS_LOG_DEBUG ("Interface " << ifIndex << " has removed routerId: " << neighbor->GetRouterId ()
                              << ", remoteIp" << neighbor->GetIpAddress () << " neighbors");
-
-  // Remove the neighbor for scalability (TODO: delay the removal)
-  m_app.m_ospfInterfaces[ifIndex]->RemoveNeighbor (neighbor->GetRouterId (), neighbor->GetIpAddress ());
 }
 
 void
 OspfNeighborFsm::RefreshHelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
-  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+  auto interface = m_app.GetOspfInterface (ifIndex);
+  if (interface == nullptr)
     {
       NS_LOG_WARN ("Hello timeout refresh ignored due to invalid ifIndex: " << ifIndex);
       return;
@@ -385,7 +400,7 @@ OspfNeighborFsm::RefreshHelloTimeout (uint32_t ifIndex, Ptr<OspfNeighbor> neighb
       m_app.m_helloTimeouts[ifIndex][remoteIp].Remove ();
     }
   m_app.m_helloTimeouts[ifIndex][remoteIp] =
-      Simulator::Schedule (MilliSeconds (m_app.m_ospfInterfaces[ifIndex]->GetRouterDeadInterval ()) +
+      Simulator::Schedule (MilliSeconds (interface->GetRouterDeadInterval ()) +
                    MilliSeconds (m_app.m_jitterRv->GetValue ()),
                            &OspfApp::HelloTimeout, &m_app, ifIndex, neighbor);
 }
@@ -395,14 +410,8 @@ void
 OspfNeighborFsm::FallbackToInit (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   NS_LOG_INFO ("Move to Init");
-  // TODO: Defer router lsa update until when the link is fully down
   neighbor->SetState (OspfNeighbor::Init);
-
-  // Fill in the current Router LSDB (throttled to prevent LSA storms)
-  m_app.ThrottledRecomputeRouterLsa ();
-
-  // Process the new LSA and generate/flood Area LSA if needed
-  m_app.ProcessLsa (m_app.m_routerLsdb[m_app.m_routerId.Get ()]);
+  neighbor->ClearAdjacencySyncState ();
 
   // Clear timeouts
   neighbor->RemoveTimeout ();
@@ -415,6 +424,7 @@ OspfNeighborFsm::FallbackToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
   NS_LOG_INFO ("Hello timeout. Move to Down");
   neighbor->SetState (OspfNeighbor::Down);
+  neighbor->ClearAdjacencySyncState ();
   // Fill in the current Router LSDB (throttled to prevent LSA storms)
   m_app.ThrottledRecomputeRouterLsa ();
 
@@ -430,12 +440,12 @@ OspfNeighborFsm::FallbackToDown (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 void
 OspfNeighborFsm::NegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, bool bitMS)
 {
-  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+  auto interface = m_app.GetOspfInterface (ifIndex);
+  if (interface == nullptr)
     {
       NS_LOG_WARN ("Negotiate DBD aborted due to invalid ifIndex: " << ifIndex);
       return;
     }
-  auto interface = m_app.m_ospfInterfaces[ifIndex];
   uint32_t ddSeqNum = neighbor->GetDDSeqNum ();
   NS_LOG_INFO ("DD Sequence Num (" << ddSeqNum << ") is generated to negotiate neighbor "
                                    << neighbor->GetNeighborString () << " via interface "
@@ -467,12 +477,12 @@ OspfNeighborFsm::NegotiateDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor, boo
 void
 OspfNeighborFsm::PollMasterDbd (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
 {
-  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+  auto interface = m_app.GetOspfInterface (ifIndex);
+  if (interface == nullptr)
     {
       NS_LOG_WARN ("Poll master DBD aborted due to invalid ifIndex: " << ifIndex);
       return;
     }
-  auto interface = m_app.m_ospfInterfaces[ifIndex];
   uint32_t ddSeqNum = neighbor->GetDDSeqNum ();
 
   Ptr<OspfDbd> ospfDbd = Create<OspfDbd> (interface->GetMtu (), 0, 0, 0, 1, 1, ddSeqNum);
@@ -549,12 +559,12 @@ OspfNeighborFsm::SendNextLsr (uint32_t ifIndex, Ptr<OspfNeighbor> neighbor)
       return;
     }
 
-  if (ifIndex >= m_app.m_ospfInterfaces.size () || m_app.m_ospfInterfaces[ifIndex] == nullptr)
+  auto interface = m_app.GetOspfInterface (ifIndex);
+  if (interface == nullptr)
     {
       NS_LOG_WARN ("LSR send aborted due to invalid ifIndex: " << ifIndex);
       return;
     }
-  auto interface = m_app.m_ospfInterfaces[ifIndex];
   std::vector<LsaHeader::LsaKey> lsaKeys = neighbor->PopMaxMtuFromLsrQueue (interface->GetMtu ());
   Ptr<LsRequest> lsRequest = Create<LsRequest> (lsaKeys);
   Ptr<Packet> packet = lsRequest->ConstructPacket ();

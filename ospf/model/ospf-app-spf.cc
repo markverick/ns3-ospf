@@ -2,12 +2,15 @@
 
 #include "ospf-app-private.h"
 
+#include "ospf-app-area-leader-controller.h"
+
 namespace ns3 {
 
 void
 OspfApp::UpdateL1ShortestPath ()
 {
   NS_LOG_FUNCTION (this);
+  ++m_l1ShortestPathRunCount;
 
   std::unordered_map<uint32_t, uint32_t> distanceTo;
   std::unordered_map<uint32_t, uint32_t> prevHop;
@@ -66,7 +69,13 @@ OspfApp::UpdateL1ShortestPath ()
       Ipv4Address ipAddress;
       for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
         {
-          auto neighbors = m_ospfInterfaces[i]->GetNeighbors ();
+          auto ospfIf = GetOspfInterface (i);
+          if (ospfIf == nullptr)
+            {
+              continue;
+            }
+
+          auto neighbors = ospfIf->GetNeighbors ();
           for (auto n : neighbors)
             {
               if (n->GetState () < OspfNeighbor::Full)
@@ -128,7 +137,13 @@ OspfApp::UpdateL1ShortestPath ()
         {
           for (uint32_t i = 1; i < m_ospfInterfaces.size (); i++)
             {
-              for (auto neighbor : m_ospfInterfaces[i]->GetNeighbors ())
+              auto ospfIf = GetOspfInterface (i);
+              if (ospfIf == nullptr)
+                {
+                  continue;
+                }
+
+              for (auto neighbor : ospfIf->GetNeighbors ())
                 {
                   if (neighbor->GetState () < OspfNeighbor::TwoWay)
                     {
@@ -139,16 +154,21 @@ OspfApp::UpdateL1ShortestPath ()
                       if (m_nextHopToShortestBorderRouter.find (neighbor->GetArea ()) ==
                               m_nextHopToShortestBorderRouter.end () ||
                           m_nextHopToShortestBorderRouter[neighbor->GetArea ()].second.metric >
-                              m_ospfInterfaces[i]->GetMetric ())
+                            ospfIf->GetMetric ())
                         {
                           m_nextHopToShortestBorderRouter[neighbor->GetArea ()] = std::make_pair (
-                              m_routerId.Get (), NextHop (i, neighbor->GetIpAddress (),
-                                                          m_ospfInterfaces[i]->GetMetric ()));
+                            m_routerId.Get (),
+                            NextHop (i, neighbor->GetIpAddress (), ospfIf->GetMetric ()));
                         }
                     }
                 }
             }
         }
+    }
+
+  if (m_enableAreaProxy)
+    {
+      m_areaLeader->UpdateLeadershipEligibility ();
     }
 
   UpdateRouting ();
@@ -158,6 +178,7 @@ void
 OspfApp::UpdateL2ShortestPath ()
 {
   NS_LOG_FUNCTION (this);
+  ++m_l2ShortestPathRunCount;
 
   std::unordered_map<uint32_t, uint32_t> distanceTo;
   std::unordered_map<uint32_t, uint32_t> prevHop;

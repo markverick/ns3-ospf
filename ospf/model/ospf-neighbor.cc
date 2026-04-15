@@ -139,6 +139,15 @@ OspfNeighbor::ClearDbdQueue ()
 }
 
 void
+OspfNeighbor::ClearLsrQueue ()
+{
+  while (!m_lsrQueue.empty ())
+    {
+      m_lsrQueue.pop ();
+    }
+}
+
+void
 OspfNeighbor::AddDbdQueue (LsaHeader routerLsa)
 {
   m_dbdQueue.emplace (routerLsa);
@@ -230,6 +239,17 @@ OspfNeighbor::ClearLsaKey ()
 {
   m_lsaSeqNums.clear ();
 }
+
+void
+OspfNeighbor::ClearAdjacencySyncState ()
+{
+  ClearDbdQueue ();
+  ClearLsrQueue ();
+  ClearLsaKey ();
+  m_lastDbdSent = nullptr;
+  m_lastLsrSent = nullptr;
+}
+
 bool
 OspfNeighbor::IsLsaKeyOutdated (LsaHeader lsaHeader)
 {
@@ -402,6 +422,19 @@ OspfNeighbor::BindTimeout (EventId event)
     }
   m_event = event;
 }
+
+  bool
+  OspfNeighbor::HasTimeout () const
+  {
+    return m_event.IsRunning ();
+  }
+
+  bool
+  OspfNeighbor::HasKeyedTimeout (LsaHeader::LsaKey lsaKey) const
+  {
+    auto it = m_keyedTimeouts.find (lsaKey);
+    return it != m_keyedTimeouts.end () && it->second.IsRunning ();
+  }
 
 void
 OspfNeighbor::RefreshLastHelloReceived ()
